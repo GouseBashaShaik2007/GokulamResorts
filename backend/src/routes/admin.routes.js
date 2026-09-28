@@ -1,0 +1,267 @@
+const { Router } = require('express');
+const { body, param, query } = require('express-validator');
+const rateLimit = require('express-rate-limit');
+const multer = require('multer');
+const validate = require('../middleware/validate');
+const adminAuth = require('../middleware/adminAuth');
+const { ApiError } = require('../middleware/errorHandler');
+const {
+  login,
+  addRoom,
+  updateRoom,
+  deleteRoom,
+  listAllRooms,
+  listAllCategories,
+  addCategory,
+  updateCategory,
+  deleteCategory,
+  listAllMenuItems,
+  addMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+  listFoodOrders,
+  uploadImage,
+} = require('../controllers/admin.controller');
+const hk = require('../controllers/housekeeping.controller');
+const mgr = require('../controllers/adminBooking.controller');
+const { PRIORITIES, STAFF_ROLES } = require('../services/cleaning.service');
+const { ALLOWED_TYPES: ALLOWED_IMAGE_TYPES } = require('../services/publicImage.service');
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) =>
+    ALLOWED_IMAGE_TYPES.includes(file.mimetype) ? cb(null, true) : cb(new ApiError(400, 'Image must be a JPG, PNG or WEBP')),
+});
+
+const router = Router();
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post(
+  '/login',
+  loginLimiter,
+  [body('email').isEmail().normalizeEmail(), body('password').isString().notEmpty()],
+  validate,
+  login
+);
+
+// Everything below requires a valid admin JWT.
+router.use(adminAuth);
+
+router.post(
+  '/add-room',
+  [
+    body('name').trim().notEmpty(),
+    body('description').optional().isString(),
+    body('pricePerNight').isFloat({ min: 0 }),
+    body('capacity').optional().isInt({ min: 1 }),
+    body('totalRooms').optional().isInt({ min: 0 }),
+    body('sizeSqft').optional({ nullable: true }).isInt({ min: 0 }),
+    body('bedType').optional({ nullable: true }).isString(),
+    body('amenities').optional().isArray(),
+    body('images').optional().isArray(),
+  ],
+  validate,
+  addRoom
+);
+
+router.get('/rooms', listAllRooms);
+
+router.put('/rooms/:id', [param('id').isInt({ min: 1 })], validate, updateRoom);
+
+router.delete('/rooms/:id', [param('id').isInt({ min: 1 })], validate, deleteRoom);
+
+// ----- Bookings (manager decisions). Listing/detail/desk actions live under /api/desk. -----
+
+const reasonField = body('reason').trim().isLength({ min: 3, max: 500 }).withMessage('A reason is required');
+const bookingId = [param('id').isInt({ min: 1 })];
+
+router.post('/bookings/:id/approve', bookingId, validate, mgr.approve);
+router.post('/bookings/:id/reject', [...bookingId, reasonField], validate, mgr.reject);
+router.post('/bookings/:id/cancel', [...bookingId, reasonField], validate, mgr.cancel);
+router.post(
+  '/bookings/:id/discount',
+  [
+    ...bookingId,
+    body('type').isIn(['percent', 'fixed']),
+    body('value').isFloat({ min: 0 }).toFloat(),
+    body('value')
+      .if(body('type').equals('percent'))
+      .isFloat({ max: 100 })
+      .withMessage('A percentage discount cannot exceed 100'),
+    reasonField,
+  ],
+  validate,
+  mgr.discount
+);
+
+router.get('/documents/:id/url', [param('id').isInt({ min: 1 })], validate, mgr.documentUrl);
+
+router.get('/rate-discounts', mgr.listRateDiscounts);
+router.post(
+  '/rate-discounts',
+  [
+    body('name').trim().notEmpty().isLength({ max: 100 }),
+    body('roomTypeId').optional({ values: 'null' }).isInt({ min: 1 }).toInt(),
+    body('discountType').isIn(['percent', 'fixed']),
+    body('value').isFloat({ gt: 0 }).toFloat(),
+    body('value')
+      .if(body('discountType').equals('percent'))
+      .isFloat({ max: 100 })
+      .withMessage('A percentage discount cannot exceed 100'),
+    body('startDate').isISO8601(),
+    body('endDate').isISO8601(),
+    reasonField,
+  ],
+  validate,
+  mgr.addRateDiscount
+);
+router.put(
+  '/rate-discounts/:id',
+  [param('id').isInt({ min: 1 }), body('isActive').isBoolean().toBoolean()],
+  validate,
+  mgr.updateRateDiscount
+);
+
+router.get('/menu/categories', listAllCategories);
+
+router.post(
+  '/menu/categories',
+  [body('name').trim().notEmpty(), body('sortOrder').optional().isInt({ min: 0 })],
+  validate,
+  addCategory
+);
+
+router.put('/menu/categories/:id', [param('id').isInt({ min: 1 })], validate, updateCategory);
+
+router.delete('/menu/categories/:id', [param('id').isInt({ min: 1 })], validate, deleteCategory);
+
+router.get('/menu/items', listAllMenuItems);
+
+router.post(
+  '/menu/items',
+  [
+    body('categoryId').isInt({ min: 1 }),
+    body('name').trim().notEmpty(),
+    body('description').optional().isString(),
+    body('price').isFloat({ min: 0 }),
+    body('image').optional({ nullable: true }).isString(),
+    body('isVeg').optional().isBoolean(),
+  ],
+  validate,
+  addMenuItem
+);
+
+router.put('/menu/items/:id', [param('id').isInt({ min: 1 })], validate, updateMenuItem);
+
+router.delete('/menu/items/:id', [param('id').isInt({ min: 1 })], validate, deleteMenuItem);
+
+router.get('/food-orders', listFoodOrders);
+
+router.post(
+  '/upload-image',
+  imageUpload.single('file'),
+  [query('type').isIn(['food', 'room'])],
+  validate,
+  uploadImage
+);
+
+// ----- Housekeeping -----
+
+router.get('/staff', hk.listStaff);
+
+router.post(
+  '/staff',
+  [
+    body('name').trim().notEmpty(),
+    body('phone').trim().isLength({ min: 7, max: 20 }).withMessage('A valid phone number is required'),
+    body('role').isIn(STAFF_ROLES).withMessage(`role must be one of: ${STAFF_ROLES.join(', ')}`),
+    body('password').isString().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  ],
+  validate,
+  hk.addStaff
+);
+
+router.put(
+  '/staff/:id',
+  [
+    param('id').isInt({ min: 1 }),
+    body('name').optional().trim().notEmpty(),
+    body('isActive').optional().isBoolean(),
+    body('password').optional({ checkFalsy: true }).isString().isLength({ min: 6 }),
+  ],
+  validate,
+  hk.updateStaff
+);
+
+router.get('/room-units', hk.listRoomUnits);
+
+router.post(
+  '/room-units',
+  [
+    body('roomTypeId').isInt({ min: 1 }).toInt(),
+    body('unitNumber').trim().notEmpty().isLength({ max: 20 }),
+    body('floor').optional({ nullable: true }).isString().isLength({ max: 20 }),
+    body('view').optional({ nullable: true }).isString().isLength({ max: 60 }),
+  ],
+  validate,
+  hk.addRoomUnit
+);
+
+router.put(
+  '/room-units/:id',
+  [
+    param('id').isInt({ min: 1 }),
+    body('roomTypeId').optional().isInt({ min: 1 }).toInt(),
+    body('unitNumber').optional().trim().notEmpty().isLength({ max: 20 }),
+    body('floor').optional({ nullable: true }).isString().isLength({ max: 20 }),
+    body('view').optional({ nullable: true }).isString().isLength({ max: 60 }),
+    body('isActive').optional().isBoolean(),
+  ],
+  validate,
+  hk.updateRoomUnit
+);
+
+router.get('/cleaning/jobs', hk.listJobs);
+
+router.post(
+  '/cleaning/jobs',
+  [
+    body('roomUnitId').isInt({ min: 1 }).toInt(),
+    body('priority').optional().isIn(PRIORITIES),
+    body('notes').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 1000 }),
+  ],
+  validate,
+  hk.createJob
+);
+
+// Each id may be omitted (unchanged), null (unassign) or a staff id.
+const optionalStaffId = (field) => body(field).optional({ values: 'null' }).isInt({ min: 1 }).toInt();
+router.put(
+  '/cleaning/jobs/:id/assign',
+  [
+    param('id').isInt({ min: 1 }),
+    optionalStaffId('beddingStaffId'),
+    optionalStaffId('toiletryStaffId'),
+    optionalStaffId('inspectorId'),
+  ],
+  validate,
+  hk.assignJob
+);
+
+router.patch(
+  '/cleaning/jobs/:id/priority',
+  [param('id').isInt({ min: 1 }), body('priority').isIn(PRIORITIES)],
+  validate,
+  hk.updateJobPriority
+);
+
+router.post('/cleaning/run-nightly', hk.runNightly);
+
+module.exports = router;

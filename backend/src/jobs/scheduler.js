@@ -1,0 +1,44 @@
+/**
+ * Background jobs (resort timezone):
+ *   every 2 min   expire unpaid holds + unapproved paid bookings (auto refund)
+ *   every minute  retry guest messages still in the outbox
+ *   11 PM         cleaning safety net for check-outs without a cleaning job
+ *   3:30 AM       delete ID documents past the retention period
+ */
+const cron = require('node-cron');
+const { TIMEZONE } = require('../utils/dates');
+const bookings = require('../services/booking.service');
+const notify = require('../services/notify.service');
+const { scheduleNightlyCleaning } = require('./nightlyCleaning');
+
+function every(schedule, name, fn) {
+  let running = false;
+  cron.schedule(
+    schedule,
+    async () => {
+      if (running) return; // don't overlap slow runs
+      running = true;
+      try {
+        const result = await fn();
+        if (result && Object.values(result).some((v) => v)) console.log(`[jobs] ${name}:`, result);
+      } catch (err) {
+        console.error(`[jobs] ${name} failed:`, err);
+      } finally {
+        running = false;
+      }
+    },
+    { timezone: TIMEZONE }
+  );
+}
+
+function startScheduler() {
+  every('*/2 * * * *', 'expire holds', () => bookings.expireHolds());
+  every('* * * * *', 'notification retry', () => notify.flush());
+  every(process.env.DOC_PURGE_CRON || '30 3 * * *', 'purge ID documents', async () => ({
+    purged: await bookings.purgeExpiredDocuments(),
+  }));
+  scheduleNightlyCleaning();
+  console.log(`[jobs] scheduler started (${TIMEZONE}); ID documents kept ${bookings.RETENTION_DAYS} days after the stay`);
+}
+
+module.exports = { startScheduler };
