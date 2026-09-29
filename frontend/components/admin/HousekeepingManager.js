@@ -19,6 +19,51 @@ function Badge({ className, children }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>{children}</span>;
 }
 
+// Colors as specified for the at-a-glance room board (distinct from the
+// badge palette used elsewhere, which is tuned for text-on-pill contrast).
+const TILE_COLOR = {
+  Dirty: '#E8A33D',
+  Cleaning: '#3B82F6',
+  Inspection: '#8B5CF6',
+  Ready: '#2E9E6A',
+};
+
+// One tile per physical room, colored by current housekeeping status — a
+// glanceable summary above the detailed job cards below.
+function RoomStatusBoard({ units, filter, onFilterStatus }) {
+  const active = units.filter((u) => u.is_active);
+  return (
+    <div className="card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Rooms at a glance</p>
+        <div className="flex flex-wrap gap-3 text-xs text-navy-400">
+          {Object.entries(TILE_COLOR).map(([status, color]) => (
+            <span key={status} className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+              {status}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
+        {active.map((u) => (
+          <button
+            key={u.id}
+            onClick={() => onFilterStatus(u.status)}
+            title={`${u.unit_number} — ${u.status}`}
+            className={`flex h-11 items-center justify-center rounded-lg text-xs font-bold text-white transition ${
+              filter === u.status ? 'ring-2 ring-offset-2 ring-offset-navy-950' : ''
+            }`}
+            style={{ backgroundColor: TILE_COLOR[u.status], ...(filter === u.status ? { '--tw-ring-color': TILE_COLOR[u.status] } : {}) }}
+          >
+            {u.unit_number}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SubTab({ active, onClick, children }) {
   return (
     <button
@@ -176,6 +221,7 @@ function CleaningBoard({ staff, units }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('open');
+  const [nightlyMenuOpen, setNightlyMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -192,6 +238,10 @@ function CleaningBoard({ staff, units }) {
   const live = useCleaningSocket('gokulam_admin_token', load);
 
   const runNightly = async () => {
+    setNightlyMenuOpen(false);
+    if (!confirm('Run the nightly cleaning-job generation now? This creates a Dirty job for every checkout that doesn\'t already have one. It never creates duplicates, but it does affect the live board for every housekeeper immediately.')) {
+      return;
+    }
     setMessage('');
     try {
       const res = await api.post('/admin/cleaning/run-nightly', {}, withAdminAuth());
@@ -224,11 +274,36 @@ function CleaningBoard({ staff, units }) {
             <span className={`h-2 w-2 rounded-full ${live ? 'bg-green-400' : 'bg-navy-500'}`} />
             {live ? 'Live' : 'Offline'}
           </span>
-          <button onClick={runNightly} className="btn-outline px-4 py-1.5 text-xs" title="Same as the automatic 11 PM run. Never creates duplicates.">
-            Run nightly now
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setNightlyMenuOpen((v) => !v)}
+              className="rounded-lg border border-navy-700 px-2.5 py-1.5 text-sm text-navy-300 hover:bg-navy-800"
+              aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={nightlyMenuOpen}
+            >
+              ⋯
+            </button>
+            {nightlyMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setNightlyMenuOpen(false)} />
+                <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-navy-700 bg-navy-900 py-1 shadow-lg">
+                  <button
+                    role="menuitem"
+                    onClick={runNightly}
+                    className="block w-full px-4 py-2 text-left text-sm text-navy-200 hover:bg-navy-800"
+                    title="Same as the automatic 11 PM run. Never creates duplicates."
+                  >
+                    Run nightly now…
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      <RoomStatusBoard units={units} filter={filter} onFilterStatus={setFilter} />
 
       <MarkDirtyForm units={units} openUnitIds={openUnitIds} onCreated={load} onError={setError} />
 

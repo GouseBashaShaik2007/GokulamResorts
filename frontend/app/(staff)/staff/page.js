@@ -1,9 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import api, { withStaffAuth } from '@/lib/api';
 import useCleaningSocket from '@/lib/useCleaningSocket';
 import { JOB_STATUS_STYLE, PRIORITY_STYLE, TASK_STATUS_STYLE } from '@/lib/cleaningStyles';
+import StaffSkeleton from '../_components/StaffSkeleton';
+import { clearSignedIn } from '../_lib/session';
 
 const TOKEN_KEY = 'gokulam_staff_token';
 const STAFF_KEY = 'gokulam_staff_profile';
@@ -14,61 +17,6 @@ const REASON_LABEL = { checkout: 'Checkout clean', manual: 'Marked dirty' };
 
 function Badge({ className, children }) {
   return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${className}`}>{children}</span>;
-}
-
-function LoginForm({ onLoggedIn }) {
-  const [form, setForm] = useState({ phone: '', password: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const res = await api.post('/staff/login', form);
-      window.localStorage.setItem(TOKEN_KEY, res.data.token);
-      window.localStorage.setItem(STAFF_KEY, JSON.stringify(res.data.staff));
-      if (res.data.staff.role === 'FrontDesk') {
-        window.location.href = '/frontdesk';
-        return;
-      }
-      onLoggedIn(res.data.staff);
-    } catch (err) {
-      setError(errMsg(err, 'Login failed'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="mx-auto max-w-md px-4 py-16 sm:px-6">
-      <div className="card p-8">
-        <p className="eyebrow">Housekeeping</p>
-        <h1 className="mt-2 font-serif text-2xl font-bold text-navy-50">Staff sign in</h1>
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="label" htmlFor="phone">Phone number</label>
-            <input
-              id="phone" type="tel" inputMode="tel" autoComplete="username" required className="input-field"
-              value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="password">Password</label>
-            <input
-              id="password" type="password" autoComplete="current-password" required className="input-field"
-              value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-            />
-          </div>
-          {error && <p className="text-sm text-red-300">{error}</p>}
-          <button type="submit" disabled={loading} className="btn-gold w-full disabled:opacity-60">
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 function RoomHeader({ task }) {
@@ -316,32 +264,37 @@ function TaskBoard({ staff, onLogout }) {
 }
 
 export default function StaffPage() {
-  const [checked, setChecked] = useState(false);
+  const router = useRouter();
   const [staff, setStaff] = useState(null);
-
-  useEffect(() => {
-    try {
-      if (window.localStorage.getItem(TOKEN_KEY)) {
-        const profile = JSON.parse(window.localStorage.getItem(STAFF_KEY) || 'null');
-        if (profile?.role === 'FrontDesk') {
-          window.location.href = '/frontdesk';
-          return;
-        }
-        setStaff(profile);
-      }
-    } catch {
-      // corrupt profile — fall through to login
-    }
-    setChecked(true);
-  }, []);
 
   const logout = useCallback(() => {
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(STAFF_KEY);
-    setStaff(null);
+    clearSignedIn('staff');
+    router.replace('/staff/login');
+  }, [router]);
+
+  useEffect(() => {
+    // middleware.js already redirected here if the session cookie was
+    // missing; this covers a token that expired without a full navigation,
+    // plus the FrontDesk role landing on the wrong board.
+    try {
+      if (!window.localStorage.getItem(TOKEN_KEY)) {
+        logout();
+        return;
+      }
+      const profile = JSON.parse(window.localStorage.getItem(STAFF_KEY) || 'null');
+      if (profile?.role === 'FrontDesk') {
+        router.replace('/frontdesk');
+        return;
+      }
+      setStaff(profile);
+    } catch {
+      logout();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!checked) return null;
-  if (!staff) return <LoginForm onLoggedIn={setStaff} />;
+  if (!staff) return <StaffSkeleton />;
   return <TaskBoard staff={staff} onLogout={logout} />;
 }

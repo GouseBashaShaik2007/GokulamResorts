@@ -8,14 +8,16 @@ const { listActiveOrders, updateOrderStatus } = require('../controllers/kitchenO
 
 const router = Router();
 
+// A 4-6 digit PIN has far less entropy than a password, so this device is
+// throttled harder than the admin/staff logins (10 attempts / 15 min / IP).
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-router.post('/login', loginLimiter, [body('password').isString().notEmpty()], validate, login);
+router.post('/login', loginLimiter, [body('pin').matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits')], validate, login);
 
 // Everything below requires a valid kitchen JWT.
 router.use(kitchenAuth);

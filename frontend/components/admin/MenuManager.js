@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
 
 const emptyCategoryForm = { name: '', sortOrder: 0 };
-const emptyItemForm = { categoryId: '', name: '', description: '', price: '', image: '', isVeg: true };
+const emptyItemForm = { categoryId: '', name: '', description: '', price: '', image: '', isVeg: true, spiceAdjustable: false };
 
 export default function MenuManager() {
   const [categories, setCategories] = useState([]);
@@ -96,6 +96,7 @@ export default function MenuManager() {
     price: Number(itemForm.price),
     image: itemForm.image || null,
     isVeg: itemForm.isVeg,
+    spiceAdjustable: itemForm.spiceAdjustable,
   });
 
   const handleItemChange = (e) => {
@@ -136,6 +137,7 @@ export default function MenuManager() {
       price: item.price,
       image: item.image || '',
       isVeg: item.is_veg,
+      spiceAdjustable: item.spice_adjustable || false,
     });
   };
 
@@ -272,6 +274,15 @@ export default function MenuManager() {
                 <label htmlFor="isVeg" className="text-sm text-navy-200">Vegetarian</label>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="spiceAdjustable" name="spiceAdjustable" type="checkbox"
+                checked={itemForm.spiceAdjustable} onChange={handleItemChange}
+              />
+              <label htmlFor="spiceAdjustable" className="text-sm text-navy-200">
+                Offer spice level (guests pick Mild / Medium / Spicy when ordering)
+              </label>
+            </div>
             <div>
               <label className="label">Photo</label>
               <div className="flex items-center gap-4">
@@ -331,6 +342,7 @@ export default function MenuManager() {
                   </p>
                   <p className="text-sm text-navy-400">
                     {item.category_name} · ₹{Number(item.price).toLocaleString('en-IN')} · {item.is_veg ? 'Veg' : 'Non-Veg'}
+                    {item.spice_adjustable ? ' · Spice level offered' : ''}
                   </p>
                 </div>
               </div>

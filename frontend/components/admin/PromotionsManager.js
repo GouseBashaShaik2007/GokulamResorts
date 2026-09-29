@@ -3,10 +3,51 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
 import { inr, fmtDate, todayIST, errMsg } from '../../lib/bookingUi';
-import DeskBoard from '../bookings/DeskBoard';
 
-// Standing price promotions, e.g. "20% off Villas in June".
-function PromotionsManager() {
+const PREVIEW_NIGHTS = 3;
+
+function DiscountPreview({ roomTypeId, discountType, value, types }) {
+  const value_ = Number(value);
+  if (!value_ || value_ <= 0) return null;
+
+  const rooms = roomTypeId ? types.filter((t) => String(t.id) === String(roomTypeId)) : types;
+  if (rooms.length === 0) return null;
+
+  const line = (room) => {
+    const original = Number(room.price_per_night);
+    const discounted =
+      discountType === 'percent'
+        ? Math.max(0, original * (1 - value_ / 100))
+        : Math.max(0, original - value_);
+    return { name: room.name, original, discounted };
+  };
+
+  // "All room types" — preview against the first couple so the form doesn't
+  // need a selection to show something useful.
+  const previewRooms = roomTypeId ? rooms : rooms.slice(0, 2);
+
+  return (
+    <div className="rounded-lg border border-gold-500/30 bg-gold-500/5 px-4 py-3 text-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gold-400">Live preview</p>
+      <ul className="mt-1.5 space-y-1">
+        {previewRooms.map((room) => {
+          const { name, original, discounted } = line(room);
+          return (
+            <li key={name} className="text-navy-100">
+              {name}: {inr(original)} → <span className="font-semibold text-gold-400">{inr(discounted)}</span> per
+              night <span className="text-navy-400">(≈ {inr(discounted * PREVIEW_NIGHTS)} for {PREVIEW_NIGHTS} nights)</span>
+            </li>
+          );
+        })}
+      </ul>
+      {!roomTypeId && rooms.length > 2 && (
+        <p className="mt-1 text-xs text-navy-500">+ {rooms.length - 2} more room type(s), same discount.</p>
+      )}
+    </div>
+  );
+}
+
+export default function PromotionsManager() {
   const today = todayIST();
   const empty = { name: '', roomTypeId: '', discountType: 'percent', value: '', startDate: today, endDate: today, reason: '' };
   const [rows, setRows] = useState([]);
@@ -48,9 +89,10 @@ function PromotionsManager() {
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr]">
       <form onSubmit={submit} className="card space-y-3 p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">New promotion</h2>
+        <h2 className="font-serif text-xl font-bold text-navy-50">New offer</h2>
         <p className="text-xs text-navy-400">
-          Applies per night to new bookings and extensions. When two promotions cover the same night, the bigger discount wins (they don't stack). Existing bookings keep their price.
+          Applies per night to new bookings and extensions. When two offers cover the same night, the bigger
+          discount wins (they don&apos;t stack). Existing bookings keep their price.
         </p>
         <div>
           <label className="label">Name (shown to guests)</label>
@@ -70,6 +112,9 @@ function PromotionsManager() {
           </select>
           <input required type="number" min="1" step="0.01" max={form.discountType === 'percent' ? 100 : undefined} className="input-field py-2" placeholder="Value" value={form.value} onChange={set('value')} />
         </div>
+
+        <DiscountPreview roomTypeId={form.roomTypeId} discountType={form.discountType} value={form.value} types={types} />
+
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="label">First night</label>
@@ -85,11 +130,11 @@ function PromotionsManager() {
           <input required minLength={3} className="input-field py-2" value={form.reason} onChange={set('reason')} />
         </div>
         {error && <p className="text-sm text-red-300">{error}</p>}
-        <button className="btn-gold w-full">Add promotion</button>
+        <button className="btn-gold w-full">Add offer</button>
       </form>
 
       <div className="card p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">Promotions</h2>
+        <h2 className="font-serif text-xl font-bold text-navy-50">Offers</h2>
         <div className="mt-4 space-y-2">
           {rows.map((p) => (
             <div key={p.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 py-3 ${p.is_active ? '' : 'opacity-50'}`}>
@@ -106,33 +151,9 @@ function PromotionsManager() {
               </button>
             </div>
           ))}
-          {rows.length === 0 && <p className="text-sm text-navy-400">No promotions yet.</p>}
+          {rows.length === 0 && <p className="text-sm text-navy-400">No offers yet.</p>}
         </div>
       </div>
-    </div>
-  );
-}
-
-export default function BookingsManager() {
-  const [view, setView] = useState('desk');
-  return (
-    <div>
-      <div className="mb-6 flex gap-2 border-b border-navy-800 pb-3">
-        {[
-          ['desk', 'Approvals & front desk'],
-          ['promotions', 'Promotions'],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setView(key)}
-            className={`rounded-lg px-3 py-1.5 text-sm ${view === key ? 'bg-navy-700 text-gold-400' : 'text-navy-300 hover:text-navy-100'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {view === 'desk' && <DeskBoard mode="admin" />}
-      {view === 'promotions' && <PromotionsManager />}
     </div>
   );
 }

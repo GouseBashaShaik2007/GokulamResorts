@@ -225,6 +225,18 @@ async function seed() {
   }
   console.log(`Seeded ${unitCount} physical room units (skipped any that already exist).`);
 
+  // Demo kitchen staff so /kitchen has a working PIN out of the box. Change
+  // or add real cooks from Admin → Kitchen Staff before going live.
+  const demoPin = process.env.KITCHEN_STAFF_SEED_PIN || '1234';
+  const { rows: existingKitchenStaff } = await pool.query(`SELECT id FROM kitchen_staff LIMIT 1`);
+  if (existingKitchenStaff.length === 0) {
+    const pinHash = await bcrypt.hash(demoPin, 10);
+    await pool.query(`INSERT INTO kitchen_staff (name, pin_hash) VALUES ($1, $2)`, ['Chef Ravi', pinHash]);
+    console.log(`Seeded demo kitchen staff "Chef Ravi" with PIN ${demoPin} (change this before going live).`);
+  } else {
+    console.log('Kitchen staff already exist — skipped demo seed.');
+  }
+
   await pool.end();
 }
 

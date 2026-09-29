@@ -4,6 +4,7 @@ const { query } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
 const publicImage = require('../services/publicImage.service');
+const { logAction } = require('../utils/auditLog');
 
 // POST /api/admin/login
 const login = asyncHandler(async (req, res) => {
@@ -356,7 +357,75 @@ const listFoodOrders = asyncHandler(async (req, res) => {
   });
 });
 
+const FOOD_ORDER_STATUSES = ['new', 'preparing', 'ready', 'served', 'cancelled'];
+
+// PATCH /api/admin/food-orders/:id/status — lets a manager step in on the
+// same board the kitchen uses (e.g. cover a stuck order), separate from the
+// kitchen's own PATCH /api/kitchen/orders/:id/status.
+const updateFoodOrderStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!FOOD_ORDER_STATUSES.includes(status)) {
+    throw new ApiError(400, `status must be one of: ${FOOD_ORDER_STATUSES.join(', ')}`);
+  }
+
+  const { rows } = await query(
+    `UPDATE food_orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING id, status`,
+    [status, id]
+  );
+
+  if (rows.length === 0) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  logAction({ actorType: 'admin', actorId: req.admin?.sub, action: 'food_order_status_change', details: { orderId: rows[0].id, status } });
+
+  res.json({ success: true, order: rows[0] });
+});
+
 // POST /api/admin/upload-image?type=food|room
+// GET /api/admin/settings
+const getSettings = asyncHandler(async (req, res) => {
+  const { rows } = await query('SELECT site_url, updated_at FROM resort_settings WHERE id = 1');
+  res.json({ success: true, settings: rows[0] || { site_url: '', updated_at: null } });
+});
+
+// PUT /api/admin/settings
+// Currently just the production site URL used to build table/kiosk QR codes.
+// Deliberately never defaulted to the request's own origin — an admin must
+// type the real domain, or QR codes silently point at localhost/whatever
+// dev machine generated them.
+const updateSettings = asyncHandler(async (req, res) => {
+  const { siteUrl } = req.body;
+
+  let normalized = String(siteUrl || '').trim().replace(/\/+$/, '');
+  if (normalized) {
+    let parsed;
+    try {
+      parsed = new URL(normalized);
+    } catch {
+      throw new ApiError(400, 'Site address must be a full URL, e.g. https://gokulamresorts.in');
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new ApiError(400, 'Site address must start with http:// or https://');
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
+      throw new ApiError(400, 'Site address cannot be a localhost/dev address — QR codes must point at the real production site');
+    }
+    normalized = parsed.toString().replace(/\/+$/, '');
+  }
+
+  const { rows } = await query(
+    `UPDATE resort_settings SET site_url = $1, updated_by = $2, updated_at = now() WHERE id = 1
+     RETURNING site_url, updated_at`,
+    [normalized, req.admin?.sub || null]
+  );
+
+  res.json({ success: true, settings: rows[0] });
+});
+
 const uploadImage = asyncHandler(async (req, res) => {
   const { type } = req.query;
   if (!['food', 'room'].includes(type)) {
@@ -385,5 +454,8 @@ module.exports = {
   updateMenuItem,
   deleteMenuItem,
   listFoodOrders,
+  updateFoodOrderStatus,
   uploadImage,
+  getSettings,
+  updateSettings,
 };

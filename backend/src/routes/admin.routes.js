@@ -20,10 +20,14 @@ const {
   updateMenuItem,
   deleteMenuItem,
   listFoodOrders,
+  updateFoodOrderStatus,
   uploadImage,
+  getSettings,
+  updateSettings,
 } = require('../controllers/admin.controller');
 const hk = require('../controllers/housekeeping.controller');
 const mgr = require('../controllers/adminBooking.controller');
+const kitchenStaff = require('../controllers/kitchenStaff.controller');
 const { PRIORITIES, STAFF_ROLES } = require('../services/cleaning.service');
 const { ALLOWED_TYPES: ALLOWED_IMAGE_TYPES } = require('../services/publicImage.service');
 
@@ -153,6 +157,7 @@ router.post(
     body('price').isFloat({ min: 0 }),
     body('image').optional({ nullable: true }).isString(),
     body('isVeg').optional().isBoolean(),
+    body('spiceAdjustable').optional().isBoolean(),
   ],
   validate,
   addMenuItem
@@ -163,6 +168,13 @@ router.put('/menu/items/:id', [param('id').isInt({ min: 1 })], validate, updateM
 router.delete('/menu/items/:id', [param('id').isInt({ min: 1 })], validate, deleteMenuItem);
 
 router.get('/food-orders', listFoodOrders);
+
+router.patch(
+  '/food-orders/:id/status',
+  [param('id').isInt({ min: 1 }), body('status').isIn(['new', 'preparing', 'ready', 'served', 'cancelled'])],
+  validate,
+  updateFoodOrderStatus
+);
 
 router.post(
   '/upload-image',
@@ -263,5 +275,35 @@ router.patch(
 );
 
 router.post('/cleaning/run-nightly', hk.runNightly);
+
+// ----- Kitchen staff (per-cook PIN logins for the kitchen display) -----
+
+const pinField = body('pin').matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits');
+
+router.get('/kitchen-staff', kitchenStaff.listKitchenStaff);
+
+router.post(
+  '/kitchen-staff',
+  [body('name').trim().notEmpty().isLength({ max: 150 }), pinField],
+  validate,
+  kitchenStaff.addKitchenStaff
+);
+
+router.put(
+  '/kitchen-staff/:id',
+  [
+    param('id').isInt({ min: 1 }),
+    body('name').optional().trim().notEmpty().isLength({ max: 150 }),
+    body('pin').optional().matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits'),
+    body('isActive').optional().isBoolean(),
+  ],
+  validate,
+  kitchenStaff.updateKitchenStaff
+);
+
+// ----- Settings -----
+
+router.get('/settings', getSettings);
+router.put('/settings', [body('siteUrl').optional({ checkFalsy: true }).isString().isLength({ max: 500 })], validate, updateSettings);
 
 module.exports = router;

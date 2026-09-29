@@ -68,6 +68,21 @@ CREATE TABLE IF NOT EXISTS staff (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Kitchen tablet logins: a short numeric PIN per cook instead of one shared
+-- device password, so order actions can be attributed to a person (see
+-- audit_log below). Deliberately its own table, not a `staff` role — PINs
+-- are low-entropy by design (fast to type on a greasy tablet), so they are
+-- looked up by scanning active rows and bcrypt-comparing each, not by a
+-- direct WHERE match; fine at kitchen-team scale (a handful of cooks).
+CREATE TABLE IF NOT EXISTS kitchen_staff (
+  id            SERIAL PRIMARY KEY,
+  name          VARCHAR(150) NOT NULL,
+  pin_hash      VARCHAR(255) NOT NULL,
+  is_active     BOOLEAN NOT NULL DEFAULT true,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ---------------------------------------------------------
 -- Bookings — the source of truth. Guests have no accounts; a guest is the
 -- name/phone/email on the booking.
@@ -243,6 +258,19 @@ CREATE TABLE IF NOT EXISTS rate_discounts (
   CONSTRAINT chk_rate_discount_percent CHECK (discount_type <> 'percent' OR value <= 100)
 );
 
+-- Single-row table of resort-wide settings editable from the admin panel.
+-- site_url is the production address baked into printed table QR codes; kept
+-- empty until an admin sets it deliberately (never inferred from the request,
+-- which would silently print "localhost" onto real table tents).
+CREATE TABLE IF NOT EXISTS resort_settings (
+  id          SMALLINT PRIMARY KEY DEFAULT 1,
+  site_url    TEXT NOT NULL DEFAULT '',
+  updated_by  INTEGER REFERENCES admins(id),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_resort_settings_singleton CHECK (id = 1)
+);
+INSERT INTO resort_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
 -- Who did what: approvals, rejections, discounts, payments, check-in/out,
 -- overrides, automatic expiries.
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -254,6 +282,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details     JSONB NOT NULL DEFAULT '{}',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 'kitchen' added so per-cook order actions (see kitchen_staff above) are
+-- distinguishable from housekeeping/front-desk 'staff' entries — both id
+-- spaces start at 1, so conflating them would make actor_id ambiguous.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_actor_type_check;
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_actor_type_check
+  CHECK (actor_type IN ('admin', 'staff', 'kitchen', 'guest', 'system'));
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_booking_id ON audit_log (booking_id);
 

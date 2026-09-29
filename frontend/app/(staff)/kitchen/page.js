@@ -1,12 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import api, { withKitchenAuth } from '@/lib/api';
+import { clearSignedIn } from '../_lib/session';
 
 // Kitchen wall display. Deliberately its own high-contrast dark look (not the
 // guest site theme): readable from across a hot, bright kitchen.
 
 const TOKEN_KEY = 'gokulam_kitchen_token';
+const STAFF_KEY = 'gokulam_kitchen_staff';
 const POLL_MS = 5000;
 const AMBER_MIN = 10;
 const RED_MIN = 20;
@@ -84,41 +87,10 @@ function elapsed(fromIso, now) {
   return { mins, label };
 }
 
-function LoginForm({ onLoggedIn }) {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const res = await api.post('/kitchen/login', { password });
-      window.localStorage.setItem(TOKEN_KEY, res.data.token);
-      onLoggedIn();
-    } catch (err) {
-      setError(err?.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+function KitchenSkeleton() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-950 px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-700 bg-neutral-900 p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Kitchen</p>
-        <h1 className="text-2xl font-bold text-white">Sign in</h1>
-        <input
-          id="password" type="password" required placeholder="Kitchen password" aria-label="Kitchen password"
-          className="w-full rounded-lg border border-neutral-600 bg-neutral-800 px-4 py-3 text-white placeholder:text-neutral-400 focus:border-amber-300 focus:outline-none"
-          value={password} onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button type="submit" disabled={loading} className="w-full rounded-lg bg-amber-300 py-3 font-bold text-neutral-950 disabled:opacity-60">
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+    <div className="flex min-h-screen items-center justify-center bg-neutral-950">
+      <div className="h-3 w-3 animate-ping rounded-full bg-amber-300" />
     </div>
   );
 }
@@ -205,8 +177,9 @@ function OrderCard({ order, now, onAdvance, onCancel }) {
 }
 
 export default function KitchenPage() {
-  const [checked, setChecked] = useState(false);
+  const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(false);
+  const [staffName, setStaffName] = useState('');
   const [shiftStarted, setShiftStarted] = useState(false);
   const [orders, setOrders] = useState([]);
   const [now, setNow] = useState(() => Date.now());
@@ -215,9 +188,27 @@ export default function KitchenPage() {
   const soundOnRef = useRef(false);
   const wakeLock = useWakeLock(shiftStarted);
 
+  const signOut = useCallback(() => {
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(STAFF_KEY);
+    clearSignedIn('kitchen');
+    router.replace('/kitchen/login');
+  }, [router]);
+
   useEffect(() => {
-    setLoggedIn(!!window.localStorage.getItem(TOKEN_KEY));
-    setChecked(true);
+    // middleware.js already redirected here if the session cookie was
+    // missing; this covers a token that expired without a full navigation.
+    if (!window.localStorage.getItem(TOKEN_KEY)) {
+      signOut();
+      return;
+    }
+    try {
+      setStaffName(JSON.parse(window.localStorage.getItem(STAFF_KEY) || 'null')?.name || '');
+    } catch {
+      // ignore corrupt profile — cosmetic only
+    }
+    setLoggedIn(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Timers tick every second.
@@ -237,13 +228,12 @@ export default function KitchenPage() {
       setError('');
     } catch (err) {
       if (err?.response?.status === 401 || err?.response?.status === 403) {
-        window.localStorage.removeItem(TOKEN_KEY);
-        setLoggedIn(false);
+        signOut();
       } else {
         setError('Connection lost — retrying…');
       }
     }
-  }, []);
+  }, [signOut]);
 
   useEffect(() => {
     if (!loggedIn) return undefined;
@@ -267,8 +257,7 @@ export default function KitchenPage() {
     }
   };
 
-  if (!checked) return null;
-  if (!loggedIn) return <LoginForm onLoggedIn={() => setLoggedIn(true)} />;
+  if (!loggedIn) return <KitchenSkeleton />;
 
   const grouped = ['new', 'preparing', 'ready'].map((status) => ({
     status,
@@ -283,6 +272,7 @@ export default function KitchenPage() {
       <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950/95 px-6 py-4 backdrop-blur">
         <div className="flex items-baseline gap-4">
           <h1 className="text-2xl font-bold">Live orders</h1>
+          {staffName && <span className="text-sm text-neutral-400">Signed in as {staffName}</span>}
           {late > 0 && <span className="rounded-full bg-red-600 px-3 py-1 text-sm font-bold">{late} over {RED_MIN} min</span>}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -300,9 +290,8 @@ export default function KitchenPage() {
           </span>
           <button
             onClick={() => {
-              window.localStorage.removeItem(TOKEN_KEY);
-              setLoggedIn(false);
               setShiftStarted(false);
+              signOut();
             }}
             className="rounded-lg border border-neutral-600 px-3 py-1.5 text-neutral-300"
           >
