@@ -96,16 +96,20 @@ CREATE TABLE IF NOT EXISTS bookings (
                             'pending_payment', 'paid', 'confirmed', 'checked_in',
                             'checked_out', 'cancelled', 'rejected', 'no_show')),
 
-  -- Pricing snapshot (INR). total = base - promo - manual, never below 0.
+  -- Pricing snapshot (INR). total = (base - promo - manual) + GST, never below 0.
+  -- See pricing.service.js; GST is per night (5% up to ₹7,500, else 18%).
   nightly_rate            NUMERIC(10,2) NOT NULL,
   base_amount             NUMERIC(10,2) NOT NULL,
   promo_discount          NUMERIC(10,2) NOT NULL DEFAULT 0,
   promo_details           JSONB NOT NULL DEFAULT '[]',   -- [{date, ruleId, name, amount}]
+  nights_detail           JSONB NOT NULL DEFAULT '[]',   -- [{date, rate, promo}] one per night
   manual_discount_type    VARCHAR(10) CHECK (manual_discount_type IN ('percent', 'fixed')),
   manual_discount_value   NUMERIC(10,2),
   manual_discount_amount  NUMERIC(10,2) NOT NULL DEFAULT 0,
   manual_discount_reason  TEXT,
   manual_discount_by      INTEGER REFERENCES admins(id),
+  tax_amount              NUMERIC(10,2) NOT NULL DEFAULT 0,
+  tax_details             JSONB NOT NULL DEFAULT '[]',   -- [{rate, nights, taxable, tax}]
   total_amount            NUMERIC(10,2) NOT NULL CHECK (total_amount >= 0),
   -- Money actually held for this booking: captured payments minus refunds.
   amount_paid             NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -139,6 +143,12 @@ UPDATE bookings SET reference = 'GKL-' || upper(substr(md5(random()::text || id:
   WHERE reference IS NULL;
 ALTER TABLE bookings ALTER COLUMN reference SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_reference ON bookings (reference);
+
+-- GST (added after launch of the booking table). Bookings made before this
+-- keep tax 0 — their totals were quoted and paid without tax.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS nights_detail JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tax_details JSONB NOT NULL DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings (status);
 CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings (check_in, check_out);
@@ -322,6 +332,13 @@ CREATE TABLE IF NOT EXISTS food_order_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_food_order_items_order_id ON food_order_items (order_id);
+
+-- Guest choices per dish: a spice level (only offered on dishes the kitchen
+-- marks as adjustable) and a free-text request.
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS spice_adjustable BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS spice_level VARCHAR(10)
+  CHECK (spice_level IN ('mild', 'medium', 'hot'));
+ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS notes VARCHAR(300);
 
 -- ---------------------------------------------------------
 -- Housekeeping / room cleaning

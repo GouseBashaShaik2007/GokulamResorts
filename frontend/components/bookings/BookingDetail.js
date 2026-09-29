@@ -413,7 +413,10 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             </Row>
           )}
           {b.manual_discount_reason && Number(b.manual_discount_amount) > 0 && <p className="text-right text-xs text-navy-400">“{b.manual_discount_reason}”</p>}
-          <Row label="Total" strong>{inr(b.total_amount)}</Row>
+          {(b.tax_details || []).map((t) => (
+            <Row key={t.rate} label={`GST ${t.rate}% (${t.nights} night${t.nights > 1 ? 's' : ''})`}>{inr(t.tax)}</Row>
+          ))}
+          <Row label={Number(b.tax_amount) > 0 ? 'Total incl. GST' : 'Total'} strong>{inr(b.total_amount)}</Row>
           <Row label="Paid (net of refunds)">{inr(b.amount_paid)}</Row>
           <Row label="Balance due" strong>{due > 0 ? <span className="text-red-300">{inr(due)}</span> : inr(0)}</Row>
 

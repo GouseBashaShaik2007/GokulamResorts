@@ -18,7 +18,7 @@ const createOrder = asyncHandler(async (req, res) => {
     // Re-price every line from the live menu — never trust client-submitted prices.
     const menuItemIds = items.map((i) => i.menuItemId);
     const { rows: menuRows } = await client.query(
-      `SELECT id, name, price, is_available FROM menu_items WHERE id = ANY($1) FOR UPDATE`,
+      `SELECT id, name, price, is_available, spice_adjustable FROM menu_items WHERE id = ANY($1) FOR UPDATE`,
       [menuItemIds]
     );
 
@@ -40,6 +40,8 @@ const createOrder = asyncHandler(async (req, res) => {
         unitPrice,
         quantity: line.quantity,
         lineTotal,
+        spiceLevel: menuItem.spice_adjustable ? line.spiceLevel || null : null,
+        notes: line.notes || null,
       });
     }
 
@@ -61,9 +63,9 @@ const createOrder = asyncHandler(async (req, res) => {
 
     for (const line of lineItems) {
       await client.query(
-        `INSERT INTO food_order_items (order_id, menu_item_id, item_name, unit_price, quantity, line_total)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [createdOrder.id, line.menuItemId, line.itemName, line.unitPrice, line.quantity, line.lineTotal]
+        `INSERT INTO food_order_items (order_id, menu_item_id, item_name, unit_price, quantity, line_total, spice_level, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [createdOrder.id, line.menuItemId, line.itemName, line.unitPrice, line.quantity, line.lineTotal, line.spiceLevel, line.notes]
       );
     }
 
@@ -94,11 +96,17 @@ const getOrderById = asyncHandler(async (req, res) => {
   }
 
   const { rows: items } = await query(
-    `SELECT item_name, unit_price, quantity, line_total FROM food_order_items WHERE order_id = $1`,
+    `SELECT item_name, unit_price, quantity, line_total, spice_level, notes FROM food_order_items WHERE order_id = $1`,
     [id]
   );
 
   res.json({ success: true, order: { ...rows[0], items } });
 });
 
-module.exports = { createOrder, getOrderById };
+// GET /api/food-orders/queue — count of orders waiting or being prepared.
+const getQueue = asyncHandler(async (req, res) => {
+  const { rows } = await query(`SELECT count(*)::int AS active FROM food_orders WHERE status IN ('new', 'preparing')`);
+  res.json({ success: true, active: rows[0].active });
+});
+
+module.exports = { createOrder, getOrderById, getQueue };

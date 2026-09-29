@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
-const { createOrder, getOrderById } = require('../controllers/foodOrder.controller');
+const { createOrder, getOrderById, getQueue } = require('../controllers/foodOrder.controller');
 
 const router = Router();
 
@@ -16,10 +16,15 @@ router.post(
     body('items').isArray({ min: 1 }).withMessage('items must be a non-empty array'),
     body('items.*.menuItemId').isInt({ min: 1 }),
     body('items.*.quantity').isInt({ min: 1, max: 20 }),
+    body('items.*.spiceLevel').optional({ nullable: true }).isIn(['mild', 'medium', 'hot']),
+    body('items.*.notes').optional({ nullable: true, checkFalsy: true }).isString().trim().isLength({ max: 300 }),
   ],
   validate,
   createOrder
 );
+
+// How many orders the kitchen is working through — shown in the cart instead of a guessed wait time.
+router.get('/food-orders/queue', getQueue);
 
 router.get('/food-orders/:id', [param('id').isInt({ min: 1 })], validate, getOrderById);
 

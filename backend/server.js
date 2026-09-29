@@ -41,6 +41,12 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // --- Health check ---
 app.get('/health', (req, res) => res.json({ success: true, status: 'ok' }));
 
+// Approximate display rates for the currency switcher (charges are always INR).
+app.get('/api/fx', (req, res) => {
+  const rates = require('./src/services/fx.service').getRates();
+  res.set('Cache-Control', 'public, max-age=3600').json({ success: true, fx: rates });
+});
+
 // --- API routes ---
 app.use('/api/rooms', roomsRoutes);
 app.use('/api', bookingRoutes); // /api/availability, /api/book-room, /api/bookings/lookup

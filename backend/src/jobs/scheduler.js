@@ -4,12 +4,14 @@
  *   every minute  retry guest messages still in the outbox
  *   11 PM         cleaning safety net for check-outs without a cleaning job
  *   3:30 AM       delete ID documents past the retention period
+ *   6:15 AM       refresh display exchange rates (and once at startup)
  */
 const cron = require('node-cron');
 const { TIMEZONE } = require('../utils/dates');
 const bookings = require('../services/booking.service');
 const notify = require('../services/notify.service');
 const { scheduleNightlyCleaning } = require('./nightlyCleaning');
+const fx = require('../services/fx.service');
 
 function every(schedule, name, fn) {
   let running = false;
@@ -37,6 +39,8 @@ function startScheduler() {
   every(process.env.DOC_PURGE_CRON || '30 3 * * *', 'purge ID documents', async () => ({
     purged: await bookings.purgeExpiredDocuments(),
   }));
+  every('15 6 * * *', 'exchange rates', () => fx.refreshRates());
+  fx.refreshRates(); // don't wait until tomorrow morning after a restart
   scheduleNightlyCleaning();
   console.log(`[jobs] scheduler started (${TIMEZONE}); ID documents kept ${bookings.RETENTION_DAYS} days after the stay`);
 }

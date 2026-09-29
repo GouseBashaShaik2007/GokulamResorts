@@ -59,6 +59,12 @@ export default function PayStep() {
       <div className="rounded-xl border border-navy-700 bg-navy-800 p-5">
         {pick && <p className="text-sm text-navy-300">Room {pick.unit.unitNumber}</p>}
         <p className="price mt-1 text-3xl">{inr(hold.amount / 100)}</p>
+        {pick?.quote?.taxDetails?.length > 0 && (
+          <p className="mt-1 text-xs text-navy-400">
+            Includes {pick.quote.taxDetails.map((t) => `GST ${t.rate}% ${inr(t.tax)}`).join(' + ')}
+          </p>
+        )}
+        <p className="mt-2 text-xs font-semibold text-gold-500">Best rate when you book direct</p>
       </div>
 
       {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}

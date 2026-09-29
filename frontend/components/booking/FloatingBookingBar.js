@@ -9,7 +9,7 @@ import { todayIST } from '../../lib/bookingUi';
 import DateRangePicker from './DateRangePicker';
 
 const HIDDEN_PREFIXES = [
-  '/kiosk', '/order', '/admin', '/kitchen', '/staff', '/frontdesk',
+  '/dine', '/order', '/admin', '/kitchen', '/staff', '/frontdesk',
   '/contact', '/booking/confirmation', '/booking/status',
 ];
 const BAR_SPACE_PX = 96;

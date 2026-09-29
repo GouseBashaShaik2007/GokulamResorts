@@ -2,6 +2,7 @@
 
 import { useBooking } from '../BookingContext';
 import { inr } from '../../../lib/bookingUi';
+import PhoneInput from '../../site/PhoneInput';
 
 export default function GuestStep() {
   const { pick, guest, setGuest, goTo, submitAndPay, status, error } = useBooking();
@@ -31,7 +32,7 @@ export default function GuestStep() {
           <p className="eyebrow">Step 3 of 4</p>
           <h2 className="mt-1 font-serif text-2xl font-semibold text-navy-50">Your Details</h2>
           <p className="mt-1 text-sm text-navy-400">
-            Room {pick.unit.unitNumber} · {inr(pick.quote.total)} for {pick.quote.nights} night{pick.quote.nights > 1 ? 's' : ''}
+            Room {pick.unit.unitNumber} · {inr(pick.quote.total)} incl. GST for {pick.quote.nights} night{pick.quote.nights > 1 ? 's' : ''}
           </p>
         </div>
         <button type="button" onClick={() => goTo('room')} className="text-xs text-gold-400 hover:underline">
@@ -46,7 +47,7 @@ export default function GuestStep() {
         </div>
         <div>
           <label className="label" htmlFor="guestPhone">Mobile (SMS / WhatsApp updates)</label>
-          <input id="guestPhone" type="tel" required className="input-field" value={guest.phone} onChange={setField('phone')} placeholder="+91 98765 43210" />
+          <PhoneInput id="guestPhone" required value={guest.phone} onChange={(phone) => setGuest({ phone })} />
         </div>
         <div>
           <label className="label" htmlFor="guestEmail">Email</label>
@@ -66,7 +67,7 @@ export default function GuestStep() {
         {(status === 'idle' || status === 'error') && `Pay ${inr(pick.quote.total)} · Room ${pick.unit.unitNumber}`}
       </button>
       <p className="text-center text-xs text-navy-400">
-        Full payment now via Razorpay. The resort confirms your booking within 24 hours — if it can&apos;t, you get a
+        <span className="font-semibold text-gold-500">Best rate when you book direct.</span> Full payment now via Razorpay. The resort confirms your booking within 24 hours — if it can&apos;t, you get a
         full refund automatically. Please bring a photo ID for every adult at check-in.
       </p>
     </form>

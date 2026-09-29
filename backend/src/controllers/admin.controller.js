@@ -243,13 +243,13 @@ const listAllMenuItems = asyncHandler(async (req, res) => {
 
 // POST /api/admin/menu/items
 const addMenuItem = asyncHandler(async (req, res) => {
-  const { categoryId, name, description, price, image, isVeg } = req.body;
+  const { categoryId, name, description, price, image, isVeg, spiceAdjustable } = req.body;
 
   const { rows } = await query(
-    `INSERT INTO menu_items (category_id, name, description, price, image, is_veg)
-     VALUES ($1,$2,$3,$4,$5,$6)
+    `INSERT INTO menu_items (category_id, name, description, price, image, is_veg, spice_adjustable)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
      RETURNING *`,
-    [categoryId, name, description || '', price, image || null, isVeg !== false]
+    [categoryId, name, description || '', price, image || null, isVeg !== false, spiceAdjustable === true]
   );
 
   res.status(201).json({ success: true, item: rows[0] });
@@ -260,10 +260,11 @@ const updateMenuItem = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const fields = req.body;
 
-  const allowed = ['category_id', 'name', 'description', 'price', 'image', 'is_veg', 'is_available'];
+  const allowed = ['category_id', 'name', 'description', 'price', 'image', 'is_veg', 'is_available', 'spice_adjustable'];
   const map = {
     categoryId: 'category_id',
     isVeg: 'is_veg',
+    spiceAdjustable: 'spice_adjustable',
     isAvailable: 'is_available',
   };
 

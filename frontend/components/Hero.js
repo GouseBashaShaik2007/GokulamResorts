@@ -1,45 +1,40 @@
-import Link from 'next/link';
-import Parallax from './motion/Parallax';
-import OpenBookingButton from './booking/OpenBookingButton';
+import ReviewBadge from './site/ReviewBadge';
+import HeroBookingForm from './site/HeroBookingForm';
 
-const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1920&q=80';
+// TODO(owner): replace with the resort's own photo (or a silent 8-second wave
+// loop: add <video autoPlay muted loop playsInline poster=...> in place of <img>).
+const HERO_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80';
 
+/**
+ * Full-bleed photo with a soft gradient, headline at the bottom left, and the
+ * booking form sitting across the photo's bottom edge. The navbar floats
+ * transparently over it (see Navbar's `overHero`), hence the negative margin.
+ */
 export default function Hero() {
   return (
-    <section className="relative grid overflow-hidden bg-navy-900 lg:min-h-[92vh] lg:grid-cols-[3fr_2fr]">
-      {/* Image column */}
-      <div className="relative h-[55vh] lg:order-1 lg:h-full">
-        <Parallax className="absolute inset-0" range={12}>
-          <img src={HERO_IMAGE} alt="Chirala Beach at Gokulam Resorts" className="h-full w-full object-cover" />
-        </Parallax>
-        <div className="absolute inset-0 bg-hero-gradient lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-navy-900/40" />
-      </div>
+    <section className="relative -mt-[72px]">
+      <div className="relative h-[88vh] min-h-[560px] w-full overflow-hidden">
+        <img
+          src={HERO_IMAGE}
+          alt="Waves on a quiet beach at sunrise"
+          data-placeholder="true"
+          className="absolute inset-0 h-full w-full object-cover"
+          fetchPriority="high"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" aria-hidden="true" />
 
-      {/* Copy column */}
-      <div className="relative z-10 order-2 -mt-16 flex flex-col justify-center rounded-t-3xl bg-navy-900 px-6 py-14 sm:px-10 lg:mt-0 lg:rounded-none lg:px-12 lg:py-24 xl:px-16">
-        <p className="eyebrow">Chirala Beach · Andhra Pradesh, India</p>
-        <h1 className="display-heading mt-4">
-          Gokulam
-          <br />
-          <span className="italic text-gold-400">Resorts</span>
-        </h1>
-        <p className="mt-6 max-w-md text-lg text-navy-100">
-          Wake to the sound of waves and the warmth of Indian hospitality. Private beachfront rooms,
-          candlelit dining, and a coastline all your own.
-        </p>
-        <div className="mt-10 flex flex-wrap gap-4">
-          <OpenBookingButton className="btn-gold">Check Availability</OpenBookingButton>
-          <Link href="/contact" className="btn-outline">
-            Contact Us
-          </Link>
+        <div className="absolute inset-x-0 bottom-0 mx-auto max-w-7xl px-4 pb-28 sm:px-6 sm:pb-32 lg:px-8">
+          <p className="text-xs font-medium uppercase tracking-[0.3em] text-white/80">Chirala Beach · Andhra Pradesh</p>
+          <h1 className="mt-3 max-w-3xl font-serif text-5xl font-medium leading-[1.02] text-white sm:text-6xl lg:text-7xl">
+            Where the Bay of Bengal <span className="italic">slows you down</span>
+          </h1>
+          <ReviewBadge tone="dark" className="mt-5" />
         </div>
       </div>
 
-      {/* Overlapping glass badge, sits on the image/panel seam */}
-      <div className="glass absolute left-6 top-[calc(55vh-2.5rem)] z-20 rounded-2xl px-5 py-3 lg:left-[calc(60%-2.5rem)] lg:top-auto lg:bottom-16">
-        <p className="eyebrow text-[0.65rem] md:text-xs">Beachfront · Chirala</p>
-        <p className="mt-1 font-serif text-lg font-semibold text-navy-50">Private Beach Access</p>
+      {/* Across the bottom edge of the photo on larger screens; below it on phones. */}
+      <div className="relative z-10 mx-auto -mt-16 max-w-5xl px-4 sm:px-6">
+        <HeroBookingForm />
       </div>
     </section>
   );

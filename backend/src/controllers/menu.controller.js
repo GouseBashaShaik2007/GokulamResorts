@@ -24,7 +24,7 @@ const getMenuItems = asyncHandler(async (req, res) => {
   }
 
   const { rows } = await query(
-    `SELECT mi.id, mi.category_id, mi.name, mi.description, mi.price, mi.image, mi.is_veg,
+    `SELECT mi.id, mi.category_id, mi.name, mi.description, mi.price, mi.image, mi.is_veg, mi.spice_adjustable,
             mc.name AS category_name, mc.slug AS category_slug
      FROM menu_items mi
      JOIN menu_categories mc ON mc.id = mi.category_id

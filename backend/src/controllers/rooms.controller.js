@@ -6,7 +6,9 @@ const asyncHandler = require('../utils/asyncHandler');
 const ROOM_TYPE_SELECT = `
   SELECT r.id, r.name, r.slug, r.description, r.price_per_night, r.capacity,
          r.size_sqft, r.bed_type, r.amenities, r.images,
-         (SELECT count(*)::int FROM room_units ru WHERE ru.room_type_id = r.id AND ru.is_active) AS units_count
+         (SELECT count(*)::int FROM room_units ru WHERE ru.room_type_id = r.id AND ru.is_active) AS units_count,
+         COALESCE((SELECT array_agg(DISTINCT ru.view_label ORDER BY ru.view_label) FROM room_units ru
+                   WHERE ru.room_type_id = r.id AND ru.is_active AND ru.view_label IS NOT NULL), '{}') AS views
   FROM rooms r`;
 
 // GET /api/rooms

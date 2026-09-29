@@ -58,7 +58,7 @@ body {
 }
 @media (hover: hover) and (pointer: fine) {
   .media-zoom:hover img {
-    transform: scale(1.03);
+    transform: scale(1.04);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -75,6 +75,34 @@ body {
 
 .label {
   @apply mb-1 block text-sm font-medium text-navy-300;
+}
+
+/* Page fade-in (see app/(site)/template.js). Starts nearly visible so the
+   first paint is never blank, even before JavaScript runs. */
+@keyframes page-in {
+  from { opacity: 0.4; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+/* fill-mode `backwards`, not `both`: a transform left on this wrapper after the
+   animation would make every position:fixed element inside a page (cart
+   panel, dialogs) scroll with the page instead of staying on screen. */
+.animate-page-in {
+  animation: page-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in { animation: none; }
+}
+
+/* Photo-overlay badge: dark scrim + white text, readable on any photo. */
+.photo-badge {
+  @apply rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white backdrop-blur-sm;
+}
+
+/* Stock photo stand-ins (data-placeholder="true") are replaced when the
+   resort's own photos arrive. Neutral frame for rooms without photos yet. */
+.photo-coming-soon {
+  @apply flex h-full w-full flex-col items-center justify-center gap-1 bg-navy-800 text-center text-navy-400;
+  background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(28, 42, 51, 0.04) 14px 15px);
 }
 
 /* Reserved space so the floating booking bar never overlaps footer/page

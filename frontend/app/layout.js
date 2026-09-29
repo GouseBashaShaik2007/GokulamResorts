@@ -1,12 +1,8 @@
 import './globals.css';
 import { serif, sans } from './fonts';
-import Providers from '../components/motion/Providers';
-import { BookingProvider } from '../components/booking/BookingContext';
-import FloatingBookingBar from '../components/booking/FloatingBookingBar';
-import BookingSlideOver from '../components/booking/BookingSlideOver';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
 
+// Root shell only. Guest pages get the site chrome from app/(site)/layout.js;
+// staff tools (admin, front desk, kitchen, housekeeping) use app/(staff)/layout.js.
 export const metadata = {
   title: 'Gokulam Resorts — Luxury Beachfront Stays at Chirala Beach',
   description:
@@ -16,17 +12,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
-      <body className="flex min-h-screen flex-col">
-        <Providers>
-          <BookingProvider>
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <FloatingBookingBar />
-            <BookingSlideOver />
-          </BookingProvider>
-        </Providers>
-      </body>
+      <body className="flex min-h-screen flex-col">{children}</body>
     </html>
   );
 }

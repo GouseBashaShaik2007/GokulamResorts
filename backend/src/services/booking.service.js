@@ -16,7 +16,7 @@ const crypto = require('crypto');
 const { query, withTransaction } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const { localToday, addDays } = require('../utils/dates');
-const { quoteNights, totals, round2 } = require('./pricing.service');
+const { quoteNights, priceStay, nightsOfBooking, round2 } = require('./pricing.service');
 const gateway = require('./gateway.service');
 const notify = require('./notify.service');
 const storage = require('./storage.service');
@@ -180,7 +180,8 @@ async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, 
       const quote = await quoteNights({ query }, u.room_type_id, checkIn, checkOut);
       byType.set(u.room_type_id, {
         roomType: { id: u.room_type_id, name: u.room_type, capacity: u.capacity, image: u.images?.[0] || null },
-        quote: { ...quote, total: round2(quote.base - quote.promo) },
+        // total includes GST — it is what the guest will pay.
+        quote: { ...quote, ...priceStay({ nights: quote.nightsDetail }) },
         units: [],
       });
     }
@@ -223,7 +224,8 @@ async function createBooking(input, { source, actor, payment = null }) {
     await releaseExpiredPaymentHolds(client, unit.id);
 
     const quote = await quoteNights(client, unit.room_type_id, checkIn, checkOut);
-    const { total } = totals({ base: quote.base, promo: quote.promo });
+    const price = priceStay({ nights: quote.nightsDetail });
+    const { total } = price;
     const creator = actorColumns(actor);
     const online = source === 'online';
 
@@ -261,12 +263,16 @@ async function createBooking(input, { source, actor, payment = null }) {
       }
     }
     const booking = rows[0];
+    await client.query(
+      `UPDATE bookings SET nights_detail = $1, tax_amount = $2, tax_details = $3 WHERE id = $4`,
+      [JSON.stringify(quote.nightsDetail), price.tax, JSON.stringify(price.taxDetails), booking.id]
+    );
 
     await audit(client, {
       bookingId: booking.id,
       actor,
       action: 'booking_created',
-      details: { source, roomUnit: unit.unit_number, checkIn, checkOut, total, promo: quote.promo },
+      details: { source, roomUnit: unit.unit_number, checkIn, checkOut, total, promo: quote.promo, gst: price.tax },
     });
 
     if (!online) {
@@ -550,18 +556,16 @@ async function applyDiscount(bookingId, { type, value, reason }, actor) {
     const b = await lock(client, bookingId);
     requireStatus(b, ['paid', 'confirmed', 'checked_in'], 'discount');
     const clearing = !value;
-    const t = totals({
-      base: Number(b.base_amount),
-      promo: Number(b.promo_discount),
-      manualType: clearing ? null : type,
-      manualValue: clearing ? null : value,
-    });
+    const nights = nightsOfBooking(b);
+    const t = priceStay({ nights, manualType: clearing ? null : type, manualValue: clearing ? null : value });
 
     await client.query(
       `UPDATE bookings SET manual_discount_type = $1, manual_discount_value = $2, manual_discount_amount = $3,
-              manual_discount_reason = $4, manual_discount_by = $5, total_amount = $6, updated_at = now()
-       WHERE id = $7`,
-      [clearing ? null : type, clearing ? null : value, t.manual, reason, actor.id, t.total, b.id]
+              manual_discount_reason = $4, manual_discount_by = $5, total_amount = $6,
+              tax_amount = $7, tax_details = $8, nights_detail = $9, updated_at = now()
+       WHERE id = $10`,
+      [clearing ? null : type, clearing ? null : value, t.manual, reason, actor.id, t.total,
+       t.tax, JSON.stringify(t.taxDetails), JSON.stringify(nights), b.id]
     );
 
     const overpaid = round2(Number(b.amount_paid) - t.total);
@@ -595,16 +599,19 @@ async function extendStay(bookingId, newCheckOut, actor) {
     const extra = await quoteNights(client, b.room_type_id, b.check_out, newCheckOut);
     const base = round2(Number(b.base_amount) + extra.base);
     const promo = round2(Number(b.promo_discount) + extra.promo);
-    const t = totals({ base, promo, manualType: b.manual_discount_type, manualValue: b.manual_discount_value });
+    const nights = [...nightsOfBooking(b), ...extra.nightsDetail];
+    const t = priceStay({ nights, manualType: b.manual_discount_type, manualValue: b.manual_discount_value });
 
     await guardOverlap(
       client,
       () =>
         client.query(
           `UPDATE bookings SET check_out = $1, base_amount = $2, promo_discount = $3,
-                  promo_details = promo_details || $4::jsonb, manual_discount_amount = $5, total_amount = $6, updated_at = now()
-           WHERE id = $7`,
-          [newCheckOut, base, promo, JSON.stringify(extra.promoDetails), t.manual, t.total, b.id]
+                  promo_details = promo_details || $4::jsonb, manual_discount_amount = $5, total_amount = $6,
+                  tax_amount = $7, tax_details = $8, nights_detail = $9, updated_at = now()
+           WHERE id = $10`,
+          [newCheckOut, base, promo, JSON.stringify(extra.promoDetails), t.manual, t.total,
+           t.tax, JSON.stringify(t.taxDetails), JSON.stringify(nights), b.id]
         ),
       { roomUnitId: b.room_unit_id, checkIn: b.check_out, checkOut: newCheckOut, excludeId: b.id }
     );
@@ -840,12 +847,13 @@ async function lookupForGuest(reference, phone) {
     reference: b.reference,
     status: b.status,
     guestName: b.guest_name,
-    room: { unitNumber: b.unit_number, type: b.room_type, view: b.view_label, floor: b.floor },
+    room: { unitNumber: b.unit_number, type: b.room_type, typeId: b.room_type_id, view: b.view_label, floor: b.floor },
     checkIn: b.check_in,
     checkOut: b.check_out,
     adults: b.adults,
     children: b.children,
     total: Number(b.total_amount),
+    tax: Number(b.tax_amount),
     paid: Number(b.amount_paid),
     balanceDue: Number(b.balance_due),
     holdExpiresAt: b.hold_expires_at,
