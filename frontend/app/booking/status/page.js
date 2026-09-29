@@ -4,9 +4,9 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import GuestBookingStatus from '../../../components/GuestBookingStatus';
 
-// Linked from guest SMS / WhatsApp messages: /booking/status?id=123
+// Linked from guest SMS / WhatsApp messages: /booking/status?ref=GKL-7F3K2
 function StatusContent() {
-  return <GuestBookingStatus initialId={useSearchParams().get('id') || ''} />;
+  return <GuestBookingStatus initialRef={useSearchParams().get('ref') || ''} />;
 }
 
 export default function BookingStatusPage() {

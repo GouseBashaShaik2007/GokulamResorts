@@ -7,37 +7,79 @@ html {
 }
 
 body {
-  @apply bg-navy-950 text-navy-50;
+  @apply bg-navy-950 text-navy-50 font-sans antialiased;
 }
 
 .btn-gold {
-  @apply inline-flex items-center justify-center rounded-full bg-gold-500 px-6 py-3
-    font-semibold text-navy-950 transition-colors duration-200 hover:bg-gold-400
-    focus:outline-none focus:ring-2 focus:ring-gold-300 focus:ring-offset-2 focus:ring-offset-navy-950;
+  @apply inline-flex items-center justify-center rounded-full bg-ocean-500 px-6 py-3
+    font-semibold tracking-wide text-white transition-all duration-300 ease-out-soft hover:bg-ocean-600
+    focus:outline-none focus:ring-2 focus:ring-ocean-300 focus:ring-offset-2 focus:ring-offset-navy-950
+    active:scale-[0.98];
 }
 
 .btn-outline {
-  @apply inline-flex items-center justify-center rounded-full border border-gold-500/60 px-6 py-3
-    font-semibold text-gold-400 transition-colors duration-200 hover:bg-gold-500/10;
+  @apply inline-flex items-center justify-center rounded-full border border-ocean-500/50 px-6 py-3
+    font-semibold tracking-wide text-ocean-600 transition-all duration-300 ease-out-soft hover:bg-ocean-50
+    active:scale-[0.98];
 }
 
 .section-heading {
-  @apply font-serif text-3xl font-bold text-navy-50 md:text-4xl;
+  @apply font-serif text-display-md font-semibold leading-tight tracking-tight text-navy-50;
+}
+
+/* Oversized editorial heading — marketing pages only, not dashboards. */
+.display-heading {
+  @apply font-serif text-display-lg font-medium tracking-tight text-navy-50;
 }
 
 .eyebrow {
-  @apply text-sm uppercase tracking-[0.2em] text-gold-400;
+  @apply font-sans text-[0.75rem] font-medium uppercase tracking-[0.28em] text-gold-400;
+}
+
+/* Price figures — Inter with tabular lining numerals, not the serif's
+   oldstyle numerals ("₹6,5oo"). Pair with a size utility at each usage. */
+.price {
+  @apply font-sans font-semibold text-gold-500 [font-variant-numeric:lining-nums_tabular-nums];
 }
 
 .card {
-  @apply rounded-2xl border border-navy-700/60 bg-navy-900 shadow-lg shadow-black/20;
+  @apply rounded-2xl border border-navy-700/60 bg-navy-900 shadow-lg shadow-black/20 transition-shadow duration-300;
+}
+
+/* Frosted panel — the floating booking bar, badges overlapping imagery, etc. */
+.glass {
+  @apply border border-white/10 bg-navy-950/60 shadow-glass backdrop-blur-xl;
+}
+
+/* Hover-only image zoom. Gated to real pointer devices so it never fires on
+   touch/kiosk screens (no true hover there, and tap can "stick" the state). */
+.media-zoom img {
+  transition: transform 0.6s ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .media-zoom:hover img {
+    transform: scale(1.03);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-zoom img {
+    transition: none;
+    transform: none !important;
+  }
 }
 
 .input-field {
   @apply w-full rounded-lg border border-navy-600 bg-navy-800 px-4 py-3 text-navy-50
-    placeholder:text-navy-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400;
+    placeholder:text-navy-400 focus:border-ocean-400 focus:outline-none focus:ring-1 focus:ring-ocean-400;
 }
 
 .label {
-  @apply mb-1 block text-sm font-medium text-navy-200;
+  @apply mb-1 block text-sm font-medium text-navy-300;
+}
+
+/* Reserved space so the floating booking bar never overlaps footer/page
+   content — set dynamically by FloatingBookingBar, 0 when it's hidden. */
+main {
+  padding-bottom: var(--booking-bar-space, 0px);
+  transition: padding-bottom 0.3s ease-out-soft;
 }

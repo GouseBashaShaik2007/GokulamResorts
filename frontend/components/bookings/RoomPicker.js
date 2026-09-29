@@ -6,7 +6,7 @@ import { inr } from '../../lib/bookingUi';
  * Real room numbers free for the chosen dates, grouped by room type, with the
  * price for the stay. `types` is the /availability response.
  */
-export default function RoomPicker({ types, selectedId, onSelect, showType = true }) {
+export default function RoomPicker({ types, selectedId, onSelect, showType = true, renderTypeHeader }) {
   if (!types) return null;
   if (types.length === 0) {
     return <p className="rounded-lg bg-navy-800 p-4 text-sm text-navy-300">No rooms are free for these dates. Try different dates.</p>;
@@ -16,11 +16,12 @@ export default function RoomPicker({ types, selectedId, onSelect, showType = tru
     <div className="space-y-5">
       {types.map(({ roomType, quote, units }) => (
         <div key={roomType.id}>
+          {renderTypeHeader?.(roomType)}
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
             {showType && <p className="font-medium text-navy-50">{roomType.name}</p>}
             <p className="text-sm text-navy-300">
               {quote.promo > 0 && <span className="mr-2 text-navy-500 line-through">{inr(quote.base)}</span>}
-              <span className="font-semibold text-gold-400">{inr(quote.total)}</span> for {quote.nights} night{quote.nights > 1 ? 's' : ''}
+              <span className="price">{inr(quote.total)}</span> for {quote.nights} night{quote.nights > 1 ? 's' : ''}
               {quote.promo > 0 && <span className="ml-2 rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-300">{quote.promoDetails[0].name}</span>}
             </p>
           </div>

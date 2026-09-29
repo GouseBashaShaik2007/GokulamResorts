@@ -1,4 +1,6 @@
 import RoomCard from '../../components/RoomCard';
+import Reveal from '../../components/motion/Reveal';
+import { RevealStagger, RevealStaggerItem } from '../../components/motion/RevealStagger';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -20,21 +22,23 @@ export default async function RoomsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mb-12 text-center">
+      <Reveal className="mb-12 max-w-2xl">
         <p className="eyebrow">Chirala Beach</p>
-        <h1 className="section-heading mt-2">Rooms &amp; Suites</h1>
-        <p className="mx-auto mt-4 max-w-2xl text-navy-300">
+        <h1 className="display-heading mt-2 text-4xl md:text-5xl">Rooms &amp; Suites</h1>
+        <p className="mt-4 text-navy-300">
           Every room at Gokulam Resorts is designed to bring the ocean closer — pick your favourite and
           reserve your dates.
         </p>
-      </div>
+      </Reveal>
 
       {rooms.length > 0 ? (
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <RevealStagger className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {rooms.map((room) => (
-            <RoomCard key={room.id} room={room} />
+            <RevealStaggerItem key={room.id}>
+              <RoomCard room={room} />
+            </RevealStaggerItem>
           ))}
-        </div>
+        </RevealStagger>
       ) : (
         <div className="card p-8 text-center text-navy-300">
           No rooms available right now. Please check back shortly, or if you are the resort admin, make

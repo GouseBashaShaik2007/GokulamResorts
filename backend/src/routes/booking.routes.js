@@ -46,7 +46,10 @@ router.post(
 router.get(
   '/bookings/lookup',
   lookupLimiter,
-  [query('bookingId').isInt({ min: 1 }), query('phone').trim().notEmpty()],
+  [
+    query('reference').trim().matches(/^GKL-[A-Z0-9]{5}$/i).withMessage('A valid booking reference is required'),
+    query('phone').trim().notEmpty(),
+  ],
   validate,
   lookup
 );

@@ -12,6 +12,7 @@
  * commit. Razorpay refund calls happen inside the transaction on purpose: if
  * the gateway refuses, the whole change rolls back and nothing is half-done.
  */
+const crypto = require('crypto');
 const { query, withTransaction } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const { localToday, addDays } = require('../utils/dates');
@@ -34,6 +35,15 @@ const cleaning = () => require('./cleaning.service');
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// Guest-facing booking code, e.g. "GKL-7F3K2" — never a guessable sequential
+// number. Alphabet excludes ambiguous characters (0/O, 1/I).
+const REFERENCE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function generateReference() {
+  let code = '';
+  for (let i = 0; i < 5; i += 1) code += REFERENCE_ALPHABET[crypto.randomInt(REFERENCE_ALPHABET.length)];
+  return `GKL-${code}`;
+}
 
 /** Transaction whose `after(fn)` callbacks run once it has committed. */
 async function tx(fn) {
@@ -217,28 +227,39 @@ async function createBooking(input, { source, actor, payment = null }) {
     const creator = actorColumns(actor);
     const online = source === 'online';
 
-    const { rows } = await guardOverlap(
-      client,
-      () =>
-        client.query(
-          `INSERT INTO bookings
-             (room_unit_id, room_type_id, source, guest_name, guest_phone, guest_email, adults, children,
-              check_in, check_out, original_check_out, special_requests, status,
-              nightly_rate, base_amount, promo_discount, promo_details, total_amount,
-              hold_expires_at, confirmed_at, created_by_staff_id, created_by_admin_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$12,$13,$14,$15,$16,$17,
-                   now() + make_interval(mins => $18::int),         -- NULL for counter bookings
-                   CASE WHEN $18::int IS NULL THEN now() END, $19, $20)
-           RETURNING id`,
-          [
-            unit.id, unit.room_type_id, source, name, phone, email || null, adults, children,
-            checkIn, checkOut, specialRequests || null, online ? 'pending_payment' : 'confirmed',
-            quote.nightlyRate, quote.base, quote.promo, JSON.stringify(quote.promoDetails), total,
-            online ? PAYMENT_WINDOW_MIN : null, creator.staff, creator.admin,
-          ]
-        ),
-      { roomUnitId: unit.id, checkIn, checkOut }
-    );
+    // Reference codes are random — collision odds are astronomically low
+    // (32^5 combinations), but retry a couple of times just in case.
+    let rows;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        ({ rows } = await guardOverlap(
+          client,
+          () =>
+            client.query(
+              `INSERT INTO bookings
+                 (reference, room_unit_id, room_type_id, source, guest_name, guest_phone, guest_email, adults, children,
+                  check_in, check_out, original_check_out, special_requests, status,
+                  nightly_rate, base_amount, promo_discount, promo_details, total_amount,
+                  hold_expires_at, confirmed_at, created_by_staff_id, created_by_admin_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12,$13,$14,$15,$16,$17,$18,
+                       now() + make_interval(mins => $19::int),         -- NULL for counter bookings
+                       CASE WHEN $19::int IS NULL THEN now() END, $20, $21)
+               RETURNING id`,
+              [
+                generateReference(), unit.id, unit.room_type_id, source, name, phone, email || null, adults, children,
+                checkIn, checkOut, specialRequests || null, online ? 'pending_payment' : 'confirmed',
+                quote.nightlyRate, quote.base, quote.promo, JSON.stringify(quote.promoDetails), total,
+                online ? PAYMENT_WINDOW_MIN : null, creator.staff, creator.admin,
+              ]
+            ),
+          { roomUnitId: unit.id, checkIn, checkOut }
+        ));
+        break;
+      } catch (err) {
+        if (err.code === '23505' && err.constraint === 'uq_bookings_reference' && attempt < 3) continue;
+        throw err;
+      }
+    }
     const booking = rows[0];
 
     await audit(client, {
@@ -805,17 +826,18 @@ async function expireHolds() {
 // Reads
 // ---------------------------------------------------------------------------
 
-/** Guest status page: booking id + phone. Only guest-safe fields. */
-async function lookupForGuest(bookingId, phone) {
-  const { rows } = await query(`${BOOKING_SELECT} WHERE b.id = $1`, [bookingId]);
+/** Guest status page: booking reference + phone. Only guest-safe fields. */
+async function lookupForGuest(reference, phone) {
+  const { rows } = await query(`${BOOKING_SELECT} WHERE b.reference = $1`, [reference]);
   const b = rows[0];
-  if (!b || phoneKey(b.guest_phone) !== phoneKey(phone)) throw new ApiError(404, 'No booking matches that ID and phone number');
+  if (!b || phoneKey(b.guest_phone) !== phoneKey(phone)) throw new ApiError(404, 'No booking matches that reference and phone number');
   const { rows: refunds } = await query(
     `SELECT amount, method, status, created_at FROM refunds WHERE booking_id = $1 ORDER BY id`,
     [b.id]
   );
   return {
     id: b.id,
+    reference: b.reference,
     status: b.status,
     guestName: b.guest_name,
     room: { unitNumber: b.unit_number, type: b.room_type, view: b.view_label, floor: b.floor },

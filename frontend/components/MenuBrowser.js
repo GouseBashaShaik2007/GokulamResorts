@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '../lib/api';
 import { useCart } from '../lib/cart';
 import MenuItemCard from './MenuItemCard';
+import Reveal from './motion/Reveal';
 
 export default function MenuBrowser({ categories, items, orderContext }) {
   const router = useRouter();
@@ -65,6 +66,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
 
   return (
     <div className="pb-28">
+      <Reveal as="div">
       <div className="mb-6 flex flex-wrap gap-2">
         <button
           type="button"
@@ -104,6 +106,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
       ) : (
         <div className="card p-8 text-center text-navy-300">No items in this category yet.</div>
       )}
+      </Reveal>
 
       {cart.itemCount > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-navy-700 bg-navy-900/95 backdrop-blur">
@@ -153,7 +156,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
 
             <div className="mt-4 flex items-center justify-between border-t border-navy-700 pt-4">
               <span className="text-navy-200">Total</span>
-              <span className="font-serif text-xl font-bold text-gold-400">₹{cart.total.toLocaleString('en-IN')}</span>
+              <span className="price text-xl">₹{cart.total.toLocaleString('en-IN')}</span>
             </div>
 
             <form onSubmit={handlePlaceOrder} className="mt-6 space-y-4">

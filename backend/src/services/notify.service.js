@@ -20,17 +20,17 @@ const inr = (n) => `Rs ${Number(n).toLocaleString('en-IN')}`;
 // Plain text, short enough for one SMS where possible.
 const TEMPLATES = {
   booking_received: (b) =>
-    `Gokulam Resorts: payment of ${inr(b.amount_paid)} received for booking #${b.id} (Room ${b.unit_number}, ${b.check_in} to ${b.check_out}). Our manager will confirm within 24 hours. Status: ${SITE}/booking/status?id=${b.id}`,
+    `Gokulam Resorts: payment of ${inr(b.amount_paid)} received for booking ${b.reference} (Room ${b.unit_number}, ${b.check_in} to ${b.check_out}). Our manager will confirm within 24 hours. Status: ${SITE}/booking/status?ref=${b.reference}`,
   booking_confirmed: (b) =>
-    `Gokulam Resorts: booking #${b.id} is CONFIRMED. Room ${b.unit_number}, ${b.check_in} to ${b.check_out}. Please carry a photo ID for every adult guest.`,
+    `Gokulam Resorts: booking ${b.reference} is CONFIRMED. Room ${b.unit_number}, ${b.check_in} to ${b.check_out}. Please carry a photo ID for every adult guest.`,
   booking_rejected: (b, x) =>
-    `Gokulam Resorts: sorry, we could not confirm booking #${b.id}. ${refundLine(x)}`,
+    `Gokulam Resorts: sorry, we could not confirm booking ${b.reference}. ${refundLine(x)}`,
   booking_cancelled: (b, x) =>
-    `Gokulam Resorts: booking #${b.id} has been cancelled. ${refundLine(x)}`,
+    `Gokulam Resorts: booking ${b.reference} has been cancelled. ${refundLine(x)}`,
   booking_expired: (b, x) =>
-    `Gokulam Resorts: booking #${b.id} could not be confirmed in time and has been cancelled. ${refundLine(x)}`,
+    `Gokulam Resorts: booking ${b.reference} could not be confirmed in time and has been cancelled. ${refundLine(x)}`,
   refund_issued: (b, x) =>
-    `Gokulam Resorts: a refund of ${inr(x.refund)} for booking #${b.id} has been initiated. ${x.reason ? `Reason: ${x.reason}.` : ''}`,
+    `Gokulam Resorts: a refund of ${inr(x.refund)} for booking ${b.reference} has been initiated. ${x.reason ? `Reason: ${x.reason}.` : ''}`,
   stay_extended: (b, x) =>
     `Gokulam Resorts: your stay in Room ${b.unit_number} is extended to ${b.check_out}.${x.balance > 0 ? ` Balance due: ${inr(x.balance)}.` : ''}`,
   checked_out: (b) =>

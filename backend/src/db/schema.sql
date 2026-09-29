@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS staff (
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS bookings (
   id                      SERIAL PRIMARY KEY,
+  reference               VARCHAR(12) UNIQUE NOT NULL, -- guest-facing code, e.g. GKL-7F3K2 (never a guessable sequential number)
   room_unit_id            INTEGER NOT NULL REFERENCES room_units(id),
   room_type_id            INTEGER NOT NULL REFERENCES rooms(id),
   source                  VARCHAR(10) NOT NULL CHECK (source IN ('online', 'counter')),
@@ -129,6 +130,15 @@ CREATE TABLE IF NOT EXISTS bookings (
     daterange(check_in, check_out) WITH &&
   ) WHERE (status IN ('pending_payment', 'paid', 'confirmed', 'checked_in'))
 );
+
+-- Guest-facing reference code, added after the table already existed in
+-- some installs. Nullable add + backfill + tighten, so this is safe to
+-- re-run against a table that already has rows.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reference VARCHAR(12);
+UPDATE bookings SET reference = 'GKL-' || upper(substr(md5(random()::text || id::text), 1, 5))
+  WHERE reference IS NULL;
+ALTER TABLE bookings ALTER COLUMN reference SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_reference ON bookings (reference);
 
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings (status);
 CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings (check_in, check_out);

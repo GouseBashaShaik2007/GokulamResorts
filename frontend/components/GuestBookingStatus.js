@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '../lib/api';
 import { inr, fmtDate, fmtDateTime, errMsg } from '../lib/bookingUi';
+import Reveal from './motion/Reveal';
 
 // Guest-facing wording for each status.
 const GUEST_STATUS = {
@@ -21,14 +22,14 @@ function Card({ b }) {
   const s = GUEST_STATUS[b.status] || { icon: '', title: b.status, text: '' };
   const refunded = b.refunds.reduce((sum, r) => sum + (r.status !== 'failed' ? r.amount : 0), 0);
   return (
-    <div className="card mx-auto max-w-lg p-8 text-center">
+    <Reveal as="div" className="card mx-auto max-w-lg p-8 text-center">
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gold-500/10 text-3xl">{s.icon}</div>
       <h1 className="section-heading">{s.title}</h1>
       {s.text && <p className="mt-2 text-navy-300">{s.text}</p>}
       {b.closeReason && b.status === 'cancelled' && <p className="mt-2 text-navy-300">{b.closeReason}.</p>}
 
       <dl className="mt-6 space-y-3 rounded-xl border border-navy-700 bg-navy-800 p-5 text-left text-sm">
-        <div className="flex justify-between"><dt className="text-navy-400">Booking ID</dt><dd className="text-navy-50">#{b.id}</dd></div>
+        <div className="flex justify-between"><dt className="text-navy-400">Booking Reference</dt><dd className="text-navy-50">{b.reference}</dd></div>
         <div className="flex justify-between"><dt className="text-navy-400">Guest</dt><dd className="text-navy-50">{b.guestName}</dd></div>
         <div className="flex justify-between gap-4">
           <dt className="text-navy-400">Room</dt>
@@ -37,7 +38,7 @@ function Card({ b }) {
         <div className="flex justify-between"><dt className="text-navy-400">Check-in</dt><dd className="text-navy-50">{fmtDate(b.checkIn)} · from 12 PM</dd></div>
         <div className="flex justify-between"><dt className="text-navy-400">Check-out</dt><dd className="text-navy-50">{fmtDate(b.checkOut)} · by 11 AM</dd></div>
         <div className="flex justify-between"><dt className="text-navy-400">Guests</dt><dd className="text-navy-50">{b.adults} adult{b.adults > 1 ? 's' : ''}{b.children ? `, ${b.children} child${b.children > 1 ? 'ren' : ''}` : ''}</dd></div>
-        <div className="flex justify-between"><dt className="text-navy-400">Total</dt><dd className="font-semibold text-gold-400">{inr(b.total)}</dd></div>
+        <div className="flex justify-between"><dt className="text-navy-400">Total</dt><dd className="price">{inr(b.total)}</dd></div>
         {b.balanceDue > 0 && b.status !== 'pending_payment' && (
           <div className="flex justify-between"><dt className="text-navy-400">Due at the resort</dt><dd className="text-red-300">{inr(b.balanceDue)}</dd></div>
         )}
@@ -60,28 +61,28 @@ function Card({ b }) {
       </dl>
 
       <p className="mt-6 text-xs text-navy-400">
-        Keep your booking ID. You can check this page any time with your booking ID and mobile number.
+        Keep your booking reference. You can check this page any time with your reference and mobile number.
       </p>
       <Link href="/" className="btn-gold mt-6 inline-flex">Back to Home</Link>
-    </div>
+    </Reveal>
   );
 }
 
 /**
- * Looks up a booking by ID + phone. If both are known up front (right after
- * paying, same tab) it loads straight away; otherwise it asks for them.
+ * Looks up a booking by reference + phone. If both are known up front (right
+ * after paying, same tab) it loads straight away; otherwise it asks for them.
  */
-export default function GuestBookingStatus({ initialId = '', initialPhone = '' }) {
-  const [form, setForm] = useState({ id: initialId, phone: initialPhone });
+export default function GuestBookingStatus({ initialRef = '', initialPhone = '' }) {
+  const [form, setForm] = useState({ ref: initialRef, phone: initialPhone });
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const lookup = useCallback(async (id, phone) => {
+  const lookup = useCallback(async (reference, phone) => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get('/bookings/lookup', { params: { bookingId: id, phone } });
+      const res = await api.get('/bookings/lookup', { params: { reference, phone } });
       setBooking(res.data.booking);
     } catch (err) {
       setBooking(null);
@@ -92,8 +93,8 @@ export default function GuestBookingStatus({ initialId = '', initialPhone = '' }
   }, []);
 
   useEffect(() => {
-    if (initialId && initialPhone) lookup(initialId, initialPhone);
-  }, [initialId, initialPhone, lookup]);
+    if (initialRef && initialPhone) lookup(initialRef, initialPhone);
+  }, [initialRef, initialPhone, lookup]);
 
   if (booking) return <Card b={booking} />;
 
@@ -105,12 +106,12 @@ export default function GuestBookingStatus({ initialId = '', initialPhone = '' }
         className="mt-6 space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          lookup(form.id.replace(/^#/, ''), form.phone);
+          lookup(form.ref.trim().toUpperCase(), form.phone);
         }}
       >
         <div>
-          <label className="label" htmlFor="bookingId">Booking ID</label>
-          <input id="bookingId" required inputMode="numeric" className="input-field" placeholder="e.g. 1024" value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} />
+          <label className="label" htmlFor="bookingRef">Booking Reference</label>
+          <input id="bookingRef" required className="input-field" placeholder="e.g. GKL-7F3K2" value={form.ref} onChange={(e) => setForm((f) => ({ ...f, ref: e.target.value }))} />
         </div>
         <div>
           <label className="label" htmlFor="lookupPhone">Mobile number used for the booking</label>

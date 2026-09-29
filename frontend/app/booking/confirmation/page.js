@@ -5,20 +5,20 @@ import { useSearchParams } from 'next/navigation';
 import GuestBookingStatus from '../../../components/GuestBookingStatus';
 
 function ConfirmationContent() {
-  const id = useSearchParams().get('id') || '';
+  const ref = useSearchParams().get('ref') || '';
   const [phone, setPhone] = useState(null);
 
-  // Phone saved by the booking form in this tab; never put in the URL.
+  // Phone saved by the booking flow in this tab; never put in the URL.
   useEffect(() => {
     try {
-      setPhone(window.sessionStorage.getItem(`gokulam_booking_${id}`) || '');
+      setPhone(window.sessionStorage.getItem(`gokulam_booking_${ref}`) || '');
     } catch {
       setPhone('');
     }
-  }, [id]);
+  }, [ref]);
 
   if (phone === null) return <p className="text-center text-navy-300">Loading...</p>;
-  return <GuestBookingStatus initialId={id} initialPhone={phone} />;
+  return <GuestBookingStatus initialRef={ref} initialPhone={phone} />;
 }
 
 export default function ConfirmationPage() {

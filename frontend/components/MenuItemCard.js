@@ -7,7 +7,7 @@ export default function MenuItemCard({ item, quantityInCart, onAdd, onRemove }) 
 
   return (
     <div className="card flex flex-col overflow-hidden">
-      <div className="relative h-40 w-full overflow-hidden">
+      <div className="media-zoom relative h-40 w-full overflow-hidden">
         <img src={image} alt={item.name} className="h-full w-full object-cover" />
         <div
           className={`absolute left-3 top-3 flex h-5 w-5 items-center justify-center rounded border-2 ${
@@ -25,14 +25,14 @@ export default function MenuItemCard({ item, quantityInCart, onAdd, onRemove }) 
         )}
 
         <div className="mt-auto flex items-center justify-between pt-4">
-          <span className="font-serif text-lg font-bold text-gold-400">₹{price}</span>
+          <span className="price text-lg">₹{price}</span>
 
           {quantityInCart > 0 ? (
             <div className="flex items-center gap-3 rounded-full border border-gold-500/50 px-2 py-1">
               <button
                 type="button"
                 onClick={onRemove}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-gold-400 hover:bg-gold-500/10"
+                className="flex h-6 w-6 items-center justify-center rounded-full text-gold-400 transition-transform hover:bg-gold-500/10 active:scale-[0.9]"
                 aria-label={`Remove one ${item.name}`}
               >
                 −
@@ -41,7 +41,7 @@ export default function MenuItemCard({ item, quantityInCart, onAdd, onRemove }) 
               <button
                 type="button"
                 onClick={onAdd}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-gold-400 hover:bg-gold-500/10"
+                className="flex h-6 w-6 items-center justify-center rounded-full text-gold-400 transition-transform hover:bg-gold-500/10 active:scale-[0.9]"
                 aria-label={`Add one more ${item.name}`}
               >
                 +

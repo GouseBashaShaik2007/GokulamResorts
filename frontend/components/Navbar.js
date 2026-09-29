@@ -1,32 +1,43 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useBooking } from './booking/BookingContext';
 
-const links = [
+const publicLinks = [
   { href: '/', label: 'Home' },
   { href: '/rooms', label: 'Rooms' },
   { href: '/kiosk', label: 'Order Food' },
   { href: '/booking/status', label: 'My Booking' },
   { href: '/contact', label: 'Contact' },
-  { href: '/frontdesk', label: 'Front Desk' },
-  { href: '/kitchen', label: 'Kitchen' },
-  { href: '/admin', label: 'Admin' },
 ];
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const { openBooking } = useBooking();
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gold-500/20 bg-navy-950/90 backdrop-blur">
+    <header
+      className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
+        scrolled ? 'border-gold-500/20 bg-navy-950/90 backdrop-blur' : 'border-transparent bg-transparent'
+      }`}
+    >
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <span className="font-serif text-2xl font-bold tracking-wide text-gold-400">Gokulam</span>
+          <span className="font-serif text-2xl font-semibold tracking-wide text-gold-400">Gokulam</span>
           <span className="hidden text-sm uppercase tracking-[0.3em] text-navy-200 sm:inline lg:hidden xl:inline">Resorts</span>
         </Link>
 
         <div className="hidden items-center gap-5 lg:flex xl:gap-8">
-          {links.map((link) => (
+          {publicLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -35,9 +46,10 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-          <Link href="/rooms" className="btn-gold whitespace-nowrap px-5 py-2 text-sm">
+
+          <button type="button" onClick={() => openBooking()} className="btn-gold whitespace-nowrap px-5 py-2 text-sm">
             Book Now
-          </Link>
+          </button>
         </div>
 
         <button
@@ -53,7 +65,7 @@ export default function Navbar() {
       {open && (
         <div className="border-t border-navy-800 bg-navy-950 px-4 pb-4 lg:hidden">
           <div className="flex flex-col gap-3 pt-3">
-            {links.map((link) => (
+            {publicLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -63,9 +75,16 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Link href="/rooms" className="btn-gold mt-1 text-center" onClick={() => setOpen(false)}>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                openBooking();
+              }}
+              className="btn-gold mt-1 text-center"
+            >
               Book Now
-            </Link>
+            </button>
           </div>
         </div>
       )}

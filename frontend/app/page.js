@@ -1,8 +1,17 @@
 import Hero from '../components/Hero';
 import RoomCard from '../components/RoomCard';
+import EditorialSplit from '../components/editorial/EditorialSplit';
+import Reveal from '../components/motion/Reveal';
+import { RevealStagger, RevealStaggerItem } from '../components/motion/RevealStagger';
+import OpenBookingButton from '../components/booking/OpenBookingButton';
 import Link from 'next/link';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+const AMENITIES_IMAGE =
+  'https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=1200&q=80';
+const CTA_IMAGE =
+  'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1200&q=80';
 
 async function getFeaturedRooms() {
   try {
@@ -24,39 +33,61 @@ const HIGHLIGHTS = [
 
 export default async function HomePage() {
   const rooms = await getFeaturedRooms();
+  const [feature, ...rest] = rooms;
 
   return (
     <div>
       <Hero />
 
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="grid gap-10 md:grid-cols-3">
-          {HIGHLIGHTS.map((h) => (
-            <div key={h.title} className="card p-6">
-              <div className="mb-4 h-1 w-10 rounded-full bg-gold-500" />
-              <h3 className="font-serif text-xl font-bold text-navy-50">{h.title}</h3>
-              <p className="mt-2 text-sm text-navy-300">{h.desc}</p>
-            </div>
-          ))}
-        </div>
+        <EditorialSplit image={AMENITIES_IMAGE} imageAlt="Resort amenities at Gokulam Resorts">
+          <p className="eyebrow">The Gokulam Experience</p>
+          <h2 className="section-heading mt-2">Resort Amenities</h2>
+          <ul className="mt-8 space-y-6">
+            {HIGHLIGHTS.map((h, i) => (
+              <li key={h.title} className="flex gap-4">
+                <span className="font-serif text-2xl italic text-gold-400">{String(i + 1).padStart(2, '0')}</span>
+                <div>
+                  <h3 className="font-serif text-lg font-semibold text-navy-50">{h.title}</h3>
+                  <p className="mt-1 text-sm text-navy-300">{h.desc}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </EditorialSplit>
       </section>
 
       <section className="bg-navy-900 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
+          <Reveal className="mb-10 flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="eyebrow">Featured Stays</p>
               <h2 className="section-heading">Rooms &amp; Suites</h2>
             </div>
             <Link href="/rooms" className="btn-outline">View All Rooms</Link>
-          </div>
+          </Reveal>
 
-          {rooms.length > 0 ? (
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          {rooms.length >= 3 ? (
+            <RevealStagger className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+              <RevealStaggerItem>
+                <RoomCard room={feature} variant="feature" />
+              </RevealStaggerItem>
+              <div className="grid gap-6">
+                {rest.map((room) => (
+                  <RevealStaggerItem key={room.id}>
+                    <RoomCard room={room} />
+                  </RevealStaggerItem>
+                ))}
+              </div>
+            </RevealStagger>
+          ) : rooms.length > 0 ? (
+            <RevealStagger className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {rooms.map((room) => (
-                <RoomCard key={room.id} room={room} />
+                <RevealStaggerItem key={room.id}>
+                  <RoomCard room={room} />
+                </RevealStaggerItem>
               ))}
-            </div>
+            </RevealStagger>
           ) : (
             <div className="card p-8 text-center text-navy-300">
               Rooms will appear here once the API server is running and seeded.
@@ -69,14 +100,16 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8">
-        <p className="eyebrow">Chirala Beach, Andhra Pradesh</p>
-        <h2 className="section-heading mt-2">Your Escape Awaits</h2>
-        <p className="mx-auto mt-4 max-w-2xl text-navy-300">
-          From sunrise yoga on the sand to private candlelit dinners by the waves, Gokulam Resorts is
-          built for slow mornings and unforgettable evenings.
-        </p>
-        <Link href="/rooms" className="btn-gold mt-8 inline-flex">Check Availability</Link>
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+        <EditorialSplit image={CTA_IMAGE} imageAlt="Sunset dining at Gokulam Resorts" imageSide="right">
+          <p className="eyebrow">Chirala Beach, Andhra Pradesh</p>
+          <h2 className="section-heading mt-2">Your Escape Awaits</h2>
+          <p className="mt-4 text-navy-300">
+            From sunrise yoga on the sand to private candlelit dinners by the waves, Gokulam Resorts is
+            built for slow mornings and unforgettable evenings.
+          </p>
+          <OpenBookingButton className="btn-gold mt-8 inline-flex">Check Availability</OpenBookingButton>
+        </EditorialSplit>
       </section>
     </div>
   );
