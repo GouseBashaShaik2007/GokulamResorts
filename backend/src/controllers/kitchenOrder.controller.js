@@ -22,7 +22,10 @@ const listActiveOrders = asyncHandler(async (req, res) => {
 
   const orderIds = orders.map((o) => o.id);
   const { rows: items } = await query(
-    `SELECT order_id, item_name, quantity, spice_level, notes FROM food_order_items WHERE order_id = ANY($1) ORDER BY id`,
+    // is_veg comes from the dish as it is on the menu now (null if the dish was since removed).
+    `SELECT foi.order_id, foi.item_name, foi.quantity, foi.spice_level, foi.notes, mi.is_veg
+     FROM food_order_items foi LEFT JOIN menu_items mi ON mi.id = foi.menu_item_id
+     WHERE foi.order_id = ANY($1) ORDER BY foi.id`,
     [orderIds]
   );
 

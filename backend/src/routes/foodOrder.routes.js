@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { body, param, query } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const validate = require('../middleware/validate');
-const { checkAccess, createOrder, getOrderByToken, getQueue, createTableRequest } = require('../controllers/foodOrder.controller');
+const { checkAccess, createOrder, getOrderByToken, cancelOwnOrder, getQueue, createTableRequest } = require('../controllers/foodOrder.controller');
 
 const router = Router();
 
@@ -69,6 +69,8 @@ router.post(
 router.get('/food-orders/queue', getQueue);
 
 // By private token only (never by order number, which is guessable).
-router.get('/food-orders/:token', [param('token').matches(/^[A-Za-z0-9_-]{16,40}$/)], validate, getOrderByToken);
+const tokenParam = [param('token').matches(/^[A-Za-z0-9_-]{16,40}$/)];
+router.get('/food-orders/:token', tokenParam, validate, getOrderByToken);
+router.post('/food-orders/:token/cancel', orderLimiter, tokenParam, validate, cancelOwnOrder);
 
 module.exports = router;

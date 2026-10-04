@@ -961,8 +961,25 @@ async function deskOverview() {
      JOIN bookings b ON b.id = r.booking_id JOIN room_units ru ON ru.id = b.room_unit_id
      WHERE r.status = 'pending' AND r.method <> 'razorpay' ORDER BY r.id`
   );
+  // Tomorrow's arrivals, so the desk can prepare the evening before.
+  const { rows: tomorrowRows } = await query(
+    `${BOOKING_SELECT}
+     WHERE b.status IN ('confirmed', 'paid') AND b.check_in = $1::date + 1
+     ORDER BY ru.unit_number`,
+    [today]
+  );
+
+  // Whether each booking already has its primary guest's ID on file (a check-in needs it).
+  const ids = [...rows, ...tomorrowRows].map((b) => b.id);
+  const { rows: withId } = ids.length
+    ? await query(`SELECT DISTINCT booking_id FROM guest_documents WHERE booking_id = ANY($1) AND is_primary AND purged_at IS NULL`, [ids])
+    : { rows: [] };
+  const hasId = new Set(withId.map((d) => d.booking_id));
+  for (const b of [...rows, ...tomorrowRows]) b.has_primary_id = hasId.has(b.id);
+
   return {
     today,
+    tomorrowArrivals: tomorrowRows,
     arrivals: rows.filter((b) => b.status === 'confirmed'),
     inHouse: rows.filter((b) => b.status === 'checked_in'),
     departures: rows.filter((b) => b.status === 'checked_in' && b.check_out <= today),

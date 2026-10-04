@@ -341,15 +341,25 @@ const deleteMenuItem = asyncHandler(async (req, res) => {
 });
 
 // GET /api/admin/food-orders — full order history for the admin panel
+// Optional ?status=, and ?from= / ?to= (YYYY-MM-DD, the resort's calendar days, inclusive).
 const listFoodOrders = asyncHandler(async (req, res) => {
-  const { status } = req.query;
+  const { status, from, to } = req.query;
 
   const params = [];
-  let where = '';
+  const clauses = [];
   if (status) {
     params.push(status);
-    where = 'WHERE status = $1';
+    clauses.push(`status = $${params.length}`);
   }
+  if (from) {
+    params.push(from, TIMEZONE);
+    clauses.push(`(created_at AT TIME ZONE $${params.length})::date >= $${params.length - 1}::date`);
+  }
+  if (to) {
+    params.push(to, TIMEZONE);
+    clauses.push(`(created_at AT TIME ZONE $${params.length})::date <= $${params.length - 1}::date`);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
   const { rows: orders } = await query(
     `SELECT id, order_type, table_number, customer_name, customer_phone, notes,
@@ -366,10 +376,10 @@ const listFoodOrders = asyncHandler(async (req, res) => {
 
   const orderIds = orders.map((o) => o.id);
   const { rows: items } = await query(
-    `SELECT order_id, item_name, unit_price, quantity, line_total, spice_level, notes
-     FROM food_order_items
-     WHERE order_id = ANY($1)
-     ORDER BY id`,
+`SELECT foi.order_id, foi.item_name, foi.unit_price, foi.quantity, foi.line_total, foi.spice_level, foi.notes, mi.is_veg
+     FROM food_order_items foi LEFT JOIN menu_items mi ON mi.id = foi.menu_item_id
+     WHERE foi.order_id = ANY($1)
+     ORDER BY foi.id`,
     [orderIds]
   );
 
@@ -433,8 +443,9 @@ function normalizeSiteUrl(siteUrl) {
   } catch {
     throw new ApiError(400, 'Site address must be a full URL, e.g. https://gokulamresorts.in');
   }
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new ApiError(400, 'Site address must start with http:// or https://');
+  // Printed codes are scanned on phones, which warn about (or refuse) plain http.
+  if (parsed.protocol !== 'https:') {
+    throw new ApiError(400, 'Site address must start with https://');
   }
   const host = parsed.hostname.toLowerCase();
   if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
@@ -516,24 +527,46 @@ const uploadImage = asyncHandler(async (req, res) => {
 });
 
 // GET /api/admin/stats/today
-// Money that actually moved today on the resort's calendar: every captured
+// Everything the dashboard shows, counted here in one query instead of the
+// page downloading every booking, room and food order to count a handful.
+// Money is what actually moved today on the resort's calendar: every captured
 // payment (online or counter, including balances and extensions) and every
-// completed refund. Summed here so the dashboard doesn't download every
-// booking and guess the day from a UTC timestamp.
+// completed refund.
 const todayStats = asyncHandler(async (req, res) => {
   const { rows } = await query(
-    `SELECT
-       (SELECT COALESCE(SUM(amount), 0) FROM payments
-         WHERE status = 'captured'
-           AND (COALESCE(captured_at, created_at) AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date) AS payments,
-       (SELECT COALESCE(SUM(amount), 0) FROM refunds
-         WHERE status = 'processed'
-           AND (COALESCE(processed_at, updated_at) AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date) AS refunds`,
+    `WITH day AS (SELECT (now() AT TIME ZONE $1)::date AS today)
+     SELECT
+       (SELECT COALESCE(SUM(amount), 0) FROM payments, day
+         WHERE status = 'captured' AND (COALESCE(captured_at, created_at) AT TIME ZONE $1)::date = day.today) AS payments,
+       (SELECT COALESCE(SUM(amount), 0) FROM refunds, day
+         WHERE status = 'processed' AND (COALESCE(processed_at, updated_at) AT TIME ZONE $1)::date = day.today) AS refunds,
+       (SELECT count(*)::int FROM bookings, day WHERE status = 'confirmed' AND check_in <= day.today) AS arrivals,
+       (SELECT count(*)::int FROM bookings, day WHERE status = 'checked_in' AND check_out <= day.today) AS departures,
+       (SELECT count(*)::int FROM bookings WHERE status = 'checked_in') AS in_house,
+       (SELECT count(*)::int FROM bookings WHERE status = 'paid') AS awaiting_approval,
+       (SELECT min(hold_expires_at) FROM bookings WHERE status = 'paid') AS approval_deadline,
+       (SELECT count(*)::int FROM refunds WHERE status = 'pending' AND method <> 'razorpay') AS pending_refunds,
+       (SELECT count(*)::int FROM room_units WHERE is_active) AS rooms,
+       (SELECT count(*)::int FROM room_units WHERE is_active AND status <> 'Ready') AS rooms_not_ready,
+       (SELECT count(*)::int FROM food_orders WHERE status IN ('new', 'preparing', 'ready')) AS open_food_orders`,
     [TIMEZONE]
   );
+  const r = rows[0];
   res.json({
     success: true,
-    stats: { paymentsToday: Number(rows[0].payments), refundsToday: Number(rows[0].refunds) },
+    stats: {
+      paymentsToday: Number(r.payments),
+      refundsToday: Number(r.refunds),
+      arrivals: r.arrivals,
+      departures: r.departures,
+      inHouse: r.in_house,
+      awaitingApproval: r.awaiting_approval,
+      approvalDeadline: r.approval_deadline, // when the first unapproved booking auto-cancels, or null
+      pendingRefunds: r.pending_refunds,
+      rooms: r.rooms,
+      roomsNotReady: r.rooms_not_ready,
+      openFoodOrders: r.open_food_orders,
+    },
   });
 });
 

@@ -10,11 +10,19 @@ const { emitJobUpdate } = require('../realtime');
 const login = asyncHandler(async (req, res) => {
   const { phone, password } = req.body;
 
+  // The number as the manager typed it, or the same number written another way
+  // ("98765 43210", "+91 9876543210"): compared on its last ten digits. If two
+  // staff would match that loosely, only the exact spelling is accepted.
+  const digits = String(phone || '').replace(/\D/g, '');
   const { rows } = await query(
-    `SELECT id, name, phone, role, password_hash, is_active FROM staff WHERE phone = $1`,
-    [phone]
+    `SELECT id, name, phone, role, password_hash, is_active FROM staff
+     WHERE phone = $1
+        OR (length($2) >= 10 AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = right($2, 10))
+     ORDER BY (phone = $1) DESC, id
+     LIMIT 2`,
+    [phone, digits]
   );
-  const staff = rows[0];
+  const staff = rows[0] && (rows[0].phone === phone || rows.length === 1) ? rows[0] : null;
   if (!staff || !staff.is_active || !(await bcrypt.compare(password, staff.password_hash))) {
     throw new ApiError(401, 'Invalid phone number or password');
   }

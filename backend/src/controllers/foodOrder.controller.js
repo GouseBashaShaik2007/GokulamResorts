@@ -3,6 +3,7 @@ const { withTransaction, query } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
 const access = require('../utils/orderAccess');
+const { logAction } = require('../utils/auditLog');
 
 const SCAN_FIRST = 'Please scan the QR code on your table, or at the restaurant counter, to order.';
 
@@ -125,6 +126,24 @@ const getOrderByToken = asyncHandler(async (req, res) => {
   res.json({ success: true, order: { ...rows[0], items } });
 });
 
+// POST /api/food-orders/:token/cancel — the guest changes their mind. Allowed
+// only while the order is still "new"; once the kitchen has started cooking,
+// it is the staff's call.
+const cancelOwnOrder = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `UPDATE food_orders SET status = 'cancelled', updated_at = now()
+     WHERE public_token = $1 AND status = 'new' RETURNING id, status`,
+    [req.params.token]
+  );
+  if (rows.length === 0) {
+    const { rows: existing } = await query(`SELECT status FROM food_orders WHERE public_token = $1`, [req.params.token]);
+    if (existing.length === 0) throw new ApiError(404, 'Order not found');
+    throw new ApiError(409, 'The kitchen has already started this order. Please ask our staff to change it.');
+  }
+  logAction({ actorType: 'guest', action: 'food_order_cancelled_by_guest', details: { orderId: rows[0].id } });
+  res.json({ success: true, order: rows[0] });
+});
+
 // GET /api/food-orders/queue — count of orders waiting or being prepared.
 const getQueue = asyncHandler(async (req, res) => {
   const { rows } = await query(`SELECT count(*)::int AS active FROM food_orders WHERE status IN ('new', 'preparing')`);
@@ -148,4 +167,4 @@ const createTableRequest = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true });
 });
 
-module.exports = { checkAccess, createOrder, getOrderByToken, getQueue, createTableRequest };
+module.exports = { checkAccess, createOrder, getOrderByToken, cancelOwnOrder, getQueue, createTableRequest };

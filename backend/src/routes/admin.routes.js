@@ -197,7 +197,16 @@ router.put('/menu/items/:id', [param('id').isInt({ min: 1 }), ...dishInfoFields]
 
 router.delete('/menu/items/:id', [param('id').isInt({ min: 1 })], validate, deleteMenuItem);
 
-router.get('/food-orders', listFoodOrders);
+router.get(
+  '/food-orders',
+  [
+    query('status').optional().isIn(['new', 'preparing', 'ready', 'served', 'cancelled']),
+    query('from').optional().isISO8601({ strict: true }),
+    query('to').optional().isISO8601({ strict: true }),
+  ],
+  validate,
+  listFoodOrders
+);
 
 router.patch(
   '/food-orders/:id/status',
