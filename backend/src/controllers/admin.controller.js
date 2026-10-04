@@ -6,6 +6,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const publicImage = require('../services/publicImage.service');
 const { logAction } = require('../utils/auditLog');
 const { TIMEZONE } = require('../utils/dates');
+const orderAccess = require('../utils/orderAccess');
 
 // POST /api/admin/login
 const login = asyncHandler(async (req, res) => {
@@ -245,13 +246,24 @@ const listAllMenuItems = asyncHandler(async (req, res) => {
 
 // POST /api/admin/menu/items
 const addMenuItem = asyncHandler(async (req, res) => {
-  const { categoryId, name, description, price, image, isVeg, spiceAdjustable } = req.body;
+  const { categoryId, name, description, price, image, isVeg, spiceAdjustable, allergens, isJain, spiceRating } = req.body;
 
   const { rows } = await query(
-    `INSERT INTO menu_items (category_id, name, description, price, image, is_veg, spice_adjustable)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+    `INSERT INTO menu_items (category_id, name, description, price, image, is_veg, spice_adjustable, allergens, is_jain, spice_rating)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING *`,
-    [categoryId, name, description || '', price, image || null, isVeg !== false, spiceAdjustable === true]
+    [
+      categoryId,
+      name,
+      description || '',
+      price,
+      image || null,
+      isVeg !== false,
+      spiceAdjustable === true,
+      allergens || [],
+      isJain === true,
+      spiceRating || 0,
+    ]
   );
 
   res.status(201).json({ success: true, item: rows[0] });
@@ -262,12 +274,26 @@ const updateMenuItem = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const fields = req.body;
 
-  const allowed = ['category_id', 'name', 'description', 'price', 'image', 'is_veg', 'is_available', 'spice_adjustable'];
+  const allowed = [
+    'category_id',
+    'name',
+    'description',
+    'price',
+    'image',
+    'is_veg',
+    'is_available',
+    'spice_adjustable',
+    'allergens',
+    'is_jain',
+    'spice_rating',
+  ];
   const map = {
     categoryId: 'category_id',
     isVeg: 'is_veg',
     spiceAdjustable: 'spice_adjustable',
     isAvailable: 'is_available',
+    isJain: 'is_jain',
+    spiceRating: 'spice_rating',
   };
 
   const setClauses = [];
@@ -386,48 +412,96 @@ const updateFoodOrderStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, order: rows[0] });
 });
 
-// POST /api/admin/upload-image?type=food|room
+const SETTINGS_COLUMNS =
+  'site_url, phone, whatsapp, email, address, maps_url, check_in_time, check_out_time, table_count, updated_at';
+
 // GET /api/admin/settings
 const getSettings = asyncHandler(async (req, res) => {
-  const { rows } = await query('SELECT site_url, updated_at FROM resort_settings WHERE id = 1');
+  const { rows } = await query(`SELECT ${SETTINGS_COLUMNS} FROM resort_settings WHERE id = 1`);
   res.json({ success: true, settings: rows[0] || { site_url: '', updated_at: null } });
 });
 
-// PUT /api/admin/settings
-// Currently just the production site URL used to build table/kiosk QR codes.
-// Deliberately never defaulted to the request's own origin — an admin must
-// type the real domain, or QR codes silently point at localhost/whatever
-// dev machine generated them.
-const updateSettings = asyncHandler(async (req, res) => {
-  const { siteUrl } = req.body;
+// The production address baked into printed QR codes. Deliberately never
+// defaulted to the request's own origin — an admin must type the real domain,
+// or QR codes silently point at localhost/whatever dev machine generated them.
+function normalizeSiteUrl(siteUrl) {
+  const trimmed = String(siteUrl || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new ApiError(400, 'Site address must be a full URL, e.g. https://gokulamresorts.in');
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new ApiError(400, 'Site address must start with http:// or https://');
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
+    throw new ApiError(400, 'Site address cannot be a localhost/dev address — QR codes must point at the real production site');
+  }
+  return parsed.toString().replace(/\/+$/, '');
+}
 
-  let normalized = String(siteUrl || '').trim().replace(/\/+$/, '');
-  if (normalized) {
-    let parsed;
-    try {
-      parsed = new URL(normalized);
-    } catch {
-      throw new ApiError(400, 'Site address must be a full URL, e.g. https://gokulamresorts.in');
-    }
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      throw new ApiError(400, 'Site address must start with http:// or https://');
-    }
-    const host = parsed.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
-      throw new ApiError(400, 'Site address cannot be a localhost/dev address — QR codes must point at the real production site');
-    }
-    normalized = parsed.toString().replace(/\/+$/, '');
+// Request field -> column, for the plain-text resort details.
+const SETTINGS_TEXT_FIELDS = {
+  phone: 'phone',
+  whatsapp: 'whatsapp',
+  email: 'email',
+  address: 'address',
+  mapsUrl: 'maps_url',
+  checkInTime: 'check_in_time',
+  checkOutTime: 'check_out_time',
+};
+
+// PUT /api/admin/settings
+// Only the fields that are sent are changed, so the QR page (site address,
+// number of tables) and the resort details form can save independently.
+const updateSettings = asyncHandler(async (req, res) => {
+  const setClauses = [];
+  const values = [];
+  const set = (column, value) => {
+    values.push(value);
+    setClauses.push(`${column} = $${values.length}`);
+  };
+
+  if (req.body.siteUrl !== undefined) set('site_url', normalizeSiteUrl(req.body.siteUrl));
+  for (const [field, column] of Object.entries(SETTINGS_TEXT_FIELDS)) {
+    if (req.body[field] !== undefined) set(column, String(req.body[field] || '').trim());
+  }
+  if (req.body.tableCount !== undefined) set('table_count', req.body.tableCount);
+
+  if (setClauses.length === 0) {
+    throw new ApiError(400, 'No valid fields provided to update');
   }
 
+  set('updated_by', req.admin?.sub || null);
   const { rows } = await query(
-    `UPDATE resort_settings SET site_url = $1, updated_by = $2, updated_at = now() WHERE id = 1
-     RETURNING site_url, updated_at`,
-    [normalized, req.admin?.sub || null]
+    `UPDATE resort_settings SET ${setClauses.join(', ')}, updated_at = now() WHERE id = 1
+     RETURNING ${SETTINGS_COLUMNS}`,
+    values
   );
+
+  logAction({ actorType: 'admin', actorId: req.admin?.sub, action: 'settings_updated', details: { fields: Object.keys(req.body) } });
 
   res.json({ success: true, settings: rows[0] });
 });
 
+// GET /api/admin/order-links — the key each printed QR code must carry
+// (see utils/orderAccess.js). Managers only: these are what let a phone order.
+const getOrderLinks = asyncHandler(async (req, res) => {
+  const { rows } = await query('SELECT site_url, table_count FROM resort_settings WHERE id = 1');
+  const tableCount = rows[0]?.table_count || 0;
+  res.json({
+    success: true,
+    siteUrl: rows[0]?.site_url || '',
+    tableCount,
+    counterKey: orderAccess.counterKey(),
+    tables: Array.from({ length: tableCount }, (_, i) => ({ table: i + 1, key: orderAccess.tableKey(i + 1) })),
+  });
+});
+
+// POST /api/admin/upload-image?type=food|room
 const uploadImage = asyncHandler(async (req, res) => {
   const { type } = req.query;
   if (!['food', 'room'].includes(type)) {
@@ -482,5 +556,6 @@ module.exports = {
   uploadImage,
   getSettings,
   updateSettings,
+  getOrderLinks,
   todayStats,
 };

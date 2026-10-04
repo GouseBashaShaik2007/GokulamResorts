@@ -271,6 +271,19 @@ CREATE TABLE IF NOT EXISTS resort_settings (
 );
 INSERT INTO resort_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
+-- Resort details shown on the guest site, editable in Admin -> Settings so a
+-- phone number or check-in time doesn't need a code change. Empty = not shown.
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS phone           TEXT NOT NULL DEFAULT '';
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS whatsapp        TEXT NOT NULL DEFAULT ''; -- digits only, with country code
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS email           TEXT NOT NULL DEFAULT '';
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS address         TEXT NOT NULL DEFAULT '';
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS maps_url        TEXT NOT NULL DEFAULT ''; -- Google Maps link to the resort's pin
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS check_in_time   TEXT NOT NULL DEFAULT ''; -- as shown to guests, e.g. "2:00 PM"
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS check_out_time  TEXT NOT NULL DEFAULT '';
+-- How many restaurant tables have a QR code. Orders for any other table number are refused.
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS table_count     INTEGER NOT NULL DEFAULT 10
+  CHECK (table_count BETWEEN 1 AND 200);
+
 -- Who did what: approvals, rejections, discounts, payments, check-in/out,
 -- overrides, automatic expiries.
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -374,6 +387,32 @@ ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS spice_adjustable BOOLEAN NOT NUL
 ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS spice_level VARCHAR(10)
   CHECK (spice_level IN ('mild', 'medium', 'hot'));
 ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS notes VARCHAR(300);
+
+-- A guest follows their own order by this random token. Order numbers are
+-- sequential, so they must not work as a public address.
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS public_token VARCHAR(40);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_food_orders_public_token ON food_orders (public_token)
+  WHERE public_token IS NOT NULL;
+
+-- What a diner needs to know before ordering. allergens holds any of:
+-- nuts, dairy, gluten, egg, shellfish, fish, soy. spice_rating is the dish's
+-- usual heat, 0 (none) to 3 (hot).
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS allergens    TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_jain      BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS spice_rating SMALLINT NOT NULL DEFAULT 0
+  CHECK (spice_rating BETWEEN 0 AND 3);
+
+-- "Call staff" / "Request bill" from a table's ordering page; shown on the
+-- kitchen display until someone marks it done.
+CREATE TABLE IF NOT EXISTS table_requests (
+  id            SERIAL PRIMARY KEY,
+  table_number  VARCHAR(20) NOT NULL,
+  kind          VARCHAR(10) NOT NULL CHECK (kind IN ('staff', 'bill')),
+  status        VARCHAR(10) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  done_at       TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_table_requests_open ON table_requests (status, created_at);
 
 -- ---------------------------------------------------------
 -- Housekeeping / room cleaning

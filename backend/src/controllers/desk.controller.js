@@ -3,6 +3,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const { ApiError } = require('../middleware/errorHandler');
 const bookings = require('../services/booking.service');
 const { normalizePhone } = require('./booking.controller');
+const { query } = require('../db/pool');
+const { localToday } = require('../utils/dates');
 
 const id = (req) => Number(req.params.id);
 
@@ -101,7 +103,34 @@ const completeRefund = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+// GET /api/desk/rooms — every room with its housekeeping state and who (if
+// anyone) is in it or due today, so the desk can answer "which rooms are free
+// and clean right now?" without opening housekeeping.
+const rooms = asyncHandler(async (req, res) => {
+  const today = await localToday();
+  const { rows } = await query(
+    `SELECT ru.id, ru.unit_number, ru.floor, ru.view_label, ru.status AS housekeeping, r.name AS room_type,
+            stay.id AS booking_id, stay.reference, stay.guest_name, stay.status AS booking_status,
+            stay.check_in::text AS check_in, stay.check_out::text AS check_out
+     FROM room_units ru
+     JOIN rooms r ON r.id = ru.room_type_id
+     LEFT JOIN LATERAL (
+       SELECT b.id, b.reference, b.guest_name, b.status, b.check_in, b.check_out
+       FROM bookings b
+       WHERE b.room_unit_id = ru.id
+         AND (b.status = 'checked_in' OR (b.status IN ('confirmed', 'paid') AND b.check_in <= $1 AND b.check_out > $1))
+       ORDER BY (b.status = 'checked_in') DESC, b.check_in
+       LIMIT 1
+     ) stay ON true
+     WHERE ru.is_active
+     ORDER BY ru.unit_number`,
+    [today]
+  );
+  res.json({ success: true, today, rooms: rows });
+});
+
 module.exports = {
+  rooms,
   overview,
   list,
   detail,

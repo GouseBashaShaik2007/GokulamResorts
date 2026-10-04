@@ -58,6 +58,14 @@ services:
       - key: KITCHEN_JWT_EXPIRES_IN
         value: 12h
 
+      # Food ordering: every printed QR code carries a key made from this
+      # secret, and orders are refused without it. Kept separate from
+      # JWT_SECRET so that changing the login secret doesn't break the printed
+      # codes. Changing THIS one retires every printed code at once (reprint
+      # them from Admin -> QR Codes).
+      - key: ORDER_LINK_SECRET
+        generateValue: true
+
       # Render puts one proxy in front of the service; trusting it lets rate
       # limits count each visitor separately.
       - key: TRUST_PROXY

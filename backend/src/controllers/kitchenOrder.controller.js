@@ -59,4 +59,24 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, order: rows[0] });
 });
 
-module.exports = { listActiveOrders, updateOrderStatus };
+// GET /api/kitchen/requests — tables waiting for a person or for the bill, oldest first.
+const listRequests = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `SELECT id, table_number, kind, created_at FROM table_requests WHERE status = 'open' ORDER BY created_at ASC`
+  );
+  res.json({ success: true, requests: rows });
+});
+
+// PATCH /api/kitchen/requests/:id/done — someone has gone to the table.
+const completeRequest = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `UPDATE table_requests SET status = 'done', done_at = now() WHERE id = $1 AND status = 'open' RETURNING id`,
+    [req.params.id]
+  );
+  if (rows.length === 0) {
+    throw new ApiError(404, 'Request not found');
+  }
+  res.json({ success: true });
+});
+
+module.exports = { listActiveOrders, updateOrderStatus, listRequests, completeRequest };

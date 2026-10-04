@@ -24,6 +24,7 @@ const {
   uploadImage,
   getSettings,
   updateSettings,
+  getOrderLinks,
   todayStats,
 } = require('../controllers/admin.controller');
 const hk = require('../controllers/housekeeping.controller');
@@ -132,12 +133,24 @@ router.post(
   validate,
   mgr.addRateDiscount
 );
+// Send only { isActive } to switch a promotion on or off, or any of the other fields to edit it.
 router.put(
   '/rate-discounts/:id',
-  [param('id').isInt({ min: 1 }), body('isActive').isBoolean().toBoolean()],
+  [
+    param('id').isInt({ min: 1 }),
+    body('isActive').optional().isBoolean().toBoolean(),
+    body('name').optional().trim().notEmpty().isLength({ max: 100 }),
+    body('roomTypeId').optional({ values: 'null' }).isInt({ min: 1 }).toInt(),
+    body('discountType').optional().isIn(['percent', 'fixed']),
+    body('value').optional().isFloat({ gt: 0 }).toFloat(),
+    body('startDate').optional().isISO8601(),
+    body('endDate').optional().isISO8601(),
+    body('reason').optional().trim().isLength({ min: 3, max: 500 }).withMessage('A reason is required'),
+  ],
   validate,
   mgr.updateRateDiscount
 );
+router.delete('/rate-discounts/:id', [param('id').isInt({ min: 1 })], validate, mgr.deleteRateDiscount);
 
 router.get('/menu/categories', listAllCategories);
 
@@ -154,6 +167,16 @@ router.delete('/menu/categories/:id', [param('id').isInt({ min: 1 })], validate,
 
 router.get('/menu/items', listAllMenuItems);
 
+// What a diner is told about a dish. Kept to a fixed list so the guest site
+// can label and filter them reliably.
+const ALLERGENS = ['nuts', 'dairy', 'gluten', 'egg', 'shellfish', 'fish', 'soy'];
+const dishInfoFields = [
+  body('allergens').optional().isArray({ max: ALLERGENS.length }),
+  body('allergens.*').isIn(ALLERGENS).withMessage(`Allergens must be any of: ${ALLERGENS.join(', ')}`),
+  body('isJain').optional().isBoolean(),
+  body('spiceRating').optional().isInt({ min: 0, max: 3 }).toInt(),
+];
+
 router.post(
   '/menu/items',
   [
@@ -164,12 +187,13 @@ router.post(
     body('image').optional({ nullable: true }).isString(),
     body('isVeg').optional().isBoolean(),
     body('spiceAdjustable').optional().isBoolean(),
+    ...dishInfoFields,
   ],
   validate,
   addMenuItem
 );
 
-router.put('/menu/items/:id', [param('id').isInt({ min: 1 })], validate, updateMenuItem);
+router.put('/menu/items/:id', [param('id').isInt({ min: 1 }), ...dishInfoFields], validate, updateMenuItem);
 
 router.delete('/menu/items/:id', [param('id').isInt({ min: 1 })], validate, deleteMenuItem);
 
@@ -315,7 +339,26 @@ router.get('/stats/today', todayStats);
 
 // ----- Settings -----
 
+// Every field is optional and may be sent empty to clear it.
+const blankable = (field) => body(field).optional({ checkFalsy: true });
+
 router.get('/settings', getSettings);
-router.put('/settings', [body('siteUrl').optional({ checkFalsy: true }).isString().isLength({ max: 500 })], validate, updateSettings);
+router.put(
+  '/settings',
+  [
+    blankable('siteUrl').isString().isLength({ max: 500 }),
+    blankable('phone').isString().matches(/^\+?[\d\s()-]{7,20}$/).withMessage('Enter a phone number, e.g. +91 98765 43210'),
+    blankable('whatsapp').isString().matches(/^\d{8,15}$/).withMessage('WhatsApp number: digits only, with the country code (e.g. 919876543210)'),
+    blankable('email').isEmail().withMessage('Enter a valid email address').isLength({ max: 150 }),
+    blankable('address').isString().isLength({ max: 300 }),
+    blankable('mapsUrl').isURL({ protocols: ['http', 'https'], require_protocol: true }).withMessage('Paste the full Google Maps link, starting with https://').isLength({ max: 500 }),
+    blankable('checkInTime').isString().isLength({ max: 20 }),
+    blankable('checkOutTime').isString().isLength({ max: 20 }),
+    body('tableCount').optional().isInt({ min: 1, max: 200 }).withMessage('Number of tables must be between 1 and 200').toInt(),
+  ],
+  validate,
+  updateSettings
+);
+router.get('/order-links', getOrderLinks);
 
 module.exports = router;

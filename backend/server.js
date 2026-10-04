@@ -18,6 +18,7 @@ const { notFound, errorHandler } = require('./src/middleware/errorHandler');
 const { initRealtime } = require('./src/realtime');
 const { startScheduler } = require('./src/jobs/scheduler');
 const deskRoutes = require('./src/routes/desk.routes');
+const siteRoutes = require('./src/routes/site.routes');
 
 const app = express();
 
@@ -63,7 +64,8 @@ app.use('/api', paymentRoutes); // /api/create-order, /api/verify-payment, /api/
 app.use('/api/admin', adminRoutes); // /api/admin/login, /api/admin/add-room, ...
 app.use('/api/contact', contactRoutes);
 app.use('/api/menu', menuRoutes);
-app.use('/api', foodOrderRoutes); // /api/food-orders, /api/food-orders/:id
+app.use('/api', siteRoutes); // /api/site-info, /api/offers
+app.use('/api', foodOrderRoutes); // /api/order-access, /api/food-orders, /api/food-orders/:token, /api/table-requests
 app.use('/api/kitchen', kitchenRoutes);
 app.use('/api/desk', deskRoutes); // front desk (and managers): check-in/out, counter bookings, IDs
 app.use('/api/staff', staffRoutes); // housekeeping staff login + task actions

@@ -4,7 +4,7 @@ const rateLimit = require('express-rate-limit');
 const validate = require('../middleware/validate');
 const kitchenAuth = require('../middleware/kitchenAuth');
 const { login } = require('../controllers/kitchenAuth.controller');
-const { listActiveOrders, updateOrderStatus } = require('../controllers/kitchenOrder.controller');
+const { listActiveOrders, updateOrderStatus, listRequests, completeRequest } = require('../controllers/kitchenOrder.controller');
 
 const router = Router();
 
@@ -32,5 +32,9 @@ router.patch(
   validate,
   updateOrderStatus
 );
+
+// "Call staff" / "Request bill" sent from a table's ordering page.
+router.get('/requests', listRequests);
+router.patch('/requests/:id/done', [param('id').isInt({ min: 1 })], validate, completeRequest);
 
 module.exports = router;

@@ -30,6 +30,7 @@ const referenceField = (name) =>
 router.use(deskAuth);
 
 router.get('/overview', desk.overview);
+router.get('/rooms', desk.rooms);
 router.get('/bookings', desk.list);
 router.get('/bookings/:id', bookingId, validate, desk.detail);
 router.get(
