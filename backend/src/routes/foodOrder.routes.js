@@ -1,15 +1,33 @@
 const { Router } = require('express');
 const { body, param } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 const validate = require('../middleware/validate');
 const { createOrder, getOrderById, getQueue } = require('../controllers/foodOrder.controller');
 
 const router = Router();
 
+// A whole restaurant can share one Wi-Fi address, so this is generous: it is
+// there to stop a script flooding the kitchen, not to slow down diners.
+const orderLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many orders in a short time. Please ask our staff for help.' },
+});
+
 router.post(
   '/food-orders',
+  orderLimiter,
   [
     body('orderType').isIn(['table', 'kiosk']).withMessage('orderType must be "table" or "kiosk"'),
-    body('tableNumber').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 20 }),
+    // Tables are numbered 1–100: the range Admin → QR Codes prints. Anything
+    // else never came from a table card, so it must not reach the kitchen.
+    body('tableNumber')
+      .optional({ nullable: true, checkFalsy: true })
+      .isString()
+      .matches(/^([1-9]\d?|100)$/)
+      .withMessage('Unknown table number'),
     body('customerName').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 150 }),
     body('customerPhone').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 20 }),
     body('notes').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 1000 }),

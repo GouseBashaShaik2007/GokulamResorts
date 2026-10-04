@@ -24,11 +24,13 @@ const {
   uploadImage,
   getSettings,
   updateSettings,
+  todayStats,
 } = require('../controllers/admin.controller');
 const hk = require('../controllers/housekeeping.controller');
 const mgr = require('../controllers/adminBooking.controller');
 const kitchenStaff = require('../controllers/kitchenStaff.controller');
 const { PRIORITIES, STAFF_ROLES } = require('../services/cleaning.service');
+const { isObviousPin } = require('../utils/pins');
 const { ALLOWED_TYPES: ALLOWED_IMAGE_TYPES } = require('../services/publicImage.service');
 
 const imageUpload = multer({
@@ -40,11 +42,15 @@ const imageUpload = multer({
 
 const router = Router();
 
+// Only wrong guesses count, so someone who signs in normally is never locked
+// out; ten wrong passwords from one address in 15 minutes are.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 10,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { success: false, message: 'Too many sign-in attempts. Please wait 15 minutes and try again.' },
 });
 
 router.post(
@@ -278,7 +284,9 @@ router.post('/cleaning/run-nightly', hk.runNightly);
 
 // ----- Kitchen staff (per-cook PIN logins for the kitchen display) -----
 
-const pinField = body('pin').matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits');
+const notObvious = (pin) => !isObviousPin(pin);
+const OBVIOUS_PIN = 'That PIN is too easy to guess. Avoid repeats (0000) and runs (1234).';
+const pinField = body('pin').matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits').custom(notObvious).withMessage(OBVIOUS_PIN);
 
 router.get('/kitchen-staff', kitchenStaff.listKitchenStaff);
 
@@ -294,12 +302,16 @@ router.put(
   [
     param('id').isInt({ min: 1 }),
     body('name').optional().trim().notEmpty().isLength({ max: 150 }),
-    body('pin').optional().matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits'),
+    body('pin').optional().matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits').custom(notObvious).withMessage(OBVIOUS_PIN),
     body('isActive').optional().isBoolean(),
   ],
   validate,
   kitchenStaff.updateKitchenStaff
 );
+
+// ----- Dashboard -----
+
+router.get('/stats/today', todayStats);
 
 // ----- Settings -----
 

@@ -21,6 +21,15 @@ const deskRoutes = require('./src/routes/desk.routes');
 
 const app = express();
 
+// Behind a hosting proxy (Render, a load balancer) the visitor's address
+// arrives in X-Forwarded-For. Unless Express is told to trust that proxy,
+// every request appears to come from the proxy itself — and all visitors then
+// share one rate-limit bucket, so one person can lock everyone out.
+// TRUST_PROXY is the number of proxies in front of the app: 1 on Render.
+// Defaults to 1 in production and off locally.
+const trustProxy = process.env.TRUST_PROXY ?? (process.env.NODE_ENV === 'production' ? '1' : '');
+if (trustProxy) app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+
 // --- Security & core middleware ---
 app.use(helmet());
 

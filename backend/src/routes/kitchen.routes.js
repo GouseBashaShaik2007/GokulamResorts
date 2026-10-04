@@ -13,8 +13,10 @@ const router = Router();
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  skipSuccessfulRequests: true, // only wrong PINs count
   standardHeaders: true,
   legacyHeaders: false,
+  message: { success: false, message: 'Too many wrong PINs. Please wait 15 minutes and try again.' },
 });
 
 router.post('/login', loginLimiter, [body('pin').matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits')], validate, login);

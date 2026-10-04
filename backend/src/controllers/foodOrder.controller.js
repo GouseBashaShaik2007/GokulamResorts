@@ -87,7 +87,9 @@ const getOrderById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const { rows } = await query(
-    `SELECT id, order_type, table_number, customer_name, total_amount, status, created_at, updated_at
+    // Public, and order numbers are sequential — so no names, phone numbers
+    // or notes here, only what the guest's own status page shows.
+    `SELECT id, order_type, table_number, total_amount, status, created_at, updated_at
      FROM food_orders WHERE id = $1`,
     [id]
   );
@@ -96,7 +98,7 @@ const getOrderById = asyncHandler(async (req, res) => {
   }
 
   const { rows: items } = await query(
-    `SELECT item_name, unit_price, quantity, line_total, spice_level, notes FROM food_order_items WHERE order_id = $1`,
+    `SELECT item_name, quantity, line_total FROM food_order_items WHERE order_id = $1 ORDER BY id`,
     [id]
   );
 

@@ -41,6 +41,16 @@ function startScheduler() {
   }));
   every('15 6 * * *', 'exchange rates', () => fx.refreshRates());
   fx.refreshRates(); // don't wait until tomorrow morning after a restart
+
+  // A host that sleeps when idle (Render's free plan) is rarely awake at
+  // 3:30 AM, so the deletion guests are promised also runs shortly after every
+  // start. Safe to repeat: it only touches files already past the retention period.
+  setTimeout(() => {
+    bookings
+      .purgeExpiredDocuments()
+      .then((purged) => purged && console.log('[jobs] purge ID documents (after start):', { purged }))
+      .catch((err) => console.error('[jobs] purge ID documents (after start) failed:', err));
+  }, 30 * 1000).unref();
   scheduleNightlyCleaning();
   console.log(`[jobs] scheduler started (${TIMEZONE}); ID documents kept ${bookings.RETENTION_DAYS} days after the stay`);
 }

@@ -16,11 +16,15 @@ const {
 
 const router = Router();
 
+// Only wrong guesses count, so someone who signs in normally is never locked
+// out; ten wrong passwords from one address in 15 minutes are.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 10,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { success: false, message: 'Too many sign-in attempts. Please wait 15 minutes and try again.' },
 });
 
 router.post(

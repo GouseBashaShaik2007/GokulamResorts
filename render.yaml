@@ -1,5 +1,11 @@
-# Render Blueprint — deploys the Express/Socket.IO backend as an always-on
-# web service. In the Render dashboard: New + -> Blueprint -> select this repo.
+# Render Blueprint — deploys the Express/Socket.IO backend as a web service.
+# In the Render dashboard: New + -> Blueprint -> select this repo.
+#
+# NOTE: `plan: free` below is NOT always-on. A free service sleeps after about
+# 15 minutes without requests, and the background jobs sleep with it: unpaid
+# holds expire late, unapproved bookings are refunded late, and the nightly
+# jobs (11 PM cleaning check, 3:30 AM ID-document deletion) are usually missed.
+# Before taking real bookings, move to a paid plan (e.g. `starter`).
 # Vars marked `sync: false` are prompted for in the dashboard (kept out of
 # this file since it's committed to git).
 services:
@@ -47,9 +53,15 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
 
-      # Shared password for kitchen dashboard devices.
-      - key: KITCHEN_PASSWORD
-        sync: false
+      # Kitchen display: each cook signs in with their own PIN, set in
+      # Admin -> Settings. (There is no shared kitchen password any more.)
+      - key: KITCHEN_JWT_EXPIRES_IN
+        value: 12h
+
+      # Render puts one proxy in front of the service; trusting it lets rate
+      # limits count each visitor separately.
+      - key: TRUST_PROXY
+        value: "1"
 
       # Razorpay (leave blank to run in mock/no-payment mode).
       - key: RAZORPAY_KEY_ID

@@ -5,6 +5,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
 const publicImage = require('../services/publicImage.service');
 const { logAction } = require('../utils/auditLog');
+const { TIMEZONE } = require('../utils/dates');
 
 // POST /api/admin/login
 const login = asyncHandler(async (req, res) => {
@@ -339,9 +340,10 @@ const listFoodOrders = asyncHandler(async (req, res) => {
 
   const orderIds = orders.map((o) => o.id);
   const { rows: items } = await query(
-    `SELECT order_id, item_name, unit_price, quantity, line_total
+    `SELECT order_id, item_name, unit_price, quantity, line_total, spice_level, notes
      FROM food_order_items
-     WHERE order_id = ANY($1)`,
+     WHERE order_id = ANY($1)
+     ORDER BY id`,
     [orderIds]
   );
 
@@ -439,6 +441,28 @@ const uploadImage = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, url });
 });
 
+// GET /api/admin/stats/today
+// Money that actually moved today on the resort's calendar: every captured
+// payment (online or counter, including balances and extensions) and every
+// completed refund. Summed here so the dashboard doesn't download every
+// booking and guess the day from a UTC timestamp.
+const todayStats = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `SELECT
+       (SELECT COALESCE(SUM(amount), 0) FROM payments
+         WHERE status = 'captured'
+           AND (COALESCE(captured_at, created_at) AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date) AS payments,
+       (SELECT COALESCE(SUM(amount), 0) FROM refunds
+         WHERE status = 'processed'
+           AND (COALESCE(processed_at, updated_at) AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date) AS refunds`,
+    [TIMEZONE]
+  );
+  res.json({
+    success: true,
+    stats: { paymentsToday: Number(rows[0].payments), refundsToday: Number(rows[0].refunds) },
+  });
+});
+
 module.exports = {
   login,
   addRoom,
@@ -458,4 +482,5 @@ module.exports = {
   uploadImage,
   getSettings,
   updateSettings,
+  todayStats,
 };
