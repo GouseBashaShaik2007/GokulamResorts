@@ -2,8 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { useCart } from '../lib/cart';
-import { VegMark } from './MenuItemCard';
+import { inr } from '../lib/bookingUi';
+import { orderHref, orderingKey } from '../lib/foodOrders';
+import Chip from './ui/Chip';
 import Sheet from './ui/Sheet';
+import VegMark from './ui/VegMark';
 import { useToast } from './ui/Toast';
 import CartSheet from './ordering/CartSheet';
 import ItemSheet from './ordering/ItemSheet';
@@ -11,31 +14,15 @@ import MenuSections from './ordering/MenuSections';
 import YourOrders from './ordering/YourOrders';
 import usePlaceOrder from './ordering/usePlaceOrder';
 
-const inr = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
-
-function FilterToggle({ pressed, onClick, children }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
-        pressed ? 'border-green-700 bg-green-700 text-white' : 'border-navy-700 text-navy-200 hover:border-green-700'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 /**
  * The ordering screen: search and filters, the menu, a dish sheet, and the
  * order (cart) sheet. `orderContext` says where the order is for — a table or
- * the counter — and carries the key from the QR code that opened the page.
+ * the counter — and carries the key from the QR code that opened the page
+ * (see lib/foodOrders.js).
  */
 export default function MenuBrowser({ categories, items, orderContext }) {
   const isTable = orderContext.type === 'table';
-  const cartKey = isTable ? `table-${orderContext.tableId}` : 'kiosk';
+  const cartKey = orderingKey(orderContext);
   const cart = useCart(cartKey);
   const toast = useToast();
   const order = usePlaceOrder({ orderContext, cart, cartKey });
@@ -67,23 +54,20 @@ export default function MenuBrowser({ categories, items, orderContext }) {
     toast('Order cleared', { tone: 'info', action: { label: 'Undo', onClick: () => cart.restore(lines) } });
   };
 
-  const base = isTable ? `/order/${orderContext.tableId}` : '/dine';
-  const confirmationHref = (token) => `${base}/confirmation?${new URLSearchParams({ order: token, k: orderContext.accessKey || '' })}`;
-
   return (
     <div className="pb-28">
-      <YourOrders cartKey={cartKey} confirmationHref={confirmationHref} />
+      <YourOrders cartKey={cartKey} confirmationHref={(token) => orderHref(orderContext, token)} />
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <label className="min-w-[12rem] flex-1">
           <span className="sr-only">Search the menu</span>
           <input type="search" className="input-field py-2.5" placeholder="Search dishes" value={search} onChange={(e) => setSearch(e.target.value)} />
         </label>
-        <FilterToggle pressed={vegOnly} onClick={() => setVegOnly((v) => !v)}>
+        <Chip tone="green" pressed={vegOnly} onClick={() => setVegOnly((v) => !v)}>
           <VegMark veg />
           Veg only
-        </FilterToggle>
-        {hasJain && <FilterToggle pressed={jainOnly} onClick={() => setJainOnly((v) => !v)}>Jain only</FilterToggle>}
+        </Chip>
+        {hasJain && <Chip tone="green" pressed={jainOnly} onClick={() => setJainOnly((v) => !v)}>Jain only</Chip>}
       </div>
 
       {sections.length === 0 && (

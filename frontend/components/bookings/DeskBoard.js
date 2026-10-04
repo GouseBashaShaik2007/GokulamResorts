@@ -47,12 +47,14 @@ function BookingRow({ b, onOpen, hint, showBlockers }) {
   );
 }
 
-function Group({ title, items, empty, onOpen, hint, accent, showBlockers }) {
+// `note`: a line under the title saying what to do about this group.
+function Group({ title, note, items, empty, onOpen, hint, accent, showBlockers }) {
   return (
     <section>
-      <h3 className={`mb-2 text-sm font-semibold uppercase tracking-wider ${accent || 'text-navy-300'}`}>
+      <h3 className={`text-sm font-semibold uppercase tracking-wider ${note ? '' : 'mb-2'} ${accent || 'text-navy-300'}`}>
         {title} <span className="text-navy-400">({items.length})</span>
       </h3>
+      {note && <p className="mb-2 mt-0.5 text-sm text-navy-300">{note}</p>}
       <div className="space-y-2">
         {items.map((b) => <BookingRow key={b.id} b={b} onOpen={onOpen} hint={hint?.(b)} showBlockers={showBlockers} />)}
         {items.length === 0 && <p className="text-sm text-navy-400">{empty}</p>}
@@ -137,6 +139,11 @@ export default function DeskBoard({ mode }) {
           {data.awaitingApproval.length > 0 && (
             <Group
               title={mode === 'admin' ? 'Needs your approval' : 'Awaiting manager approval'}
+              note={
+                mode === 'admin'
+                  ? 'Paid online. Open one to approve or decline it; left alone, it cancels and refunds itself at the time shown.'
+                  : 'Paid online, not yet approved. Only the manager can approve — if the guest is here or the time is close, call the manager.'
+              }
               accent="text-gold-600"
               items={data.awaitingApproval}
               onOpen={setOpenId}

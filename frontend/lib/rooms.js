@@ -25,6 +25,28 @@ export function topAmenities(room, count = 3) {
   return [...all].sort((a, b) => rank(a) - rank(b)).slice(0, count);
 }
 
+// Amenities are typed as one list in admin; guests read them in groups. An
+// amenity goes in the first group whose pattern it matches, else "In the room".
+const AMENITY_GROUPS = [
+  { title: 'Food & drink', match: /breakfast|tea|coffee|kettle|mini.?bar|fridge|kitchen|meal|dining/i },
+  { title: 'Bathroom', match: /bath|shower|\btub\b|hot water|toilet|towel|geyser/i },
+  { title: 'Services', match: /service|housekeeping|laundry|butler|concierge|transfer|pickup|wake|power backup|parking/i },
+];
+const AMENITY_GROUP_ORDER = ['In the room', 'Bathroom', 'Food & drink', 'Services'];
+
+/** [{ title, items }] in the order guests read them; empty groups left out. */
+export function groupAmenities(room) {
+  const groups = Object.fromEntries(AMENITY_GROUP_ORDER.map((title) => [title, []]));
+  (room?.amenities || []).forEach((name) => {
+    const group = AMENITY_GROUPS.find((g) => g.match.test(name));
+    groups[group ? group.title : 'In the room'].push(name);
+  });
+  return AMENITY_GROUP_ORDER.map((title) => ({ title, items: groups[title] })).filter((g) => g.items.length > 0);
+}
+
+/** Whether the room's amenities say breakfast comes with the price. */
+export const includesBreakfast = (room) => (room?.amenities || []).some((name) => /breakfast/i.test(name));
+
 // "Sea View", "Corner Sea View", "Panoramic Sea View" -> "Sea"; "Garden View" -> "Garden".
 export const viewGroup = (label) => {
   const l = String(label || '').toLowerCase();

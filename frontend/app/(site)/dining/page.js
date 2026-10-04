@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import Reveal from '@/components/motion/Reveal';
 import Photo from '@/components/ui/Photo';
 import DiningMenu from '@/components/site/DiningMenu';
+import PageHeader from '@/components/ui/PageHeader';
 import { getContact, getMenuByCategory } from '@/lib/server-api';
 import { jsonLd, restaurantJsonLd } from '@/lib/jsonLd';
 
@@ -23,18 +25,20 @@ export default async function DiningPage() {
     <div>
       <section className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8">
         <Reveal>
-          <p className="eyebrow">Dining</p>
-          <h1 className="display-heading mt-2 text-4xl md:text-5xl">Coastal cooking, unhurried</h1>
-          {/* TODO(owner): replace with the restaurant's own story, and add a chef section when details arrive. */}
-          <p className="mt-6 leading-relaxed text-navy-300">
-            Our kitchen cooks the food of the Andhra coast — fresh catch from the Bay of Bengal, slow curries and
-            the vegetarian classics of the region — alongside familiar favourites for younger guests.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <PageHeader eyebrow="Dining" title="Coastal cooking, unhurried">
+            {/* TODO(owner): replace with the restaurant's own story, and add a chef section when details arrive. */}
+            <p className="mt-6 leading-relaxed text-navy-300">
+              Our kitchen cooks the food of the Andhra coast — fresh catch from the Bay of Bengal, slow curries and
+              the vegetarian classics of the region — alongside familiar favourites for younger guests.
+            </p>
+          </PageHeader>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <a href="#menu" className="btn-gold">See the full menu</a>
-            {/* Ordering opens from the QR codes at the restaurant, not from this page. */}
-            <p className="max-w-xs text-sm text-navy-300">At the restaurant? Scan the QR code on your table to order from your phone.</p>
+            {/* For diners who aren't staying, and for groups: an enquiry, opened on "Dining". */}
+            <Link href="/contact?reason=Dining" className="btn-outline">Reserve a table</Link>
           </div>
+          {/* Ordering opens from the QR codes at the restaurant, not from this page. */}
+          <p className="mt-4 max-w-md text-sm text-navy-300">At the restaurant? Scan the QR code on your table to order from your phone.</p>
         </Reveal>
         {/* One wide photo on a phone; the tall second one joins it from tablet width up. */}
         <div className="grid gap-3 sm:grid-cols-3">

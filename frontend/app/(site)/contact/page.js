@@ -1,56 +1,29 @@
 import ContactForm from '@/components/site/ContactForm';
+import QuickActions from '@/components/site/QuickActions';
+import PageHeader from '@/components/ui/PageHeader';
+import { CONTACT_REASONS } from '@/lib/contactReasons';
 import { hotelJsonLd, jsonLd } from '@/lib/jsonLd';
 import { getContact } from '@/lib/server-api';
-import { directionsUrl, mapEmbedUrl, telHref, whatsappUrl } from '@/lib/site';
+import { directionsUrl, mapEmbedUrl, telHref } from '@/lib/site';
 
 export const metadata = {
   title: 'Contact',
   description:
-    'Contact Gokulam Resorts at Chirala Beach, Andhra Pradesh: email, directions, and an enquiry form for stays, weddings and events.',
+    'Contact Gokulam Resorts at Chirala Beach, Andhra Pradesh: email, directions, and an enquiry form for stays, dining, weddings and events.',
 };
 
-const ICONS = {
-  call: 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z',
-  whatsapp: 'M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.2-5.4A8.4 8.4 0 1 1 21 11.5Z',
-  email: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm18 2-10 7L2 6',
-  directions: 'M3 11l19-9-9 19-2-8-8-2Z',
-};
-
-function QuickButton({ href, icon, label, external }) {
-  return (
-    <a
-      href={href}
-      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-      className="flex flex-1 flex-col items-center gap-2 rounded-2xl border sm:max-w-[14rem] border-navy-700 bg-navy-950 px-4 py-5 text-sm font-semibold text-navy-50 transition-colors hover:border-ocean-400 hover:text-ocean-600"
-    >
-      <svg viewBox="0 0 24 24" className="h-6 w-6 text-ocean-500" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d={ICONS[icon]} />
-      </svg>
-      {label}
-    </a>
-  );
-}
-
-export default async function ContactPage() {
+export default async function ContactPage({ searchParams }) {
   const contact = await getContact(); // as saved in Admin → Settings
-  const wa = whatsappUrl('Hello Gokulam Resorts, ', contact);
   const tel = telHref(contact);
-  const quick = [
-    tel && { href: tel, icon: 'call', label: 'Call' },
-    wa && { href: wa, icon: 'whatsapp', label: 'WhatsApp', external: true },
-    { href: `mailto:${contact.email}`, icon: 'email', label: 'Email' },
-    { href: directionsUrl(contact), icon: 'directions', label: 'Directions', external: true },
-  ].filter(Boolean);
+  // /contact?reason=Wedding opens the form on that reason.
+  const reason = CONTACT_REASONS.includes(searchParams.reason) ? searchParams.reason : undefined;
 
   return (
     <div>
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <p className="eyebrow">Get in touch</p>
-        <h1 className="display-heading mt-2 text-4xl md:text-5xl">Contact us</h1>
+        <PageHeader eyebrow="Get in touch" title="Contact us" />
 
-        <div className="mt-8 flex flex-wrap gap-3">
-          {quick.map((q) => <QuickButton key={q.label} {...q} />)}
-        </div>
+        <QuickActions contact={contact} className="mt-8" />
 
         <div className="mt-12 grid gap-10 lg:grid-cols-[2fr_3fr]">
           <div>
@@ -92,10 +65,20 @@ export default async function ContactPage() {
             </p>
           </div>
 
-          <ContactForm />
+          <ContactForm initialReason={reason} />
         </div>
       </div>
 
+      {/* The address in words above the map, for anyone who can't use the map itself. */}
+      <section aria-labelledby="find-us" className="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8">
+        <h2 id="find-us" className="font-serif text-2xl font-semibold text-navy-50">Find us</h2>
+        <p className="mt-2 text-navy-200">
+          {contact.address}.{' '}
+          <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="font-semibold text-ocean-600 underline underline-offset-2">
+            Open in Google Maps
+          </a>
+        </p>
+      </section>
       <iframe
         title="Map of Chirala"
         src={mapEmbedUrl(contact)}

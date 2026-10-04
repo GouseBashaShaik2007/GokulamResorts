@@ -90,15 +90,17 @@ export default function TableQrCodes() {
   const countChanged = links && String(links.tableCount) !== String(draftCount);
 
   return (
-    <div className="card p-6">
-      <h2 className="font-serif text-xl font-bold text-navy-50">Ordering QR Codes</h2>
-      <p className="mt-1 max-w-3xl text-sm text-navy-400">
+    // On paper only the codes are printed: everything else is marked no-print
+    // (left out entirely, so the first sheet is never an empty one).
+    <div className="card p-6 print:border-0 print:bg-transparent print:p-0">
+      <h2 className="no-print font-serif text-xl font-bold text-navy-50">Ordering QR Codes</h2>
+      <p className="no-print mt-1 max-w-3xl text-sm text-navy-400">
         Guests can only order by scanning one of these: one per table, plus one for the restaurant counter. Each code
         carries its own key, so the ordering pages can&apos;t be opened by typing or guessing an address — and a table
         that isn&apos;t listed here can&apos;t order at all.
       </p>
 
-      <form onSubmit={saveCount} className="mt-4 flex flex-wrap items-end gap-4 border-b border-navy-800 pb-6">
+      <form onSubmit={saveCount} className="no-print mt-4 flex flex-wrap items-end gap-4 border-b border-navy-800 pb-6">
         <div>
           <label className="label" htmlFor="tableCount">Number of tables</label>
           <input
@@ -116,10 +118,10 @@ export default function TableQrCodes() {
         </p>
       </form>
 
-      {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="no-print mt-3 text-sm text-red-700">{error}</p>}
 
       {links && blocked && (
-        <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">
+        <div className="no-print mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">
           Set the website address in{' '}
           <Link href="/admin/settings" className="underline">Settings</Link> before printing QR codes. Right now
           they would point at {siteUrl ? <code>{siteUrl}</code> : 'no address'} — every code would be broken
@@ -127,7 +129,7 @@ export default function TableQrCodes() {
         </div>
       )}
 
-      <div className="mt-6 flex items-center justify-between gap-4">
+      <div className="no-print mt-6 flex items-center justify-between gap-4">
         <p className="text-sm text-navy-400">
           {blocked ? 'Preview only — printing is off until the website address is set.' : `Printing for ${siteUrl}`}
           {countChanged && ' Save the new number of tables to update the codes below.'}
@@ -143,11 +145,11 @@ export default function TableQrCodes() {
       </div>
 
       {links && (
-        <div id="qr-print-area" className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div id="qr-print-area" className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 print:mt-0 print:grid-cols-3">
           <QrCard
             title="Restaurant counter"
             caption="Scan to order and pay at the counter"
-            url={blocked ? '' : `${siteUrl}/dine?k=${links.counterKey}`}
+            url={blocked ? '' : `${siteUrl}/order?k=${links.counterKey}`}
           />
           {links.tables.map(({ table, key }) => (
             <QrCard
@@ -160,29 +162,11 @@ export default function TableQrCodes() {
         </div>
       )}
 
-      <p className="mt-6 text-xs text-navy-400">
+      <p className="no-print mt-6 text-xs text-navy-400">
         Codes printed before this page had keys no longer work — print a fresh set. If a code is ever copied or
         misused, ask your developer to change <code>ORDER_LINK_SECRET</code>: every old code stops working at once,
         and this page prints the new ones.
       </p>
-
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #qr-print-area,
-          #qr-print-area * {
-            visibility: visible;
-          }
-          #qr-print-area {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-          }
-        }
-      `}</style>
     </div>
   );
 }

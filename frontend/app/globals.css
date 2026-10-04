@@ -44,6 +44,15 @@ body {
   @apply font-sans text-[0.75rem] font-medium uppercase tracking-[0.28em] text-gold-600;
 }
 
+/* The serif's own figures are old-style: a "1" that reads as "I", a "0" as
+   "o" — room 101 came out as "IOI". Wherever the serif shows a number (a room,
+   a count, a date) it uses its lining figures instead. */
+.font-serif,
+.section-heading,
+.display-heading {
+  font-variant-numeric: lining-nums;
+}
+
 /* Price figures — Inter with tabular lining numerals, not the serif's
    oldstyle numerals ("₹6,5oo"). Pair with a size utility at each usage. */
 .price {
@@ -113,8 +122,21 @@ body {
   background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(28, 42, 51, 0.04) 14px 15px);
 }
 
-/* Printing (a booking summary, mostly): the page itself, without the site
-   around it. The admin QR page has its own, stricter print rules. */
+/* The manager's screens. Inputs are plain white on the sand cards (the shared
+   .input-field is tuned for the guest site's cards), and the scrollbar keeps
+   its space so moving between sections never shifts the page sideways. */
+.admin-shell .input-field {
+  @apply border-navy-700 bg-white;
+}
+.admin-shell .input-field:focus {
+  @apply border-ocean-500 ring-1 ring-ocean-500;
+}
+html:has(.admin-shell) {
+  scrollbar-gutter: stable;
+}
+
+/* Printing (a booking summary, the table QR codes): the page itself, without
+   the site around it. Anything marked .no-print is left out. */
 @media print {
   header,
   footer,

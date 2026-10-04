@@ -5,6 +5,7 @@ import api, { TOKEN_KEYS, withAdminAuth } from '../../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 import useCleaningSocket, { LiveBadge, StaleNotice } from '../../../lib/useCleaningSocket';
+import Chip from '../../ui/Chip';
 import { errMsg } from '../../../lib/bookingUi';
 import JobCard from './JobCard';
 import RoomStatusBoard from './RoomStatusBoard';
@@ -170,13 +171,13 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setFilter('open')} aria-pressed={filter === 'open'} className={`rounded-full px-3 py-1 text-xs ${filter === 'open' ? 'bg-ocean-500 text-white' : 'bg-navy-800 text-navy-200'}`}>
+          <Chip tone="solid" size="xs" pressed={filter === 'open'} onClick={() => setFilter('open')}>
             Open ({jobs.filter((j) => j.status !== 'Ready').length})
-          </button>
+          </Chip>
           {counts.map(([s, n]) => (
-            <button key={s} onClick={() => setFilter(s)} aria-pressed={filter === s} className={`rounded-full px-3 py-1 text-xs ${filter === s ? 'bg-ocean-500 text-white' : 'bg-navy-800 text-navy-200'}`}>
+            <Chip key={s} tone="solid" size="xs" pressed={filter === s} onClick={() => setFilter(s)}>
               {s === 'Ready' ? 'Ready today' : s} ({n})
-            </button>
+            </Chip>
           ))}
         </div>
         <div className="flex items-center gap-3">

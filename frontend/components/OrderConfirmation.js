@@ -4,10 +4,10 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '../lib/api';
-import { FINAL_ORDER_STATUSES, GUEST_ORDER_STATUS, ORDER_STAGES } from '../lib/foodOrders';
+import { inr } from '../lib/bookingUi';
+import { FINAL_ORDER_STATUSES, GUEST_ORDER_STATUS, ORDER_STAGES, orderHref, orderingHref, orderingKey } from '../lib/foodOrders';
+import YourOrders from './ordering/YourOrders';
 import TableService from './site/TableService';
-
-const rupees = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 
 // The page's heading for each status.
 const heading = (status) => (status === 'new' ? 'Order Received' : GUEST_ORDER_STATUS[status] || status);
@@ -17,7 +17,7 @@ function nextStep(order) {
   const where = order.table_number ? 'at your table' : 'at the counter';
   switch (order.status) {
     case 'new':
-      return `The kitchen has your order. Pay ${rupees(order.total_amount)} ${where}.`;
+      return `The kitchen has your order. Pay ${inr(order.total_amount)} ${where}.`;
     case 'preparing':
       return 'Your order is being cooked now.';
     case 'ready':
@@ -87,7 +87,10 @@ function CancelOrder({ token, onCancelled }) {
   );
 }
 
-function ConfirmationContent({ browseHref, table, accessKey }) {
+function ConfirmationContent({ orderContext }) {
+  const browseHref = orderingHref(orderContext); // back to the menu
+  const table = orderContext.type === 'table' ? orderContext.tableId : null;
+  const { accessKey } = orderContext;
   const searchParams = useSearchParams();
   // The order's private token (not its number — those run 1, 2, 3 and could be guessed).
   const orderId = searchParams.get('order');
@@ -177,15 +180,15 @@ function ConfirmationContent({ browseHref, table, accessKey }) {
       <dl className="mt-6 space-y-3 rounded-xl border border-navy-700 bg-navy-800 p-5 text-left text-sm">
         <div className="space-y-1">
           {order.items.map((item, idx) => (
-            <div key={`${item.item_name}-${idx}`} className="flex justify-between gap-3 text-navy-200">
+            <div key={item.id ?? `${item.item_name}-${idx}`} className="flex justify-between gap-3 text-navy-200">
               <span>{item.quantity} × {item.item_name}</span>
-              <span>{rupees(item.line_total)}</span>
+              <span>{inr(item.line_total)}</span>
             </div>
           ))}
         </div>
         <div className="flex justify-between border-t border-navy-700 pt-3">
           <dt className="text-navy-400">Total</dt>
-          <dd className="price">{rupees(order.total_amount)}</dd>
+          <dd className="price">{inr(order.total_amount)}</dd>
         </div>
       </dl>
 
@@ -195,19 +198,23 @@ function ConfirmationContent({ browseHref, table, accessKey }) {
       )}
       {order.status === 'preparing' && <p className="mt-4 text-sm text-navy-400">Need to change it? Please ask our staff — the kitchen has started.</p>}
       {table && accessKey && !cancelledOrder && <TableService table={table} accessKey={accessKey} className="mt-4" />}
+
+      {/* Everything ordered from this phone in this sitting, with the running total. */}
+      <YourOrders cartKey={orderingKey(orderContext)} confirmationHref={(token) => orderHref(orderContext, token)} minOrders={2} className="mt-8" />
     </div>
   );
 }
 
 /**
- * Live status of one food order. `browseHref` leads back to the menu; pass
- * `table` and `accessKey` (table orders) to offer "Call staff" / "Request the bill".
+ * Live status of one food order. `orderContext`: the table or counter it was
+ * ordered from (lib/foodOrders.js) — it leads back to the menu, and a table
+ * also gets "Call staff" / "Request the bill".
  */
-export default function OrderConfirmation({ browseHref, table, accessKey }) {
+export default function OrderConfirmation({ orderContext }) {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
       <Suspense fallback={<div className="card mx-auto h-80 max-w-lg animate-pulse" role="status" aria-label="Loading your order" />}>
-        <ConfirmationContent browseHref={browseHref} table={table} accessKey={accessKey} />
+        <ConfirmationContent orderContext={orderContext} />
       </Suspense>
     </div>
   );

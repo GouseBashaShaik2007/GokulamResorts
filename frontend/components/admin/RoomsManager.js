@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
-import { errMsg } from '../../lib/bookingUi';
+import { errMsg, inr } from '../../lib/bookingUi';
 import { useToast } from '@/components/ui/Toast';
 import RoomFormPanel from './rooms/RoomFormPanel';
 import DeleteRoomDialog from './rooms/DeleteRoomDialog';
@@ -79,7 +79,7 @@ export default function RoomsManager() {
                 {room.name} {!room.is_active && <span className="ml-2 text-xs text-red-700">(not on the site)</span>}
               </p>
               <p className="text-sm text-navy-400">
-                ₹{Number(room.price_per_night).toLocaleString('en-IN')} / night · {room.units_count} room{room.units_count === 1 ? '' : 's'} · Up to {room.capacity} guests
+                {inr(room.price_per_night)} / night · {room.units_count} room{room.units_count === 1 ? '' : 's'} · Up to {room.capacity} guests
               </p>
             </div>
             <div className="flex gap-2">

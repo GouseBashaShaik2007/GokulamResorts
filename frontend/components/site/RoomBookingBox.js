@@ -5,7 +5,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { inr, todayIST } from '@/lib/bookingUi';
 import useAvailability from '@/lib/useAvailability';
-import { useBooking } from '../booking/BookingContext';
+import { useBookingPanel, useStay } from '../booking/BookingContext';
 import DateRangePicker from '../booking/DateRangePicker';
 import { Approx, Price, useCurrency } from './Currency';
 import { roomPath } from '@/lib/rooms';
@@ -21,7 +21,8 @@ import { offerDates, offerSaving } from '@/lib/offers';
  * one is full for the chosen dates.
  */
 export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
-  const { stay, setStay, datesValid, openBooking, adults, children: kids, guests, setPageRoomTypeId } = useBooking();
+  const { stay, setStay, datesValid, adults, children: kids, guests } = useStay();
+  const { openBooking, setPageRoomTypeId } = useBookingPanel();
   const { currency } = useCurrency();
   const tooMany = guests > room.capacity;
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import PageHeader from '@/components/ui/PageHeader';
 
 export const metadata = { title: 'Page not found', robots: { index: false } };
 
@@ -7,11 +8,11 @@ export const metadata = { title: 'Page not found', robots: { index: false } };
 export default function NotFound() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-24 text-center sm:px-6">
-      <p className="eyebrow">Page not found</p>
-      <h1 className="display-heading mt-2 text-4xl md:text-5xl">We couldn&apos;t find that page</h1>
-      <p className="mt-4 text-navy-300">
-        The link may be old, or the address may have a typo. Here is where most guests are headed.
-      </p>
+      <PageHeader eyebrow="Page not found" title="We couldn’t find that page">
+        <p className="mt-4 text-navy-300">
+          The link may be old, or the address may have a typo. Here is where most guests are headed.
+        </p>
+      </PageHeader>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Link href="/rooms" className="btn-gold">Rooms &amp; Suites</Link>
         <Link href="/booking/status" className="btn-outline">My Booking</Link>

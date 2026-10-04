@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
+import { inr } from '@/lib/bookingUi';
 import PhoneInput from '../site/PhoneInput';
-
-const inr = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 
 /**
  * The order so far, the guest's details and the Place order button.

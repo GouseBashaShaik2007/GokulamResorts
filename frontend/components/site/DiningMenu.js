@@ -1,22 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DishInfo, VegMark } from '@/components/MenuItemCard';
-
-function Toggle({ pressed, onClick, children }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
-        pressed ? 'border-green-700 bg-green-700 text-white' : 'border-navy-700 text-navy-200 hover:border-green-700'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
+import { DishInfo } from '@/components/MenuItemCard';
+import Chip from '@/components/ui/Chip';
+import VegMark from '@/components/ui/VegMark';
+import { inr } from '@/lib/bookingUi';
 
 /**
  * The printed-menu style list on the Dining page, with search and the
@@ -56,11 +44,11 @@ export default function DiningMenu({ menu }) {
           <span className="sr-only">Search the menu</span>
           <input type="search" className="input-field py-2.5" placeholder="Search dishes" value={search} onChange={(e) => setSearch(e.target.value)} />
         </label>
-        <Toggle pressed={vegOnly} onClick={() => setVegOnly((v) => !v)}>
+        <Chip tone="green" pressed={vegOnly} onClick={() => setVegOnly((v) => !v)}>
           <VegMark veg />
           Veg only
-        </Toggle>
-        {hasJain && <Toggle pressed={jainOnly} onClick={() => setJainOnly((v) => !v)}>Jain only</Toggle>}
+        </Chip>
+        {hasJain && <Chip tone="green" pressed={jainOnly} onClick={() => setJainOnly((v) => !v)}>Jain only</Chip>}
       </div>
       <p className="sr-only" role="status">{filtered ? `${count} dish${count === 1 ? '' : 'es'} shown` : ''}</p>
 
@@ -73,18 +61,19 @@ export default function DiningMenu({ menu }) {
         </p>
       )}
 
-      <div className="mt-8 grid gap-12 md:grid-cols-2">
+      <div className="mt-8 gap-12 md:columns-2">
         {shown.map((cat) => (
-          <section key={cat.id} aria-labelledby={`menu-cat-${cat.id}`}>
+          <section key={cat.id} aria-labelledby={`menu-cat-${cat.id}`} className="mb-12 break-inside-avoid">
             <h3 id={`menu-cat-${cat.id}`} className="border-b border-navy-700 pb-2 font-serif text-2xl font-semibold text-navy-50">{cat.name}</h3>
             <ul className="mt-4 space-y-4">
               {cat.items.map((item) => (
                 <li key={item.id} className="flex gap-3">
                   <VegMark veg={item.is_veg} className="mt-1" />
                   <div className="flex-1">
-                    <div className="flex items-baseline justify-between gap-3">
+                    <div className="flex items-baseline gap-2">
                       <span className="font-medium text-navy-50">{item.name}</span>
-                      <span className="price whitespace-nowrap">₹{Number(item.price).toLocaleString('en-IN')}</span>
+                      <span className="min-w-[1.5rem] flex-1 border-b border-dotted border-navy-600" aria-hidden="true" />
+                      <span className="price whitespace-nowrap">{inr(item.price)}</span>
                     </div>
                     {item.description && <p className="text-sm text-navy-300">{item.description}</p>}
                     <DishInfo item={item} className="mt-1" />

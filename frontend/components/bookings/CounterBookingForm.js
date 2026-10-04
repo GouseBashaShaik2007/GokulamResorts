@@ -1,9 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api, { authFor } from '../../lib/api';
 import { inr, todayIST, addDays, errMsg } from '../../lib/bookingUi';
 import RoomPicker from './RoomPicker';
+
+// What has been typed is kept in this tab for a while, so a sign-in that
+// expires half-way through a walk-in (the desk is sent to the login page)
+// doesn't cost the guest's details. It is cleared once the booking is made.
+const DRAFT_KEY = 'gokulam_walkin_draft';
+const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+
+function readDraft() {
+  try {
+    const draft = JSON.parse(window.sessionStorage.getItem(DRAFT_KEY) || 'null');
+    if (draft && Date.now() - draft.at < DRAFT_MAX_AGE_MS) return draft;
+  } catch {
+    // unreadable — start fresh
+  }
+  return null;
+}
+
+function saveDraft(draft) {
+  try {
+    if (draft) window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, at: Date.now() }));
+    else window.sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // storage blocked — the form simply isn't kept
+  }
+}
 
 // Walk-in booking at the desk: confirmed immediately, paid in full now.
 export default function CounterBookingForm({ mode, onCreated }) {
@@ -16,6 +41,29 @@ export default function CounterBookingForm({ mode, onCreated }) {
   const [payment, setPayment] = useState({ paymentMethod: 'cash', paymentReference: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [restored, setRestored] = useState(false);
+  const draftRead = useRef(false);
+
+  // Put back a walk-in that was being typed (the room is chosen again, since
+  // it may have been taken in the meantime).
+  useEffect(() => {
+    const draft = readDraft();
+    draftRead.current = true;
+    if (!draft) return;
+    if (draft.stay?.checkIn >= today) setStay(draft.stay);
+    setGuest((g) => ({ ...g, ...draft.guest }));
+    setPayment((p) => ({ ...p, paymentMethod: draft.paymentMethod || p.paymentMethod }));
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Kept only once there is a guest to lose. The payment reference is not
+  // kept: it belongs to money actually taken, and is typed at the end.
+  useEffect(() => {
+    if (!draftRead.current) return;
+    const typed = Object.values(guest).some((v) => String(v).trim());
+    saveDraft(typed ? { stay, guest, paymentMethod: payment.paymentMethod } : null);
+  }, [stay, guest, payment.paymentMethod]);
 
   const search = async (e) => {
     e?.preventDefault();
@@ -50,6 +98,7 @@ export default function CounterBookingForm({ mode, onCreated }) {
         },
         auth()
       );
+      saveDraft(null);
       onCreated(res.data.booking);
     } catch (err) {
       setError(errMsg(err, 'Could not create booking'));
@@ -64,6 +113,23 @@ export default function CounterBookingForm({ mode, onCreated }) {
 
   return (
     <div className="space-y-5">
+      {restored && (
+        <p role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ocean-500/30 bg-ocean-50 px-4 py-2.5 text-sm text-navy-100">
+          <span>
+            The walk-in you were entering{guest.name ? ` for ${guest.name}` : ''} is back. Find rooms and choose the room again to carry on.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setGuest({ name: '', phone: '', email: '', specialRequests: '' });
+              setRestored(false);
+            }}
+            className="font-semibold text-ocean-600 underline"
+          >
+            Start a new one
+          </button>
+        </p>
+      )}
       <form onSubmit={search} className="card grid grid-cols-2 gap-3 p-4 sm:grid-cols-5 sm:items-end">
         <div>
           <label className="label">Check-in</label>

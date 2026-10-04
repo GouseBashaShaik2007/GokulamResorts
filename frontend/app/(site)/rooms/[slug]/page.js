@@ -4,8 +4,11 @@ import Reveal from '@/components/motion/Reveal';
 import RoomGallery from '@/components/site/RoomGallery';
 import RoomBookingBox from '@/components/site/RoomBookingBox';
 import RecentlyViewed, { TrackRoomView } from '@/components/site/RecentlyViewed';
+import ShareRoom from '@/components/site/ShareRoom';
+import Icon from '@/components/ui/Icon';
+import PageHeader from '@/components/ui/PageHeader';
 import { jsonLd } from '@/lib/jsonLd';
-import { realPhotos, roomPath, sqftToM2 } from '@/lib/rooms';
+import { groupAmenities, includesBreakfast, realPhotos, roomPath, sqftToM2 } from '@/lib/rooms';
 import { getContact, getOffers, getRoomBySlug, getRooms } from '@/lib/server-api';
 import { offersForRoom } from '@/lib/offers';
 import { SITE_URL } from '@/lib/site';
@@ -25,19 +28,10 @@ export async function generateMetadata({ params }) {
   };
 }
 
-const Icon = {
-  size: 'M4 4h6M4 4v6M20 20h-6M20 20v-6M4 4l6 6M20 20l-6-6',
-  bed: 'M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6M3 14h18M3 18v2M21 18v2M6 10V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v3M13 10V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v3',
-  view: 'M2 17c2.5 0 2.5-1.5 5-1.5S9.5 17 12 17s2.5-1.5 5-1.5 2.5 1.5 5 1.5M2 21c2.5 0 2.5-1.5 5-1.5S9.5 21 12 21s2.5-1.5 5-1.5 2.5 1.5 5 1.5M12 3v2M5.6 5.6l1.4 1.4M18.4 5.6 17 7M8 12a4 4 0 0 1 8 0',
-  guests: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M22 19v-1a4 4 0 0 0-3-3.87M16 4.13a3 3 0 0 1 0 5.74',
-};
-
 function Feature({ icon, label, value }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-navy-700 px-4 py-3">
-      <svg viewBox="0 0 24 24" className="h-6 w-6 flex-none text-ocean-500" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d={Icon[icon]} />
-      </svg>
+      <Icon name={icon} className="h-6 w-6 text-ocean-500" />
       <div>
         <p className="text-xs text-navy-400">{label}</p>
         <p className="text-sm font-medium text-navy-50">{value}</p>
@@ -105,9 +99,10 @@ export default async function RoomPage({ params }) {
           screens the booking box sits beside both and follows the scroll. */}
       <div className="mt-10 grid gap-x-10 gap-y-8 lg:grid-cols-[1fr_24rem]">
         <Reveal as="div" className="lg:col-start-1">
-          <p className="eyebrow">Chirala Beach</p>
-          <h1 className="display-heading mt-2 text-4xl md:text-5xl">{room.name}</h1>
-          <p className="mt-6 max-w-2xl leading-relaxed text-navy-300">{room.description}</p>
+          <PageHeader eyebrow="Chirala Beach" title={room.name}>
+            <p className="mt-6 max-w-2xl leading-relaxed text-navy-300">{room.description}</p>
+            <ShareRoom name={room.name} path={roomPath(room)} className="mt-5" />
+          </PageHeader>
         </Reveal>
 
         <aside className="lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
@@ -122,17 +117,36 @@ export default async function RoomPage({ params }) {
             <Feature icon="guests" label="Max guests" value={`Up to ${room.capacity}`} />
           </div>
 
+          {/* The question most guests ask first, answered in a sentence of its own. */}
+          <p className="mt-8 rounded-xl bg-navy-900 px-4 py-3 text-sm text-navy-100">
+            {includesBreakfast(room) ? (
+              <><strong className="font-semibold">Breakfast is included</strong> in the room price.</>
+            ) : (
+              <>
+                <strong className="font-semibold">Breakfast is not included</strong> in the room price. Our restaurant serves it —{' '}
+                <Link href="/dining#menu" className="font-semibold text-ocean-600 underline">see the menu</Link>.
+              </>
+            )}
+          </p>
+
           {room.amenities?.length > 0 && (
             <>
-              <h2 className="mt-10 font-serif text-2xl font-semibold text-navy-50">In the room</h2>
-              <ul className="mt-4 grid gap-2 text-sm text-navy-200 sm:grid-cols-2">
-                {room.amenities.map((a) => (
-                  <li key={a} className="flex items-center gap-2">
-                    <span className="text-ocean-500" aria-hidden="true">✓</span>
-                    {a}
-                  </li>
+              <h2 className="mt-10 font-serif text-2xl font-semibold text-navy-50">What you get</h2>
+              <div className="mt-4 grid gap-x-8 gap-y-6 sm:grid-cols-2">
+                {groupAmenities(room).map((group) => (
+                  <div key={group.title}>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-navy-400">{group.title}</h3>
+                    <ul className="mt-2 space-y-1.5 text-sm text-navy-200">
+                      {group.items.map((a) => (
+                        <li key={a} className="flex items-center gap-2">
+                          <span className="text-ocean-500" aria-hidden="true">✓</span>
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </>
           )}
 

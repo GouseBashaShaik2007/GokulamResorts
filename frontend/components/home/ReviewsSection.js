@@ -18,7 +18,7 @@ export default function ReviewsSection() {
       <div className="grid gap-6 md:grid-cols-3">
         {REVIEWS.quotes.slice(0, 3).map((q) => (
           <figure key={q.text} className="card p-6">
-            <blockquote className="font-serif text-lg leading-relaxed text-navy-100">“{q.text}”</blockquote>
+            <blockquote className="font-serif text-lg font-medium leading-relaxed text-navy-100">“{q.text}”</blockquote>
             <figcaption className="mt-4 text-sm text-navy-400">— {q.author}, {q.source}</figcaption>
           </figure>
         ))}

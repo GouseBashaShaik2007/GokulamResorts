@@ -3,8 +3,86 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
 import { useToast } from '@/components/ui/Toast';
+import useModal from '../../lib/useModal';
 import { errMsg } from '../../lib/bookingUi';
 import { JOB_STATUS_STYLE } from '../../lib/cleaningStyles';
+
+// Correcting one room: its number, floor, view or type. A small dialog.
+function EditUnit({ unit, roomTypes, onClose, onSaved }) {
+  const toast = useToast();
+  const ref = useModal(true, onClose);
+  const [form, setForm] = useState({
+    roomTypeId: String(unit.room_type_id || ''),
+    unitNumber: unit.unit_number,
+    floor: unit.floor || '',
+    view: unit.view_label || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const set = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await api.put(
+        `/admin/room-units/${unit.id}`,
+        { roomTypeId: Number(form.roomTypeId), unitNumber: form.unitNumber, floor: form.floor || null, view: form.view || null },
+        withAdminAuth()
+      );
+      toast(`Room ${form.unitNumber} saved.`);
+      onSaved();
+    } catch (err) {
+      // Usually "That room number is already in use".
+      setError(errMsg(err, 'Could not save the room'));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+      <form
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-unit-title"
+        tabIndex={-1}
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md space-y-4 rounded-2xl border border-navy-700 bg-navy-950 p-6 shadow-2xl focus:outline-none"
+      >
+        <h2 id="edit-unit-title" className="font-serif text-xl font-semibold text-navy-50">Edit room {unit.unit_number}</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label" htmlFor="edit-unit-number">Room no.</label>
+            <input id="edit-unit-number" data-autofocus required maxLength={20} className="input-field py-2" value={form.unitNumber} onChange={set('unitNumber')} />
+          </div>
+          <div>
+            <label className="label" htmlFor="edit-unit-floor">Floor</label>
+            <input id="edit-unit-floor" maxLength={20} className="input-field py-2" value={form.floor} onChange={set('floor')} />
+          </div>
+        </div>
+        <div>
+          <label className="label" htmlFor="edit-unit-view">View (shown to guests)</label>
+          <input id="edit-unit-view" maxLength={60} className="input-field py-2" placeholder="Sea View" value={form.view} onChange={set('view')} />
+        </div>
+        <div>
+          <label className="label" htmlFor="edit-unit-type">Room type</label>
+          <select id="edit-unit-type" required className="input-field py-2" value={form.roomTypeId} onChange={set('roomTypeId')}>
+            {roomTypes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-navy-400">Bookings already made for this room keep the price they were given.</p>
+        </div>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="btn-outline px-5 py-2 text-sm">Cancel</button>
+          <button type="submit" disabled={saving} className="btn-gold px-5 py-2 text-sm disabled:opacity-60">{saving ? 'Saving…' : 'Save room'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 /**
  * Admin → Rooms → Room numbers: the physical rooms (101, 102…) of each room
@@ -16,6 +94,7 @@ export default function RoomUnitsManager() {
   const [roomTypes, setRoomTypes] = useState([]);
   const [form, setForm] = useState({ roomTypeId: '', unitNumber: '', floor: '', view: '' });
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(null); // the room being corrected
 
   const load = useCallback(() => {
     api
@@ -95,13 +174,29 @@ export default function RoomUnitsManager() {
             </div>
             <p className="truncate text-xs text-navy-400" title={u.room_type}>{u.room_type}</p>
             {u.view_label && <p className="truncate text-xs text-navy-400">{u.view_label}</p>}
-            <button onClick={() => toggle(u)} className="mt-2 text-xs text-navy-300 underline hover:text-gold-600">
-              {u.is_active ? 'Deactivate' : 'Reactivate'}
-            </button>
+            <div className="mt-2 flex gap-3 text-xs">
+              <button onClick={() => setEditing(u)} className="text-ocean-600 underline" aria-label={`Edit room ${u.unit_number}`}>Edit</button>
+              <button onClick={() => toggle(u)} className="text-navy-300 underline hover:text-gold-600">
+                {u.is_active ? 'Deactivate' : 'Reactivate'}
+              </button>
+            </div>
           </div>
         ))}
       </div>
       {units.length === 0 && <p className="text-navy-400">No rooms yet. Add the first one above.</p>}
+
+      {editing && (
+        <EditUnit
+          key={editing.id}
+          unit={editing}
+          roomTypes={roomTypes}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }

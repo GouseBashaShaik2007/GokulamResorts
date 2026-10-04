@@ -1,11 +1,12 @@
 'use client';
 
-import { useBooking } from '../booking/BookingContext';
+import { useBookingPanel, useStay } from '../booking/BookingContext';
 import DateRangePicker from '../booking/DateRangePicker';
 import { todayIST } from '@/lib/bookingUi';
 
 export default function HeroBookingForm() {
-  const { stay, setStay, openBooking, adults, children: kids } = useBooking();
+  const { stay, setStay, adults, children: kids } = useStay();
+  const { openBooking } = useBookingPanel();
   const setNum = (k) => (e) => setStay({ [k]: e.target.value });
 
   return (

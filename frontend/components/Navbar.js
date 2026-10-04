@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { useBooking } from './booking/BookingContext';
+import { useBookingPanel } from './booking/BookingContext';
 import { CurrencySwitcher } from './site/Currency';
 
 // Always in the bar on desktop.
@@ -81,20 +81,29 @@ function MoreMenu({ overHero, isActive }) {
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { openBooking } = useBooking();
+  const topMarker = useRef(null);
+  const { openBooking } = useBookingPanel();
   const pathname = usePathname();
   // Transparent only while sitting on top of the home page's full-bleed hero.
   const overHero = pathname === '/' && !scrolled && !open;
   const isActive = (href) => (href === '/rooms' ? pathname.startsWith('/rooms') : pathname === href);
 
+  // Only the home page has a hero to float over. There, a marker covering the
+  // top 40px of the page tells us when it has scrolled out of view — the
+  // browser reports that once, where a scroll listener would run on every frame.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    if (pathname !== '/' || !topMarker.current) return undefined;
+    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting));
+    observer.observe(topMarker.current);
+    return () => {
+      observer.disconnect();
+      setScrolled(false);
+    };
+  }, [pathname]);
 
   return (
+    <>
+    <div ref={topMarker} className="pointer-events-none absolute left-0 top-0 h-10 w-px" aria-hidden="true" />
     <header
       className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
         overHero ? 'border-transparent bg-gradient-to-b from-black/50 to-transparent' : 'border-navy-700 bg-navy-950 shadow-sm'
@@ -168,5 +177,6 @@ export default function Navbar() {
         </div>
       )}
     </header>
+    </>
   );
 }

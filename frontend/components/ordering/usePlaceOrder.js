@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { errMsg } from '@/lib/bookingUi';
-import { composeOrderNotes } from '@/lib/foodOrders';
+import { ORDER_TYPE_FOR_API, composeOrderNotes, orderHref } from '@/lib/foodOrders';
 import { rememberOrder } from '@/lib/myOrders';
 
 /**
  * The guest's details and the act of placing the order.
- * `orderContext`: { type: 'table', tableId, accessKey } or { type: 'kiosk', accessKey }
+ * `orderContext`: { type: 'table', tableId, accessKey } or { type: 'counter', accessKey }
  * — the key comes from the QR code that opened the page. `cartKey` names this
  * ordering context on the device (see lib/cart.js).
  * Returns { form, setField, status ('idle' | 'placing' | 'error'), error, submit }.
@@ -33,7 +33,7 @@ export default function usePlaceOrder({ orderContext, cart, cartKey }) {
     try {
       setStatus('placing');
       const res = await api.post('/food-orders', {
-        orderType: orderContext.type,
+        orderType: ORDER_TYPE_FOR_API[orderContext.type],
         accessKey: orderContext.accessKey,
         ...(isTable ? { tableNumber: String(orderContext.tableId) } : {}),
         customerName: form.customerName || undefined,
@@ -44,9 +44,7 @@ export default function usePlaceOrder({ orderContext, cart, cartKey }) {
       });
       cart.clear();
       rememberOrder(cartKey, res.data.token);
-      // The order's private token, plus the QR key so "Order more" works from there.
-      const query = new URLSearchParams({ order: res.data.token, k: orderContext.accessKey || '' });
-      router.push(`${isTable ? `/order/${orderContext.tableId}` : '/dine'}/confirmation?${query}`);
+      router.push(orderHref(orderContext, res.data.token));
     } catch (err) {
       setStatus('error');
       setError(errMsg(err, 'Could not place your order. Please try again.'));

@@ -1,23 +1,13 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { TOKEN_KEYS } from '@/lib/api';
 import LoginCard from '../../_components/LoginCard';
-import { markSignedIn } from '../../_lib/session';
+
+export const metadata = { title: 'Admin sign-in' };
 
 export default function AdminLoginPage() {
-  const router = useRouter();
-
   return (
     <LoginCard
+      section="admin"
       eyebrow="Resort Admin"
       idField={{ name: 'email', label: 'Email', type: 'email' }}
-      endpoint="/admin/login"
-      onSignedIn={(data) => {
-        window.localStorage.setItem(TOKEN_KEYS.admin, data.token);
-        markSignedIn('admin');
-        router.replace('/admin');
-      }}
       help="Forgotten the password? It can't be recovered from this page — ask whoever set up the site to reset it."
     >
       {/* Setup hint for developers only — never shown on the deployed site. */}

@@ -7,7 +7,7 @@ import { clearSignedIn } from './session';
 
 // Where each staff tool keeps the signed-in person's name and role (the admin
 // has none: the manager's email is read from the token itself).
-const PROFILE_KEYS = { kitchen: 'gokulam_kitchen_staff', staff: 'gokulam_staff_profile' };
+export const PROFILE_KEYS = { kitchen: 'gokulam_kitchen_staff', staff: 'gokulam_staff_profile' };
 const LOGIN_PATHS = { admin: '/admin/login', kitchen: '/kitchen/login', staff: '/staff/login' };
 
 function readProfile(section, token) {

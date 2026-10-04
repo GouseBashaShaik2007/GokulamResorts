@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useBooking } from '../BookingContext';
 import { inr } from '../../../lib/bookingUi';
 import PhoneInput, { isValidPhone } from '../../site/PhoneInput';
@@ -19,6 +19,17 @@ const FIELD_ID = { name: 'guestName', phone: 'guestPhone', email: 'guestEmail' }
 export default function GuestStep() {
   const { pick, guest, setGuest, goTo, submitAndPay, status, error } = useBooking();
   const [problems, setProblems] = useState({});
+
+  // The payment window loads from Razorpay only when it is needed. Opening the
+  // connection now, while the guest types, takes that wait off the Pay button.
+  useEffect(() => {
+    if (document.querySelector('link[data-razorpay-preconnect]')) return;
+    const link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = 'https://checkout.razorpay.com';
+    link.dataset.razorpayPreconnect = 'true';
+    document.head.appendChild(link);
+  }, []);
 
   const setField = (k) => (e) => setGuest({ [k]: e.target.value });
   const check = (k) => setProblems((p) => ({ ...p, [k]: CHECKS[k](guest[k] || '') }));

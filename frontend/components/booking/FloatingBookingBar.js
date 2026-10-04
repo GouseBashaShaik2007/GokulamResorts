@@ -3,21 +3,21 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { useBooking } from './BookingContext';
+import { useBookingPanel, useStay } from './BookingContext';
 import useScrollDirection from '../../lib/useScrollDirection';
 import { todayIST } from '../../lib/bookingUi';
 import { formatRange } from '../../lib/dateRange';
 import DateRangePicker from './DateRangePicker';
 
-const HIDDEN_PREFIXES = [
-  '/dine', '/order', '/admin', '/kitchen', '/staff', '/frontdesk',
-  '/contact', '/booking/confirmation', '/booking/status',
-];
+// Pages where the guest is already doing something else. (Ordering and staff
+// screens have their own layouts and never render this bar.)
+const HIDDEN_PREFIXES = ['/contact', '/booking/confirmation', '/booking/status'];
 const BAR_SPACE_PX = 96;
 
 export default function FloatingBookingBar() {
   const pathname = usePathname();
-  const { stay, setStay, datesValid, isOpen, openBooking, adults, children: kids, guests } = useBooking();
+  const { stay, setStay, datesValid, adults, children: kids, guests } = useStay();
+  const { isOpen, openBooking } = useBookingPanel();
 
   // Roughly "past the hero" on any device, and a fair threshold on hero-less
   // pages too — the bar shouldn't compete with the Hero's own booking CTA.

@@ -21,7 +21,8 @@ function Line({ label, value, className = 'text-navy-300' }) {
  * the quoted total once an order exists (it is then the amount actually charged).
  */
 export default function StaySummary({ total }) {
-  const { pick, stay, adults, children: kids } = useBooking();
+  const { pick, bookedStay: stay } = useBooking();
+  const { adults, children: kids } = stay;
   if (!pick) return null;
 
   const q = pick.quote;

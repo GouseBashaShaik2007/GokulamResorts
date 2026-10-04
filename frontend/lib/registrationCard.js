@@ -2,6 +2,7 @@
 // keeps on paper with the guest's signature. Built as a small standalone page
 // and opened in a new window, so it prints without the admin screen around it.
 
+import { inr as rupees } from './bookingUi';
 import { SITE_NAME } from './site';
 
 // Booking data is typed by guests and staff, so nothing goes into the page unescaped.
@@ -10,7 +11,6 @@ const esc = (value) =>
 
 const date = (iso) =>
   iso ? new Date(`${String(iso).slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 const ID_LABEL = { Aadhaar: 'Aadhaar', Passport: 'Passport', DrivingLicense: 'Driving licence' };
 

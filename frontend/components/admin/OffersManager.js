@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
 import { inr, fmtDate, todayIST, errMsg } from '../../lib/bookingUi';
+import { gstRateFor, withGst } from '../../lib/gst';
 import { useConfirm } from '../ui/Confirm';
 import { useToast } from '../ui/Toast';
 
-const PREVIEW_NIGHTS = 3;
+// Admin → Offers: per-night discounts for a room type (or all of them) over a
+// run of dates. One word for them everywhere: the screen, this file, the API.
 
+// What the offer does to a night's price — and to what the guest pays, since
+// GST is charged on the discounted price and drops from 18% to 5% once a
+// night comes down to ₹7,500 or less.
 function DiscountPreview({ roomTypeId, discountType, value, types }) {
   const value_ = Number(value);
   if (!value_ || value_ <= 0) return null;
@@ -21,7 +26,7 @@ function DiscountPreview({ roomTypeId, discountType, value, types }) {
       discountType === 'percent'
         ? Math.max(0, original * (1 - value_ / 100))
         : Math.max(0, original - value_);
-    return { name: room.name, original, discounted };
+    return { id: room.id, name: room.name, original, discounted };
   };
 
   // "All room types" — preview against the first couple so the form doesn't
@@ -31,13 +36,17 @@ function DiscountPreview({ roomTypeId, discountType, value, types }) {
   return (
     <div className="rounded-lg border border-gold-500/30 bg-gold-500/5 px-4 py-3 text-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-gold-600">Live preview</p>
-      <ul className="mt-1.5 space-y-1">
+      <ul className="mt-1.5 space-y-2">
         {previewRooms.map((room) => {
-          const { name, original, discounted } = line(room);
+          const { id, name, original, discounted } = line(room);
+          const newSlab = gstRateFor(discounted) !== gstRateFor(original);
           return (
-            <li key={name} className="text-navy-100">
-              {name}: {inr(original)} → <span className="font-semibold text-gold-600">{inr(discounted)}</span> per
-              night <span className="text-navy-400">(≈ {inr(discounted * PREVIEW_NIGHTS)} for {PREVIEW_NIGHTS} nights)</span>
+            <li key={id} className="text-navy-100">
+              {name}: {inr(original)} → <span className="font-semibold text-gold-600">{inr(discounted)}</span> per night
+              <span className="block text-xs text-navy-300">
+                Guest pays {inr(withGst(discounted))} a night with {gstRateFor(discounted)}% GST, instead of {inr(withGst(original))}.
+                {newSlab && <strong className="font-semibold text-navy-100"> GST drops from {gstRateFor(original)}% to {gstRateFor(discounted)}% at this price.</strong>}
+              </span>
             </li>
           );
         })}
@@ -79,7 +88,7 @@ function offerState(offer, today) {
   return 'Live';
 }
 
-export default function PromotionsManager() {
+export default function OffersManager() {
   const today = todayIST();
   const empty = { name: '', roomTypeId: '', discountType: 'percent', value: '', startDate: today, endDate: today, reason: '' };
   const ask = useConfirm();
@@ -91,7 +100,7 @@ export default function PromotionsManager() {
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    api.get('/admin/rate-discounts', withAdminAuth()).then((r) => setRows(r.data.discounts)).catch((err) => setError(errMsg(err, 'Could not load offers')));
+    api.get('/admin/offers', withAdminAuth()).then((r) => setRows(r.data.offers)).catch((err) => setError(errMsg(err, 'Could not load offers')));
   }, []);
   useEffect(() => {
     load();
@@ -127,10 +136,10 @@ export default function PromotionsManager() {
     const payload = { ...form, roomTypeId: form.roomTypeId ? Number(form.roomTypeId) : null, value: Number(form.value) };
     try {
       if (editing) {
-        await api.put(`/admin/rate-discounts/${editing.id}`, payload, withAdminAuth());
+        await api.put(`/admin/offers/${editing.id}`, payload, withAdminAuth());
         toast(`“${form.name}” updated.`);
       } else {
-        await api.post('/admin/rate-discounts', payload, withAdminAuth());
+        await api.post('/admin/offers', payload, withAdminAuth());
         toast(`“${form.name}” added.`);
       }
       stopEditing();
@@ -143,7 +152,7 @@ export default function PromotionsManager() {
 
   const toggle = async (p) => {
     try {
-      await api.put(`/admin/rate-discounts/${p.id}`, { isActive: !p.is_active }, withAdminAuth());
+      await api.put(`/admin/offers/${p.id}`, { isActive: !p.is_active }, withAdminAuth());
       toast(`“${p.name}” turned ${p.is_active ? 'off' : 'on'}.`);
     } catch (err) {
       toast(errMsg(err, `Could not turn “${p.name}” ${p.is_active ? 'off' : 'on'}`), { tone: 'error' });
@@ -160,7 +169,7 @@ export default function PromotionsManager() {
     });
     if (!ok) return;
     try {
-      await api.delete(`/admin/rate-discounts/${p.id}`, withAdminAuth());
+      await api.delete(`/admin/offers/${p.id}`, withAdminAuth());
       toast(`“${p.name}” deleted.`);
       if (editing?.id === p.id) stopEditing();
     } catch (err) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../lib/api';
 import { errMsg, fmtDate } from '../../lib/bookingUi';
 import { JOB_STATUS_STYLE } from '../../lib/cleaningStyles';
+import Chip from '../ui/Chip';
 
 const REFRESH_MS = 30000;
 
@@ -69,15 +70,9 @@ export default function RoomBoard({ auth, onOpen, refreshKey }) {
       {error && <p role="alert" className="mb-3 text-sm text-red-700">{error} — showing the last update.</p>}
       <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Filter rooms">
         {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            aria-pressed={filter === f.key}
-            onClick={() => setFilter(f.key)}
-            className={`rounded-full border px-3.5 py-1.5 text-sm ${filter === f.key ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-navy-700 text-navy-200 hover:border-ocean-300'}`}
-          >
+          <Chip key={f.key} size="sm" pressed={filter === f.key} onClick={() => setFilter(f.key)}>
             {f.label} ({rooms.filter(f.test).length})
-          </button>
+          </Chip>
         ))}
       </div>
 

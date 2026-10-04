@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import api from '@/lib/api';
 import { inr, fmtDate, fmtDateTime, nightsBetween } from '@/lib/bookingUi';
 import { downloadCalendarFile, stayCalendarFile } from '@/lib/calendar';
 import { realPhotos } from '@/lib/rooms';
@@ -20,12 +18,8 @@ import { CheckInCountdown, CopyButton, StayProgress, refundedTotal, statusFor } 
  */
 export default function BookingSummary({ b, justBooked }) {
   const contact = useContact();
-  const [photo, setPhoto] = useState(undefined);
-  useEffect(() => {
-    if (!b.room.typeId) return setPhoto(null);
-    api.get(`/rooms/${b.room.typeId}`).then((r) => setPhoto(realPhotos(r.data.room)[0] || null)).catch(() => setPhoto(null));
-    return undefined;
-  }, [b.room.typeId]);
+  // The room type's photos arrive with the booking (b.room.images), cover first.
+  const photo = realPhotos(b.room)[0] || null;
 
   const s = statusFor(b);
   const refunded = refundedTotal(b);
@@ -56,7 +50,7 @@ export default function BookingSummary({ b, justBooked }) {
       {celebrated && <PaymentReceived b={b} />}
       <div className="card overflow-hidden">
         <div className="no-print relative h-48 sm:h-56">
-          {photo === undefined ? <div className="h-full w-full animate-pulse bg-navy-800" /> : <RoomPhoto src={photo} alt={b.room.type} />}
+          <RoomPhoto src={photo} alt={b.room.type} />
         </div>
         <div className="space-y-6 p-6 sm:p-8">
           <div>

@@ -1,27 +1,38 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import api, { withKitchenAuth } from '@/lib/api';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import api, { TOKEN_KEYS, withKitchenAuth } from '@/lib/api';
+import { errMsg } from '@/lib/bookingUi';
 import useStaffSession from '../_lib/useStaffSession';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
-import { VegMark } from '@/components/MenuItemCard';
-import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, PREVIOUS_ORDER_STATUS, splitOrderNotes } from '@/lib/foodOrders';
+import VegMark from '@/components/ui/VegMark';
+import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, ORDER_TYPE_LABEL, PREVIOUS_ORDER_STATUS, splitOrderNotes } from '@/lib/foodOrders';
+import useCleaningSocket from '@/lib/useCleaningSocket';
 
 // Kitchen wall display. Deliberately its own high-contrast dark look (not the
 // guest site theme): readable from across a hot, bright kitchen.
 
-const POLL_MS = 5000;
+// New orders arrive as live events. The board also asks for itself — rarely
+// while the live connection is up, every few seconds while it is down — so a
+// dropped connection never leaves an order unseen.
+const POLL_LIVE_MS = 20000;
+const POLL_OFFLINE_MS = 5000;
 // Ticket colours (amber, red) and the "late" count are worked out this often;
 // the mm:ss on each ticket runs on its own one-second clock (see Elapsed).
 const LEVEL_TICK_MS = 10000;
 const AMBER_MIN = 10;
 const RED_MIN = 20;
+// The busiest dishes shown in the "to cook" strip.
+const COOK_NOW_MAX = 8;
 
 const STATUS_ACTION_LABEL = { new: 'Start preparing', preparing: 'Mark ready', ready: 'Mark served' };
 // What a table asked for from its ordering page.
 const REQUEST_LABEL = { staff: 'is calling for staff', bill: 'wants the bill' };
 const COLUMN_ACCENT = { new: 'text-sky-300', preparing: 'text-violet-300', ready: 'text-emerald-300' };
+
+// "Table 7", or the name a counter order was placed under.
+const whoFor = (order) => (order.table_number ? `Table ${order.table_number}` : order.customer_name || `Order ${order.id}`);
 
 let audioCtx = null;
 // Must first run inside a user gesture (Start shift) for browsers to allow sound.
@@ -147,16 +158,50 @@ function TableRequests({ requests, onDone }) {
   );
 }
 
+// Every dish still to be cooked, added up across tickets ("6× Chicken biryani"
+// spread over four tables), busiest first — what to put on the stove now.
+function CookNow({ orders }) {
+  const dishes = useMemo(() => {
+    const totals = new Map();
+    orders
+      .filter((o) => o.status === 'new' || o.status === 'preparing')
+      .forEach((o) => o.items.forEach((item) => totals.set(item.item_name, (totals.get(item.item_name) || 0) + item.quantity)));
+    return [...totals].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [orders]);
+
+  // One ticket's worth is already on its ticket; the strip earns its place
+  // once the same work is spread over several.
+  if (dishes.length === 0 || orders.filter((o) => o.status !== 'ready').length < 2) return null;
+  const more = dishes.length - COOK_NOW_MAX;
+
+  return (
+    <section aria-label="To cook now, across all tickets" className="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-6 py-3">
+      <h2 className="mr-1 text-sm font-bold uppercase tracking-wider text-neutral-400">To cook</h2>
+      {dishes.slice(0, COOK_NOW_MAX).map(([name, quantity]) => (
+        <span key={name} className="rounded-lg bg-neutral-800 px-3 py-1.5 text-base font-semibold text-white">
+          <span className="text-amber-300">{quantity}×</span> {name}
+        </span>
+      ))}
+      {more > 0 && <span className="text-sm text-neutral-400">+{more} more dish{more === 1 ? '' : 'es'}</span>}
+    </section>
+  );
+}
+
 // `mins`: whole minutes this order has waited (drives the amber / red frame).
 const OrderCard = memo(function OrderCard({ order, mins, onAdvance, onCancel }) {
-  const level = mins >= RED_MIN ? 'red' : mins >= AMBER_MIN ? 'amber' : 'ok';
+  // A ready ticket is the kitchen's work done: it shows how long the food has
+  // been waiting to be served, and no longer turns amber or red.
+  const isReady = order.status === 'ready';
+  const level = isReady ? 'done' : mins >= RED_MIN ? 'red' : mins >= AMBER_MIN ? 'amber' : 'ok';
   const frame = {
     ok: 'border-neutral-600',
+    done: 'border-emerald-500/60',
     amber: 'border-amber-400 ring-2 ring-amber-400/40',
     red: 'border-red-500 ring-4 ring-red-500/50',
   }[level];
   const timer = {
     ok: 'bg-neutral-800 text-white',
+    done: 'bg-emerald-500/15 text-emerald-300',
     amber: 'bg-amber-400 text-neutral-950',
     red: 'animate-pulse bg-red-600 text-white',
   }[level];
@@ -176,21 +221,23 @@ const OrderCard = memo(function OrderCard({ order, mins, onAdvance, onCancel }) 
             {order.table_number ? `Table ${order.table_number}` : order.customer_name || 'Walk-in'}
           </p>
           <p className="mt-1 text-sm text-neutral-400">
-            #{order.id} · {order.order_type === 'table' ? 'Dine-in' : 'Counter'}
+            #{order.id} · {ORDER_TYPE_LABEL[order.order_type] || order.order_type} order
             {/* Up here, well away from the big button a thumb is aiming for. */}
             <button onClick={() => onCancel(order)} className="ml-3 rounded px-1 text-sm text-red-300 underline underline-offset-2">
               Cancel order
             </button>
           </p>
         </div>
-        <span className={`rounded-xl px-3 py-1.5 font-mono text-2xl font-bold tabular-nums ${timer}`} aria-label={`Waiting ${mins} minutes`}>
-          <Elapsed since={order.created_at} />
+        <span className={`rounded-xl px-3 py-1.5 text-right font-mono text-2xl font-bold tabular-nums ${timer}`}>
+          {isReady && <span className="block font-sans text-[0.65rem] font-semibold uppercase tracking-wider">Ready for</span>}
+          <Elapsed since={isReady ? order.updated_at : order.created_at} />
+          <span className="sr-only">{isReady ? ' since it was ready' : ` waiting, ${mins} minutes`}</span>
         </span>
       </header>
 
       <ul className="mt-4 divide-y divide-neutral-800">
         {order.items.map((item, idx) => (
-          <li key={idx} className="flex items-baseline gap-3 py-2">
+          <li key={item.id ?? idx} className="flex items-baseline gap-3 py-2">
             <span className="min-w-[2.5rem] text-2xl font-bold text-amber-300">{item.quantity}×</span>
             <span className="flex-1">
               {/* Veg / non-veg as the dish is on the menu; nothing if it has since been removed. */}
@@ -230,6 +277,8 @@ export default function KitchenPage() {
   const [requests, setRequests] = useState([]);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState('');
+  // Read out by screen readers; the chime covers everyone who can hear it.
+  const [announcement, setAnnouncement] = useState('');
   const lastMaxOrderId = useRef(0);
   const lastMaxRequestId = useRef(0);
   const soundOnRef = useRef(false);
@@ -246,7 +295,11 @@ export default function KitchenPage() {
       const res = await api.get('/kitchen/orders', withKitchenAuth());
       const fetched = res.data.orders;
       const maxId = fetched.reduce((max, o) => Math.max(max, o.id), 0);
-      if (lastMaxOrderId.current > 0 && maxId > lastMaxOrderId.current && soundOnRef.current) playChime();
+      if (lastMaxOrderId.current > 0 && maxId > lastMaxOrderId.current) {
+        if (soundOnRef.current) playChime();
+        const fresh = fetched.filter((o) => o.id > lastMaxOrderId.current);
+        setAnnouncement(`New order: ${fresh.map(whoFor).join(', ')}`);
+      }
       lastMaxOrderId.current = Math.max(lastMaxOrderId.current, maxId);
       setOrders(fetched);
       setError('');
@@ -266,7 +319,11 @@ export default function KitchenPage() {
       const res = await api.get('/kitchen/requests', withKitchenAuth());
       const fetched = res.data.requests;
       const maxId = fetched.reduce((max, r) => Math.max(max, r.id), 0);
-      if (maxId > lastMaxRequestId.current && soundOnRef.current) playChime();
+      if (maxId > lastMaxRequestId.current) {
+        if (soundOnRef.current) playChime();
+        const fresh = fetched.filter((r) => r.id > lastMaxRequestId.current);
+        setAnnouncement(fresh.map((r) => `Table ${r.table_number} ${REQUEST_LABEL[r.kind] || r.kind}`).join('. '));
+      }
       lastMaxRequestId.current = Math.max(lastMaxRequestId.current, maxId);
       setRequests(fetched);
     } catch {
@@ -274,16 +331,21 @@ export default function KitchenPage() {
     }
   }, []);
 
+  const load = useCallback(() => {
+    loadOrders();
+    loadRequests();
+  }, [loadOrders, loadRequests]);
+
+  // Live: the API says "something changed" the moment an order is placed,
+  // cancelled or moved on, or a table calls — and the board reloads.
+  const live = useCleaningSocket(TOKEN_KEYS.kitchen, () => loggedIn && load(), 'food:update');
+
   useEffect(() => {
     if (!loggedIn) return undefined;
-    const load = () => {
-      loadOrders();
-      loadRequests();
-    };
     load();
-    const interval = setInterval(load, POLL_MS);
+    const interval = setInterval(load, live ? POLL_LIVE_MS : POLL_OFFLINE_MS);
     return () => clearInterval(interval);
-  }, [loggedIn, loadOrders, loadRequests]);
+  }, [loggedIn, load, live]);
 
   const completeRequest = async (request) => {
     setRequests((list) => list.filter((r) => r.id !== request.id));
@@ -291,7 +353,7 @@ export default function KitchenPage() {
       await api.patch(`/kitchen/requests/${request.id}/done`, {}, withKitchenAuth());
     } catch (err) {
       // 404 = someone else already marked it done, which is fine.
-      if (err?.response?.status !== 404) setError(err?.response?.data?.message || 'Could not update that request.');
+      if (err?.response?.status !== 404) setError(errMsg(err, 'Could not update that request.'));
       loadRequests();
     }
   };
@@ -309,15 +371,14 @@ export default function KitchenPage() {
       // One tap moves a ticket on (and "served" takes it off the board), so a
       // slip of the thumb can be put back for a few seconds.
       if (undoable && PREVIOUS_ORDER_STATUS[status] === order.status) {
-        const who = order.table_number ? `Table ${order.table_number}` : order.customer_name || `#${order.id}`;
-        toast(`${who}: ${ORDER_STATUS_LABEL[status]}`, {
+        toast(`${whoFor(order)}: ${ORDER_STATUS_LABEL[status]}`, {
           tone: 'info',
           duration: 8000,
           action: { label: 'Undo', onClick: () => updateStatus(order, order.status, { undoable: false }) },
         });
       }
     } catch (err) {
-      setError(err?.response?.data?.message || 'Could not update that order.');
+      setError(errMsg(err, 'Could not update that order.'));
     }
   };
 
@@ -343,7 +404,8 @@ export default function KitchenPage() {
     status,
     orders: orders.filter((o) => o.status === status),
   }));
-  const late = orders.filter((o) => elapsed(o.created_at, now).mins >= RED_MIN).length;
+  // Late means still being cooked after RED_MIN; a ready ticket is not the kitchen's wait.
+  const late = orders.filter((o) => o.status !== 'ready' && elapsed(o.created_at, now).mins >= RED_MIN).length;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -356,14 +418,17 @@ export default function KitchenPage() {
           {late > 0 && <span className="rounded-full bg-red-600 px-3 py-1 text-sm font-bold">{late} over {RED_MIN} min</span>}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className={`rounded-full px-3 py-1 ${live ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-800 text-neutral-400'}`}>
+            {live ? 'Live' : `Checking every ${POLL_OFFLINE_MS / 1000}s`}
+          </span>
           <span className={`rounded-full px-3 py-1 ${shiftStarted ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-800 text-neutral-400'}`}>
-            🔔 Sound {shiftStarted ? 'on' : 'off'}
+            <span aria-hidden="true">🔔 </span>Sound {shiftStarted ? 'on' : 'off'}
           </span>
           <span
             className={`rounded-full px-3 py-1 ${wakeLock === 'on' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300'}`}
             title={wakeLock === 'unsupported' ? 'This browser cannot keep the screen awake — set the device to never sleep.' : ''}
           >
-            ☀ Screen {wakeLock === 'on' ? 'kept awake' : wakeLock === 'unsupported' ? 'may sleep (unsupported)' : 'may sleep'}
+            <span aria-hidden="true">☀ </span>Screen {wakeLock === 'on' ? 'kept awake' : wakeLock === 'unsupported' ? 'may sleep (unsupported)' : 'may sleep'}
           </span>
           <span className="text-neutral-500">
             Amber at {AMBER_MIN} min · red at {RED_MIN} min
@@ -380,9 +445,11 @@ export default function KitchenPage() {
         </div>
       </header>
 
-      {error && <p className="bg-red-600 px-6 py-2 text-center font-semibold">{error}</p>}
+      <p className="sr-only" aria-live="assertive">{announcement}</p>
+      {error && <p role="alert" className="bg-red-600 px-6 py-2 text-center font-semibold">{error}</p>}
 
       <TableRequests requests={requests} onDone={completeRequest} />
+      <CookNow orders={orders} />
 
       <div className="grid gap-6 p-6 lg:grid-cols-3">
         {grouped.map(({ status, orders: list }) => (

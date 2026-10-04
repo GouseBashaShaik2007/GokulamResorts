@@ -51,14 +51,17 @@ export default function TaskBoard({ staff, onLogout }) {
     }
   };
 
+  // Inspectors: rooms still being cleaned are folded away until asked for.
+  const [showWaiting, setShowWaiting] = useState(false);
   const isInspector = staff.role === 'Inspector';
   // Inspectors: rooms ready to inspect first; each group keeps the server's priority order.
   const groups = isInspector
     ? [
-        ['Ready to inspect', tasks.filter((t) => t.job_status === 'Inspection')],
-        ['Being cleaned', tasks.filter((t) => t.job_status !== 'Inspection')],
+        { title: 'Ready to inspect', list: tasks.filter((t) => t.job_status === 'Inspection') },
+        { title: 'Being cleaned', list: tasks.filter((t) => t.job_status !== 'Inspection'), folded: true },
       ]
-    : [['My rooms', tasks]];
+    : [{ title: 'My rooms', list: tasks }];
+  const nothingToInspect = isInspector && tasks.length > 0 && groups[0].list.length === 0;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
@@ -78,31 +81,52 @@ export default function TaskBoard({ staff, onLogout }) {
 
       {loaded && tasks.length === 0 && (
         <div className="card p-8 text-center">
-          <p className="text-lg text-navy-100">All clear ✨</p>
+          <p className="text-lg text-navy-100">All clear <span aria-hidden="true">✨</span></p>
           <p className="mt-1 text-sm text-navy-400">No rooms assigned to you right now.</p>
         </div>
       )}
 
-      {groups.map(([title, list]) =>
-        list.length === 0 ? null : (
+      {nothingToInspect && (
+        <p className="card mb-8 p-5 text-sm text-navy-200">Nothing to inspect yet. Rooms appear here as soon as cleaning finishes.</p>
+      )}
+
+      {groups.map(({ title, list, folded }) => {
+        if (list.length === 0) return null;
+        const open = !folded || showWaiting;
+        return (
           <section key={title} className="mb-8">
-            {isInspector && (
+            {isInspector && !folded && (
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-navy-300">
                 {title} ({list.length})
               </h2>
             )}
-            <div className="space-y-4">
-              {list.map((task) =>
-                isInspector ? (
-                  <InspectionCard key={task.id} task={task} onAction={act} busy={busyId === task.id} />
-                ) : (
-                  <CleaningTaskCard key={task.id} task={task} onAction={act} busy={busyId === task.id} />
-                )
-              )}
-            </div>
+            {folded && (
+              <h2 className="mb-3">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setShowWaiting((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-xl border border-navy-700 px-4 py-3 text-sm font-semibold uppercase tracking-wider text-navy-300"
+                >
+                  <span>{title} ({list.length})</span>
+                  <span aria-hidden="true">{open ? 'Hide' : 'Show'}</span>
+                </button>
+              </h2>
+            )}
+            {open && (
+              <div className="space-y-4">
+                {list.map((task) =>
+                  isInspector ? (
+                    <InspectionCard key={task.id} task={task} onAction={act} busy={busyId === task.id} />
+                  ) : (
+                    <CleaningTaskCard key={task.id} task={task} onAction={act} busy={busyId === task.id} />
+                  )
+                )}
+              </div>
+            )}
           </section>
-        )
-      )}
+        );
+      })}
     </div>
   );
 }

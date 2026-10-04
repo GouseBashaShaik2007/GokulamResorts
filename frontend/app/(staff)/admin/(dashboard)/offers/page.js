@@ -1,13 +1,13 @@
-import PromotionsManager from '@/components/admin/PromotionsManager';
+import OffersManager from '@/components/admin/OffersManager';
+import PageHeader from '@/components/ui/PageHeader';
+
+export const metadata = { title: 'Offers' };
 
 export default function AdminOffersPage() {
   return (
     <div>
-      <div className="mb-8">
-        <p className="eyebrow">Pricing</p>
-        <h1 className="section-heading mt-1">Offers</h1>
-      </div>
-      <PromotionsManager />
+      <PageHeader size="section" eyebrow="Pricing" title="Offers" className="mb-8" />
+      <OffersManager />
     </div>
   );
 }

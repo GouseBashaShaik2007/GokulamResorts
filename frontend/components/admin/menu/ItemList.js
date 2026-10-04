@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { inr } from '@/lib/bookingUi';
 import { SPICE_RATING_LABEL, allergenText } from '@/lib/foodOrders';
 
 // "₹250 · Veg · Jain · Spice: Hot · Contains nuts"
 function facts(item) {
   const allergens = allergenText(item);
   return [
-    `₹${Number(item.price).toLocaleString('en-IN')}`,
+    inr(item.price),
     item.is_veg ? 'Veg' : 'Non-Veg',
     item.is_jain && 'Jain',
     SPICE_RATING_LABEL[item.spice_rating] && `Spice: ${SPICE_RATING_LABEL[item.spice_rating]}`,

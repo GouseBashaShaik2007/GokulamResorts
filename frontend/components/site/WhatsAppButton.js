@@ -1,15 +1,13 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import { whatsappUrl } from '@/lib/site';
 import { useContact } from './ContactContext';
 
 // Bottom-right chat button. Hidden until a WhatsApp number is set in Admin → Settings.
 // Sits above the floating booking bar's reserved space so they never overlap.
 export default function WhatsAppButton() {
-  const pathname = usePathname();
   const href = whatsappUrl("Hello Gokulam Resorts, I'd like to ask about a stay.", useContact());
-  if (!href || pathname.startsWith('/order') || pathname === '/dine' || pathname.startsWith('/dine/')) return null;
+  if (!href) return null;
 
   return (
     <a

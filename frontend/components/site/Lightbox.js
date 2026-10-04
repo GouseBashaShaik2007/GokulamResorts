@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Link from 'next/link';
 import useModal from '@/lib/useModal';
 
 const SWIPE_PX = 50;
 
-/** Full-screen photo viewer. photos: [{ src, alt, caption? }]. Arrow keys, swipe, Esc. */
+/**
+ * Full-screen photo viewer. photos: [{ src, alt, caption?, link? }] — `link`
+ * ({ href, label }) adds "View this room" under a room's photo.
+ * Arrow keys, swipe, Esc.
+ */
 export default function Lightbox({ photos, index, onChange, onClose }) {
   const open = index !== null && index !== undefined;
   const ref = useModal(open, onClose); // focus trap, Escape, scroll lock
@@ -50,6 +55,11 @@ export default function Lightbox({ photos, index, onChange, onClose }) {
         <img src={photo.src} alt={photo.alt} className="max-h-[82vh] w-auto rounded-lg object-contain" />
         <figcaption className="mt-3 text-center text-sm text-white/80" aria-live="polite">
           {photo.caption || photo.alt} <span className="text-white/50">· {index + 1} / {photos.length}</span>
+          {photo.link && (
+            <Link href={photo.link.href} onClick={onClose} className="ml-3 font-semibold text-white underline underline-offset-2">
+              {photo.link.label}
+            </Link>
+          )}
         </figcaption>
       </figure>
       {photos.length > 1 && (

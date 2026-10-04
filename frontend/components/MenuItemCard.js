@@ -1,18 +1,7 @@
 import Photo from './ui/Photo';
+import VegMark from './ui/VegMark';
+import { inr } from '../lib/bookingUi';
 import { SPICE_RATING_LABEL, allergenText } from '../lib/foodOrders';
-
-export function VegMark({ veg, className = '' }) {
-  return (
-    <span
-      className={`inline-flex h-5 w-5 flex-none items-center justify-center rounded-sm border-2 bg-white ${veg ? 'border-green-600' : 'border-red-600'} ${className}`}
-      title={veg ? 'Vegetarian' : 'Non-vegetarian'}
-      role="img"
-      aria-label={veg ? 'Vegetarian' : 'Non-vegetarian'}
-    >
-      <span className={`h-2 w-2 rounded-full ${veg ? 'bg-green-600' : 'bg-red-600'}`} />
-    </span>
-  );
-}
 
 /** Jain / heat / allergens for a dish. Nothing is shown for what the kitchen hasn't filled in. */
 export function DishInfo({ item, className = '' }) {
@@ -47,7 +36,6 @@ function NoDishPhoto() {
  * not orderable, so regulars can see it hasn't been taken off.
  */
 export default function MenuItemCard({ item, inCart, onOpen }) {
-  const price = Number(item.price).toLocaleString('en-IN');
   const soldOut = item.is_available === false;
 
   return (
@@ -74,7 +62,7 @@ export default function MenuItemCard({ item, inCart, onOpen }) {
         {item.description && <p className="mt-1 line-clamp-2 text-sm text-navy-300">{item.description}</p>}
         <DishInfo item={item} className="mt-2" />
         <div className="mt-auto flex items-center justify-between pt-4">
-          <span className="price text-lg">₹{price}</span>
+          <span className="price text-lg">{inr(item.price)}</span>
           {soldOut ? (
             <span className="rounded-full bg-navy-800 px-3 py-1.5 text-sm font-semibold text-navy-200">Sold out today</span>
           ) : (

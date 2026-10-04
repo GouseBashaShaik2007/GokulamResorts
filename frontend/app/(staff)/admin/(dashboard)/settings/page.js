@@ -1,12 +1,12 @@
 import SettingsManager from '@/components/admin/SettingsManager';
+import PageHeader from '@/components/ui/PageHeader';
+
+export const metadata = { title: 'Settings' };
 
 export default function AdminSettingsPage() {
   return (
     <div>
-      <div className="mb-8">
-        <p className="eyebrow">Resort Admin</p>
-        <h1 className="section-heading mt-1">Settings</h1>
-      </div>
+      <PageHeader size="section" eyebrow="Resort Admin" title="Settings" className="mb-8" />
       <SettingsManager />
     </div>
   );

@@ -1,12 +1,12 @@
 import RoomsAdmin from '@/components/admin/RoomsAdmin';
+import PageHeader from '@/components/ui/PageHeader';
+
+export const metadata = { title: 'Rooms' };
 
 export default function AdminRoomsPage() {
   return (
     <div>
-      <div className="mb-8">
-        <p className="eyebrow">Resort Admin</p>
-        <h1 className="section-heading mt-1">Rooms</h1>
-      </div>
+      <PageHeader size="section" eyebrow="Resort Admin" title="Rooms" className="mb-8" />
       <RoomsAdmin />
     </div>
   );

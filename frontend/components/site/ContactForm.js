@@ -1,28 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import api from '@/lib/api';
 import { errMsg, fmtDate, todayIST, addDays } from '@/lib/bookingUi';
+import { CONTACT_REASONS } from '@/lib/contactReasons';
+import OpenBookingButton from '../booking/OpenBookingButton';
 import PhoneInput from './PhoneInput';
 
-const REASONS = ['Stay', 'Event', 'Wedding', 'Other'];
-// `website` is a decoy: hidden from people, filled in by form-spam bots.
-const empty = { name: '', email: '', phone: '', reason: 'Stay', checkIn: '', checkOut: '', message: '', website: '' };
+// What each reason asks for beyond name and message.
+//   dates: labels for the two date fields, or `day` for a single date
+//   party: label for "how many people", where that is the first thing we need
+//   budget: whether to ask what they plan to spend (never required)
+const REASON = {
+  Stay: { dates: ['Check-in', 'Check-out'] },
+  Dining: { day: 'Date', party: 'How many people' },
+  Event: { dates: ['From', 'To'], party: 'Number of guests', budget: true },
+  Wedding: { dates: ['From', 'To'], party: 'Number of guests', budget: true, placeholder: 'Ceremonies you are planning, rooms needed for family, anything you have in mind…' },
+  Other: { dates: ['From', 'To'] },
+};
 
-export default function ContactForm() {
-  const [form, setForm] = useState(empty);
+// `website` is a decoy: hidden from people, filled in by form-spam bots.
+const empty = { name: '', email: '', phone: '', reason: 'Stay', checkIn: '', checkOut: '', guests: '', budget: '', message: '', website: '' };
+
+/** `initialReason`: the reason to open on (the page reads it from /contact?reason=…). */
+export default function ContactForm({ initialReason }) {
+  const [form, setForm] = useState({ ...empty, reason: initialReason || empty.reason });
   const [status, setStatus] = useState('idle'); // idle | sending | sent | error
   const [error, setError] = useState('');
   const [sent, setSent] = useState(null); // what was sent, for the confirmation
 
-  // /contact?reason=Wedding preselects the reason.
-  useEffect(() => {
-    const r = new URLSearchParams(window.location.search).get('reason');
-    if (REASONS.includes(r)) setForm((f) => ({ ...f, reason: r }));
-  }, []);
-
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const today = todayIST();
+  const needs = REASON[form.reason];
 
   const submit = async (e) => {
     e.preventDefault();
@@ -34,11 +43,13 @@ export default function ContactForm() {
         // The phone field always carries a country code; only send a real number.
         phone: /\d{6,}/.test(form.phone) ? form.phone : undefined,
         checkIn: form.checkIn || undefined,
-        checkOut: form.checkOut || undefined,
+        checkOut: (!needs.day && form.checkOut) || undefined,
+        guests: needs.party && form.guests ? Number(form.guests) : undefined,
+        budget: (needs.budget && form.budget.trim()) || undefined,
       });
       setSent(form);
       setStatus('sent');
-      setForm(empty);
+      setForm({ ...empty, reason: form.reason });
     } catch (err) {
       setStatus('error');
       setError(errMsg(err, 'Could not send your message. Please try again.'));
@@ -46,6 +57,7 @@ export default function ContactForm() {
   };
 
   if (status === 'sent' && sent) {
+    const sentNeeds = REASON[sent.reason];
     return (
       <div className="card space-y-4 p-6 sm:p-8" role="status">
         <p className="eyebrow">Message sent</p>
@@ -55,9 +67,15 @@ export default function ContactForm() {
           <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">About</dt><dd className="text-navy-100">{sent.reason}</dd></div>
           {sent.checkIn && (
             <div className="flex gap-3">
-              <dt className="w-20 flex-none text-navy-400">Dates</dt>
-              <dd className="text-navy-100">{fmtDate(sent.checkIn)}{sent.checkOut ? ` → ${fmtDate(sent.checkOut)}` : ''}</dd>
+              <dt className="w-20 flex-none text-navy-400">{sentNeeds.day ? 'Date' : 'Dates'}</dt>
+              <dd className="text-navy-100">{fmtDate(sent.checkIn)}{!sentNeeds.day && sent.checkOut ? ` → ${fmtDate(sent.checkOut)}` : ''}</dd>
             </div>
+          )}
+          {sentNeeds.party && sent.guests && (
+            <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">People</dt><dd className="text-navy-100">{sent.guests}</dd></div>
+          )}
+          {sentNeeds.budget && sent.budget.trim() && (
+            <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">Budget</dt><dd className="text-navy-100">{sent.budget}</dd></div>
           )}
           <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">Message</dt><dd className="whitespace-pre-line text-navy-100">{sent.message}</dd></div>
         </dl>
@@ -71,7 +89,7 @@ export default function ContactForm() {
       <fieldset>
         <legend className="label">What is it about?</legend>
         <div className="mt-1 flex flex-wrap gap-2">
-          {REASONS.map((r) => (
+          {CONTACT_REASONS.map((r) => (
             <label key={r} className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ocean-400 has-[:focus-visible]:ring-offset-2 ${form.reason === r ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-navy-700 text-navy-200'}`}>
               <input type="radio" name="reason" value={r} checked={form.reason === r} onChange={set('reason')} className="sr-only" />
               {r}
@@ -79,6 +97,15 @@ export default function ContactForm() {
           ))}
         </div>
       </fieldset>
+
+      {/* Whether a room is free, and what it costs, is answered at once by the booking panel. */}
+      {form.reason === 'Stay' && (
+        <p className="rounded-xl bg-navy-900 px-4 py-3 text-sm text-navy-200">
+          Want to know if a room is free for your dates, and the price?{' '}
+          <OpenBookingButton className="font-semibold text-ocean-600 underline underline-offset-2">Check availability now</OpenBookingButton>
+          {' '}— it answers straight away. For anything else about a stay, write to us below.
+        </p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -95,18 +122,32 @@ export default function ContactForm() {
         </div>
         {/* Dates get a row of their own: side by side with the phone they were too narrow to show a year. */}
         <div>
-          <label className="label" htmlFor="c-in">{form.reason === 'Stay' ? 'Check-in' : 'From'} (optional)</label>
+          <label className="label" htmlFor="c-in">{needs.day || needs.dates[0]} (optional)</label>
           <input id="c-in" type="date" min={today} className="input-field px-3" value={form.checkIn} onChange={(e) => setForm((f) => ({ ...f, checkIn: e.target.value, checkOut: f.checkOut && f.checkOut > e.target.value ? f.checkOut : '' }))} />
         </div>
-        <div>
-          <label className="label" htmlFor="c-out">{form.reason === 'Stay' ? 'Check-out' : 'To'} (optional)</label>
-          <input id="c-out" type="date" min={form.checkIn ? addDays(form.checkIn, 1) : today} className="input-field px-3" value={form.checkOut} onChange={set('checkOut')} />
-        </div>
+        {needs.dates && (
+          <div>
+            <label className="label" htmlFor="c-out">{needs.dates[1]} (optional)</label>
+            <input id="c-out" type="date" min={form.checkIn ? addDays(form.checkIn, 1) : today} className="input-field px-3" value={form.checkOut} onChange={set('checkOut')} />
+          </div>
+        )}
+        {needs.party && (
+          <div className={needs.dates && !needs.budget ? 'sm:col-span-2' : ''}>
+            <label className="label" htmlFor="c-guests">{needs.party} (optional)</label>
+            <input id="c-guests" type="number" inputMode="numeric" min={1} max={5000} className="input-field" value={form.guests} onChange={set('guests')} />
+          </div>
+        )}
+        {needs.budget && (
+          <div>
+            <label className="label" htmlFor="c-budget">Budget (optional)</label>
+            <input id="c-budget" maxLength={100} className="input-field" placeholder="e.g. around ₹5 lakh" value={form.budget} onChange={set('budget')} />
+          </div>
+        )}
       </div>
 
       <div>
         <label className="label" htmlFor="c-msg">Message</label>
-        <textarea id="c-msg" rows={4} required minLength={5} maxLength={2000} className="input-field" value={form.message} onChange={set('message')} placeholder={form.reason === 'Wedding' ? 'Guest count, preferred dates, anything you have in mind…' : ''} />
+        <textarea id="c-msg" rows={4} required minLength={5} maxLength={2000} className="input-field" value={form.message} onChange={set('message')} placeholder={needs.placeholder || ''} />
       </div>
 
       {/* Decoy field for spam bots: off-screen, skipped by the keyboard and by screen readers. */}

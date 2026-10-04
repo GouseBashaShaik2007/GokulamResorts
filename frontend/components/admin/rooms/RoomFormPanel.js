@@ -13,6 +13,9 @@ const STANDARD_AMENITIES = [
   'TV', 'Mini Fridge', 'Hot Water', 'Tea / Coffee Maker', 'Room Service', 'Power Backup',
 ];
 
+// Suggested for "Bed type", so guests read the same words on every room.
+const BED_TYPES = ['King', 'Queen', 'Twin', 'Double', 'King + Sofa bed', 'Two Queens'];
+
 // Amenities are edited as one comma-separated line; these read and change it.
 const parseAmenities = (text) => String(text || '').split(',').map((a) => a.trim()).filter(Boolean);
 const sameAmenity = (a, b) => a.toLowerCase() === b.toLowerCase();
@@ -132,13 +135,17 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
               <input aria-label="Max guests" name="capacity" type="number" min="1" required className="input-field" value={form.capacity} onChange={handleChange} />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <label className="label">Size (sq.ft.)</label>
-              <input aria-label="Size (sq.ft.)" name="sizeSqft" type="number" min="0" className="input-field" value={form.sizeSqft} onChange={handleChange} />
+              <label className="label" htmlFor="room-size">Size (sq ft)</label>
+              <input id="room-size" name="sizeSqft" type="number" min="0" className="input-field" value={form.sizeSqft} onChange={handleChange} />
             </div>
           </div>
           <div>
-            <label className="label">Bed Type</label>
-            <input aria-label="Bed Type" name="bedType" className="input-field" value={form.bedType} onChange={handleChange} />
+            <label className="label" htmlFor="room-bed-type">Bed type</label>
+            {/* Suggestions keep the wording the same across rooms; anything else can still be typed. */}
+            <input id="room-bed-type" name="bedType" list="bed-type-options" className="input-field" placeholder="Choose or type, e.g. King" value={form.bedType} onChange={handleChange} />
+            <datalist id="bed-type-options">
+              {BED_TYPES.map((bed) => <option key={bed} value={bed} />)}
+            </datalist>
           </div>
           <fieldset>
             <legend className="label">Amenities</legend>
@@ -167,7 +174,10 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
               onChange={handleChange}
               placeholder="Add any others, separated by commas"
             />
-            <p className="mt-1 text-xs text-navy-400">Shown to guests on the room page, in this order.</p>
+            <p className="mt-1 text-xs text-navy-400">
+              Shown to guests on the room page, grouped (in the room, bathroom, food &amp; drink, services). The page
+              also says in plain words whether breakfast is included — it is, when “Breakfast Included” is ticked here.
+            </p>
           </fieldset>
 
           <ImageUploader

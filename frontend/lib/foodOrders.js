@@ -1,5 +1,30 @@
 // Shared rules for food orders: guest ordering, the kitchen display, admin.
 
+// ---------- where an order is for ----------
+//
+// An ordering context is { type: 'table', tableId, accessKey } for a table's
+// QR code, or { type: 'counter', accessKey } for the one at the restaurant
+// counter. (The API and the database call a counter order 'kiosk', its older
+// name; ORDER_TYPE_FOR_API is the one place that word is used.)
+
+/** A table number from an address (/order/7), or null if it isn't one. */
+export const tableNumber = (raw) => (/^[1-9][0-9]{0,2}$/.test(String(raw ?? '')) ? Number(raw) : null);
+
+export const ORDER_TYPE_FOR_API = { table: 'table', counter: 'kiosk' };
+
+/** How staff read an order's type, from the API's value. */
+export const ORDER_TYPE_LABEL = { table: 'Table', kiosk: 'Counter' };
+
+/** The ordering screen for a context: /order/7?k=… or /order?k=… */
+export const orderingPath = (ctx) => (ctx.type === 'table' ? `/order/${ctx.tableId}` : '/order');
+export const orderingHref = (ctx) => `${orderingPath(ctx)}${ctx.accessKey ? `?k=${encodeURIComponent(ctx.accessKey)}` : ''}`;
+
+/** One order's own page. `token`: the order's private token. The QR key travels along so "Order more" works. */
+export const orderHref = (ctx, token) => `${orderingPath(ctx)}/confirmation?${new URLSearchParams({ order: token, k: ctx.accessKey || '' })}`;
+
+/** The name this context's cart and order list are kept under on the device. */
+export const orderingKey = (ctx) => (ctx.type === 'table' ? `table-${ctx.tableId}` : 'counter');
+
 export const ORDER_STATUS_LABEL = {
   new: 'New',
   preparing: 'Preparing',

@@ -6,12 +6,14 @@
 //   end_date (both YYYY-MM-DD, the last night included), room_type_id,
 //   room_type, room_slug } — the room fields are null when it covers every room.
 
+import { inr } from './bookingUi';
+
 const day = (iso, withYear) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) });
 
 /** "15% off" or "₹500 off" — per night. */
 export const offerSaving = (offer) =>
-  offer.discount_type === 'percent' ? `${Number(offer.value)}% off` : `₹${Number(offer.value).toLocaleString('en-IN')} off`;
+  offer.discount_type === 'percent' ? `${Number(offer.value)}% off` : `${inr(offer.value)} off`;
 
 /** "1 Oct – 30 Nov 2026": the nights the offer covers. */
 export const offerDates = (offer) =>

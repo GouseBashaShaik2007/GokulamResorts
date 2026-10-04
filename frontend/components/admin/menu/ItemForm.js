@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import VegMark from '@/components/ui/VegMark';
 import { ALLERGENS, SPICE_RATING_LABEL } from '@/lib/foodOrders';
 
 const emptyForm = {
@@ -42,12 +43,7 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
 
   const change = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm((p) => ({
-      ...p,
-      [name]: type === 'checkbox' ? checked : value,
-      // A dish that isn't vegetarian can't be Jain.
-      ...(name === 'isVeg' && !checked ? { isJain: false } : {}),
-    }));
+    setForm((p) => ({ ...p, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const toggleAllergen = (value) =>
@@ -119,11 +115,28 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
 
         <fieldset>
           <legend className="label">Diet</legend>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-navy-200">
-            <label className="flex items-center gap-2">
-              <input name="isVeg" type="checkbox" checked={form.isVeg} onChange={change} />
-              Vegetarian
-            </label>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-navy-200">
+            <div className="inline-flex overflow-hidden rounded-lg border border-navy-600">
+              {[
+                { veg: true, label: 'Veg' },
+                { veg: false, label: 'Non-veg' },
+              ].map((option) => (
+                <label
+                  key={option.label}
+                  className={`flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-ocean-400 ${
+                    form.isVeg === option.veg ? 'bg-navy-700 text-navy-50' : 'bg-white text-navy-300'
+                  }`}
+                >
+                  <input
+                    type="radio" name="dishDiet" className="sr-only" checked={form.isVeg === option.veg}
+                    // A dish that isn't vegetarian can't be Jain.
+                    onChange={() => setForm((p) => ({ ...p, isVeg: option.veg, isJain: option.veg ? p.isJain : false }))}
+                  />
+                  <VegMark veg={option.veg} />
+                  {option.label}
+                </label>
+              ))}
+            </div>
             <label className={`flex items-center gap-2 ${form.isVeg ? '' : 'text-navy-400'}`}>
               <input name="isJain" type="checkbox" checked={form.isJain} disabled={!form.isVeg} onChange={change} />
               Jain (no onion, garlic or root vegetables)

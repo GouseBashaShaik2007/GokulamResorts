@@ -1,15 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { inr } from '@/lib/bookingUi';
 import Photo from '../ui/Photo';
-import { DishInfo, VegMark } from '../MenuItemCard';
+import VegMark from '../ui/VegMark';
+import { DishInfo } from '../MenuItemCard';
 
 const SPICE = [
   { value: 'mild', label: 'Mild' },
   { value: 'medium', label: 'Medium' },
   { value: 'hot', label: 'Hot' },
 ];
-const inr = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 
 /**
  * One dish, opened from the menu: choose how many, the spice level (where the

@@ -10,9 +10,10 @@ export default function RoomGallery({ name, photos }) {
   const slots = Array.from({ length: 5 }, (_, i) => photos[i] || null);
   const items = photos.map((src, i) => ({ src, alt: `${name} — photo ${i + 1}` }));
 
+  // Keyed by the photo, so reordering photos in admin moves the right picture.
   const tile = (src, i, extra) => (
     <button
-      key={i}
+      key={src || `empty-${i}`}
       type="button"
       disabled={!src}
       onClick={() => setOpen(i)}

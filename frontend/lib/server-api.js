@@ -1,8 +1,7 @@
 // Server-side reads for the guest pages (rooms, menu, offers, resort details).
 // Import from Server Components only; client components use lib/api.js.
+import { API_URL } from './apiUrl';
 import { resolveContact } from './site';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 // Browsing pages may show rooms and the menu up to this many seconds old, so
 // they don't wait on the API for every visitor. A price or photo changed in
@@ -20,9 +19,14 @@ async function getJson(path, { fresh = false } = {}) {
   }
 }
 
-/** All active room types, cheapest first. [] if the API is unreachable. */
+/**
+ * All active room types, cheapest first. [] if the API is unreachable.
+ * The API sends prices as text ("6500.00"); they are made numbers here, once,
+ * so nothing downstream has to remember to.
+ */
 export async function getRooms(options) {
-  return (await getJson('/rooms', options))?.rooms || [];
+  const rooms = (await getJson('/rooms', options))?.rooms || [];
+  return rooms.map((room) => ({ ...room, price_per_night: Number(room.price_per_night) }));
 }
 
 export async function getRoomBySlug(slug) {

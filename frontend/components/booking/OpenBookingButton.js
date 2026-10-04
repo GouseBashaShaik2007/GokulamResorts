@@ -1,6 +1,6 @@
 'use client';
 
-import { useBooking } from './BookingContext';
+import { useBookingPanel } from './BookingContext';
 
 /**
  * Small client island so server components (RoomCard, the homepage, the room
@@ -8,7 +8,7 @@ import { useBooking } from './BookingContext';
  * components themselves.
  */
 export default function OpenBookingButton({ roomTypeId, className, children }) {
-  const { openBooking } = useBooking();
+  const { openBooking } = useBookingPanel();
   return (
     <button type="button" onClick={() => openBooking(roomTypeId ? { roomTypeId } : undefined)} className={className}>
       {children}

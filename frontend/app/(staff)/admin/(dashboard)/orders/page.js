@@ -1,12 +1,12 @@
 import FoodOrdersManager from '@/components/admin/FoodOrdersManager';
+import PageHeader from '@/components/ui/PageHeader';
+
+export const metadata = { title: 'Food Orders' };
 
 export default function AdminOrdersPage() {
   return (
     <div>
-      <div className="mb-8">
-        <p className="eyebrow">Food &amp; Beverage</p>
-        <h1 className="section-heading mt-1">Food Orders</h1>
-      </div>
+      <PageHeader size="section" eyebrow="Food &amp; Beverage" title="Food Orders" className="mb-8" />
       <FoodOrdersManager />
     </div>
   );

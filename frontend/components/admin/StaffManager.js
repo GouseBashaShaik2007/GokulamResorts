@@ -5,6 +5,7 @@ import api, { withAdminAuth } from '../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 import { errMsg } from '../../lib/bookingUi';
+import KitchenStaffCard from './KitchenStaffCard';
 
 const ROLES = [
   { value: 'FrontDesk', label: 'Front desk' },
@@ -15,8 +16,9 @@ const ROLES = [
 const emptyForm = { name: '', phone: '', role: 'Bedding', password: '' };
 
 /**
- * Admin → Staff: the front desk and housekeeping logins (phone + password).
- * Cooks are separate — they sign in with a PIN, set in Settings.
+ * Admin → Staff: everyone who signs in to a staff screen. The front desk and
+ * housekeeping use a phone number and password; cooks use a PIN each
+ * (KitchenStaffCard), because the kitchen display has no keyboard.
  */
 export default function StaffManager() {
   const ask = useConfirm();
@@ -78,9 +80,10 @@ export default function StaffManager() {
   };
 
   return (
+    <div className="space-y-8">
     <div className="grid gap-8 lg:grid-cols-[1fr_1.5fr]">
       <form onSubmit={submit} className="card space-y-4 self-start p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">Add Staff</h2>
+        <h2 className="font-serif text-xl font-bold text-navy-50">Add front desk or housekeeping staff</h2>
         <div>
           <label className="label">Name</label>
           <input aria-label="Name" required className="input-field" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
@@ -104,7 +107,7 @@ export default function StaffManager() {
       </form>
 
       <div className="card p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">Team</h2>
+        <h2 className="font-serif text-xl font-bold text-navy-50">Front desk and housekeeping</h2>
         {ROLES.map((role) => {
           const members = staff.filter((s) => s.role === role.value);
           return (
@@ -136,6 +139,8 @@ export default function StaffManager() {
           );
         })}
       </div>
+    </div>
+    <KitchenStaffCard />
     </div>
   );
 }

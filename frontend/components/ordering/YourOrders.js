@@ -3,18 +3,20 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { inr } from '@/lib/bookingUi';
 import { GUEST_ORDER_STATUS } from '@/lib/foodOrders';
 import { recentOrderTokens } from '@/lib/myOrders';
 
-const inr = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 const REFRESH_MS = 30000;
 
 /**
  * "Your orders from this phone": what has been ordered so far in this sitting,
  * each with its status, and the running total. Nothing is shown before the
  * first order. `confirmationHref(token)` builds the link to one order's page.
+ * `minOrders`: show it only once there are this many (an order's own page
+ * passes 2 — one order would only repeat what is already on screen).
  */
-export default function YourOrders({ cartKey, confirmationHref }) {
+export default function YourOrders({ cartKey, confirmationHref, minOrders = 1, className = 'mb-6' }) {
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
@@ -35,11 +37,11 @@ export default function YourOrders({ cartKey, confirmationHref }) {
     };
   }, [cartKey]);
 
-  if (orders.length === 0) return null;
+  if (orders.length < minOrders) return null;
   const total = orders.filter((o) => o.status !== 'cancelled').reduce((sum, o) => sum + Number(o.total_amount), 0);
 
   return (
-    <section aria-label="Your orders from this phone" className="mb-6 rounded-2xl border border-navy-700 bg-navy-900 px-5 py-4">
+    <section aria-label="Your orders from this phone" className={`rounded-2xl border border-navy-700 bg-navy-900 px-5 py-4 text-left ${className}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-navy-50">Ordered from this phone</h2>
         <p className="text-sm text-navy-300">So far: <span className="price">{inr(total)}</span></p>

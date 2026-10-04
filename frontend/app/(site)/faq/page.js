@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import FaqList from '@/components/site/FaqList';
+import PageHeader from '@/components/ui/PageHeader';
 import { faqJsonLd, faqsWith } from '@/lib/faqs';
 import { jsonLd } from '@/lib/jsonLd';
 import { getContact } from '@/lib/server-api';
@@ -14,8 +15,7 @@ export default async function FaqPage() {
   const faqs = faqsWith(await getContact());
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
-      <p className="eyebrow">FAQ &amp; policies</p>
-      <h1 className="display-heading mt-2 text-4xl md:text-5xl">Good to know</h1>
+      <PageHeader eyebrow="FAQ &amp; policies" title="Good to know" />
 
       <FaqList sections={faqs} />
 

@@ -7,7 +7,8 @@ import { Badge, fmtTime } from './shared';
 
 // The cards on a housekeeper's or inspector's screen: one per room.
 
-const REASON_LABEL = { checkout: 'Checkout clean', manual: 'Marked dirty' };
+// Why the room is on the list, said as what it means for the person cleaning it.
+const REASON_LABEL = { checkout: 'Guest left: full clean', manual: 'Touch-up: see the note' };
 
 // The buttons a cleaner or inspector presses all day: a symbol, the English
 // word and the Telugu one, so the screen works for someone who reads neither

@@ -1,12 +1,12 @@
 import MenuManager from '@/components/admin/MenuManager';
+import PageHeader from '@/components/ui/PageHeader';
+
+export const metadata = { title: 'Menu' };
 
 export default function AdminMenuPage() {
   return (
     <div>
-      <div className="mb-8">
-        <p className="eyebrow">Food &amp; Beverage</p>
-        <h1 className="section-heading mt-1">Menu</h1>
-      </div>
+      <PageHeader size="section" eyebrow="Food &amp; Beverage" title="Menu" className="mb-8" />
       <MenuManager />
     </div>
   );

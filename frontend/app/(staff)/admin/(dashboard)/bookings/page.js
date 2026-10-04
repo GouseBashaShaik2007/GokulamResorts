@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import DeskBoard from '@/components/bookings/DeskBoard';
 import BookingsCalendar from '@/components/admin/BookingsCalendar';
+import PageHeader from '@/components/ui/PageHeader';
 
 export default function AdminBookingsPage() {
   const [view, setView] = useState('list');
@@ -10,10 +11,7 @@ export default function AdminBookingsPage() {
   return (
     <div>
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Front Desk</p>
-          <h1 className="section-heading mt-1">Bookings</h1>
-        </div>
+        <PageHeader size="section" eyebrow="Front Desk" title="Bookings" />
         <div className="flex gap-2">
           {[
             ['list', 'List / Approvals'],

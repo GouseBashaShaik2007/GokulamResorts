@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import api, { withAdminAuth } from '../../lib/api';
-import { addDays, errMsg, todayIST } from '../../lib/bookingUi';
-import { VegMark } from '../MenuItemCard';
-import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, splitOrderNotes } from '../../lib/foodOrders';
+import api, { TOKEN_KEYS, withAdminAuth } from '../../lib/api';
+import useCleaningSocket from '../../lib/useCleaningSocket';
+import Chip from '../ui/Chip';
+import { addDays, errMsg, inr, todayIST } from '../../lib/bookingUi';
+import VegMark from '../ui/VegMark';
+import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, ORDER_TYPE_LABEL, splitOrderNotes } from '../../lib/foodOrders';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 
@@ -56,7 +58,7 @@ function OrderItems({ order }) {
     <>
       <ul className="space-y-0.5">
         {order.items.map((i, idx) => (
-          <li key={`${i.item_name}-${idx}`}>
+          <li key={i.id ?? `${i.item_name}-${idx}`}>
             <span className="font-medium">{i.quantity}×</span>{' '}
             {typeof i.is_veg === 'boolean' && <VegMark veg={i.is_veg} className="mr-1 !h-3.5 !w-3.5 align-[-2px]" />}
             {i.item_name}
@@ -104,11 +106,13 @@ export default function FoodOrdersManager() {
     }, REFRESH_MS);
     return () => clearInterval(id);
   }, [load]);
+  // …and hears about a new or changed order the moment it happens.
+  const live = useCleaningSocket(TOKEN_KEYS.admin, load, 'food:update');
 
-  const setStatus = async (order, status, fallback) => {
+  const setStatus = async (order, status, fallback, extra = {}) => {
     setBusyId(order.id);
     try {
-      await api.patch(`/admin/food-orders/${order.id}/status`, { status }, withAdminAuth());
+      await api.patch(`/admin/food-orders/${order.id}/status`, { status, ...extra }, withAdminAuth());
       toast(`Order #${order.id}: ${ORDER_STATUS_LABEL[status] || status}`, { tone: 'info' });
       load();
     } catch (err) {
@@ -123,9 +127,21 @@ export default function FoodOrdersManager() {
     if (next) setStatus(order, next, 'Could not update that order.');
   };
 
+  // Like a booking, an order is only cancelled with a reason, kept in the activity log.
   const cancel = async (order) => {
-    const ok = await ask({ title: `Cancel order #${order.id}?`, confirmLabel: 'Cancel order', cancelLabel: 'Keep order', danger: true });
-    if (ok) setStatus(order, 'cancelled', 'Could not cancel that order.');
+    const reason = await ask({
+      title: `Cancel order #${order.id}?`,
+      body: 'It leaves the kitchen display, and the guest sees it as cancelled.',
+      confirmLabel: 'Cancel order',
+      cancelLabel: 'Keep order',
+      danger: true,
+      input: {
+        label: 'Reason',
+        placeholder: 'e.g. Guest changed their mind, dish ran out',
+        validate: (v) => (v.trim().length < 3 ? 'Say why the order is being cancelled.' : ''),
+      },
+    });
+    if (reason) setStatus(order, 'cancelled', 'Could not cancel that order.', { reason: reason.trim() });
   };
 
   // What the listed orders are worth; cancelled ones bring in nothing.
@@ -148,19 +164,12 @@ export default function FoodOrdersManager() {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-navy-400" aria-live="polite">
-          <span className="font-semibold text-navy-50">{orders.length} order{orders.length === 1 ? '' : 's'} · ₹{revenue.toLocaleString('en-IN')}</span>
-          {kept.length !== orders.length && ` (excluding ${orders.length - kept.length} cancelled)`} · updates every {REFRESH_MS / 1000} seconds
+          <span className="font-semibold text-navy-50">{orders.length} order{orders.length === 1 ? '' : 's'} · {inr(revenue)}</span>
+          {kept.length !== orders.length && ` (excluding ${orders.length - kept.length} cancelled)`} · {live ? 'updates live' : `updates every ${REFRESH_MS / 1000} seconds`}
         </p>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
           {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              aria-pressed={filter === f.key}
-              className={`rounded-full px-3 py-1 text-xs ${filter === f.key ? 'bg-ocean-500 text-white' : 'bg-navy-800 text-navy-200'}`}
-            >
-              {f.label}
-            </button>
+            <Chip key={f.key} tone="solid" size="xs" pressed={filter === f.key} onClick={() => setFilter(f.key)}>{f.label}</Chip>
           ))}
         </div>
       </div>
@@ -184,10 +193,13 @@ export default function FoodOrdersManager() {
           {orders.map((o) => (
             <tr key={o.id} className="border-b border-navy-800 align-top text-navy-100">
               <td className="py-2 pr-4">{o.id}</td>
-              <td className="py-2 pr-4">{o.table_number ? `Table ${o.table_number}` : o.customer_name || 'Counter'}</td>
+              <td className="py-2 pr-4">
+                {o.table_number ? `Table ${o.table_number}` : o.customer_name || ORDER_TYPE_LABEL.kiosk}
+                {!o.table_number && o.customer_name && <span className="block text-xs text-navy-400">{ORDER_TYPE_LABEL.kiosk}</span>}
+              </td>
               <td className="py-2 pr-4 text-navy-300">{formatWhen(o.created_at)}</td>
               <td className="py-2 pr-4"><OrderItems order={o} /></td>
-              <td className="py-2 pr-4">₹{Number(o.total_amount).toLocaleString('en-IN')}</td>
+              <td className="py-2 pr-4">{inr(o.total_amount)}</td>
               <td className="py-2 pr-4">
                 <span className={`rounded-full px-2 py-1 text-xs capitalize ${STATUS_STYLE[o.status] || ''}`}>
                   {o.status}

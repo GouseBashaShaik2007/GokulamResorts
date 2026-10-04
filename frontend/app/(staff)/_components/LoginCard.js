@@ -1,36 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import api from '@/lib/api';
-import { errMsg } from '@/lib/bookingUi';
+import useStaffLogin from '../_lib/useStaffLogin';
 
 /**
  * The sign-in card shared by the manager and staff logins: one identifier
  * field (email or phone), a password with a show/hide switch, and the error.
  *
+ * `section`: 'admin' | 'staff' — which sign-in this is (see useStaffLogin).
  * `idField`: { name, label, type, inputMode?, autoComplete?, hint? }.
- * `endpoint`: where to post { [idField.name], password }.
- * `onSignedIn(data)`: store the token and move on. `help`: what to do about a
- * forgotten password, shown under the form.
+ * `help`: what to do about a forgotten password, shown under the form.
  */
-export default function LoginCard({ eyebrow, idField, endpoint, onSignedIn, help, children }) {
+export default function LoginCard({ section, eyebrow, idField, help, children }) {
   const [form, setForm] = useState({ [idField.name]: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { signIn, error, loading } = useStaffLogin(section);
 
-  const submit = async (e) => {
+  const submit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const res = await api.post(endpoint, form);
-      onSignedIn(res.data);
-    } catch (err) {
-      // The API's own message covers wrong details and "too many attempts, wait 15 minutes".
-      setError(errMsg(err, 'Could not sign in. Check your connection and try again.'));
-      setLoading(false);
-    }
+    signIn(form);
   };
 
   return (
