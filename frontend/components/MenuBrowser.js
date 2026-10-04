@@ -1,12 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import api from '../lib/api';
 import { useCart } from '../lib/cart';
 import { errMsg } from '../lib/bookingUi';
+import useModal from '../lib/useModal';
+import { composeOrderNotes } from '../lib/foodOrders';
 import MenuItemCard, { VegMark } from './MenuItemCard';
+import Photo from './ui/Photo';
+import { useToast } from './ui/Toast';
+import PhoneInput from './site/PhoneInput';
 
 const SPICE = [
   { value: 'mild', label: 'Mild' },
@@ -16,18 +21,8 @@ const SPICE = [
 const inr = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 
 // Bottom sheet on phones, slides in from the right on larger screens.
-function Panel({ open, onClose, label, children, wide }) {
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    const prev = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.documentElement.style.overflow = prev;
-    };
-  }, [open, onClose]);
+function Panel({ open, onClose, label, children }) {
+  const ref = useModal(open, onClose); // focus trap, Escape, scroll lock, focus return
 
   return (
     <AnimatePresence>
@@ -35,10 +30,12 @@ function Panel({ open, onClose, label, children, wide }) {
         <>
           <motion.div className="fixed inset-0 z-[65] bg-black/50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <motion.div
+            ref={ref}
             role="dialog"
             aria-modal="true"
             aria-label={label}
-            className={`fixed inset-x-0 bottom-0 z-[70] max-h-[88vh] overflow-y-auto rounded-t-3xl bg-navy-950 shadow-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-full sm:rounded-none ${wide ? 'sm:max-w-md' : 'sm:max-w-md'}`}
+            tabIndex={-1}
+            className="fixed inset-x-0 bottom-0 z-[70] max-h-[88vh] overflow-y-auto rounded-t-3xl bg-navy-950 shadow-2xl focus:outline-none sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-full sm:max-w-md sm:rounded-none"
             initial={{ y: '100%', x: 0 }}
             animate={{ y: 0, x: 0 }}
             exit={{ y: '100%' }}
@@ -60,7 +57,11 @@ function ItemDetails({ item, onAdd, onClose }) {
 
   return (
     <div>
-      {item.image && <img src={item.image} alt={item.name} className="h-56 w-full object-cover sm:h-64" />}
+      {item.image && (
+        <div className="relative h-56 w-full sm:h-64">
+          <Photo src={item.image} alt="" sizes="(min-width: 640px) 28rem, 100vw" />
+        </div>
+      )}
       <div className="space-y-5 p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2">
@@ -114,16 +115,26 @@ export default function MenuBrowser({ categories, items, orderContext }) {
   const router = useRouter();
   const isTable = orderContext.type === 'table';
   const cart = useCart(isTable ? `table-${orderContext.tableId}` : 'kiosk');
+  const toast = useToast();
 
-  const sections = categories
-    .map((c) => ({ ...c, items: items.filter((i) => String(i.category_id) === String(c.id)) }))
-    .filter((c) => c.items.length > 0);
+  const [vegOnly, setVegOnly] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const sections = useMemo(() => {
+    const words = search.trim().toLowerCase();
+    const shown = items.filter(
+      (i) => (!vegOnly || i.is_veg) && (!words || `${i.name} ${i.description || ''}`.toLowerCase().includes(words))
+    );
+    return categories
+      .map((c) => ({ ...c, items: shown.filter((i) => String(i.category_id) === String(c.id)) }))
+      .filter((c) => c.items.length > 0);
+  }, [categories, items, vegOnly, search]);
 
   const [active, setActive] = useState(sections[0]?.id);
   const [detail, setDetail] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [queue, setQueue] = useState(null);
-  const [form, setForm] = useState({ customerName: '', customerPhone: '', notes: '' });
+  const [form, setForm] = useState({ customerName: '', customerPhone: '', allergy: '', notes: '' });
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const sectionRefs = useRef({});
@@ -140,7 +151,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
     );
     Object.values(sectionRefs.current).forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
-  }, [sections.length]);
+  }, [sections]);
 
   // Keep the active tab scrolled into view on narrow screens.
   useEffect(() => {
@@ -171,8 +182,9 @@ export default function MenuBrowser({ categories, items, orderContext }) {
         orderType: orderContext.type,
         ...(isTable ? { tableNumber: String(orderContext.tableId) } : {}),
         customerName: form.customerName || undefined,
-        customerPhone: form.customerPhone || undefined,
-        notes: form.notes || undefined,
+        // The phone field always carries a country code; only send a real number.
+        customerPhone: /\d{6,}/.test(form.customerPhone) ? form.customerPhone : undefined,
+        notes: composeOrderNotes(form) || undefined,
         items: cart.items.map((i) => ({ menuItemId: i.id, quantity: i.quantity, spiceLevel: i.spiceLevel || undefined, notes: i.notes || undefined })),
       });
       cart.clear();
@@ -183,18 +195,56 @@ export default function MenuBrowser({ categories, items, orderContext }) {
     }
   };
 
+  const clearOrder = () => {
+    const lines = cart.items;
+    cart.clear();
+    toast('Order cleared', { tone: 'info', action: { label: 'Undo', onClick: () => cart.restore(lines) } });
+  };
+
   return (
     <div className="pb-28">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <label className="min-w-[12rem] flex-1">
+          <span className="sr-only">Search the menu</span>
+          <input
+            type="search"
+            className="input-field py-2.5"
+            placeholder="Search dishes"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          aria-pressed={vegOnly}
+          onClick={() => setVegOnly((v) => !v)}
+          className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+            vegOnly ? 'border-green-700 bg-green-700 text-white' : 'border-navy-700 text-navy-200 hover:border-green-700'
+          }`}
+        >
+          <VegMark veg />
+          Veg only
+        </button>
+      </div>
+
+      {sections.length === 0 && (
+        <div className="card p-8 text-center text-navy-300">
+          No dishes match.{' '}
+          <button type="button" onClick={() => { setSearch(''); setVegOnly(false); }} className="font-semibold text-ocean-600 underline">
+            Show the whole menu
+          </button>
+        </div>
+      )}
+
       {/* Category tabs stay under the navbar while scrolling. */}
-      <div className="sticky top-[72px] z-30 -mx-4 border-b border-navy-700 bg-navy-950/95 px-4 backdrop-blur sm:mx-0">
-        <div ref={tabsRef} className="flex gap-2 overflow-x-auto py-3 [scrollbar-width:none]" role="tablist" aria-label="Menu categories">
+      <div className="sticky top-[var(--nav-h)] z-30 -mx-4 border-b border-navy-700 bg-navy-950/95 px-4 backdrop-blur sm:mx-0">
+        <div ref={tabsRef} className="flex gap-2 overflow-x-auto py-3 [scrollbar-width:none]" role="navigation" aria-label="Menu categories">
           {sections.map((c) => (
             <button
               key={c.id}
               type="button"
-              role="tab"
               data-tab={c.id}
-              aria-selected={active === c.id}
+              aria-current={active === c.id ? 'true' : undefined}
               onClick={() => jumpTo(c.id)}
               className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${active === c.id ? 'bg-ocean-500 text-white' : 'bg-navy-800 text-navy-200 hover:bg-navy-700'}`}
             >
@@ -234,8 +284,11 @@ export default function MenuBrowser({ categories, items, orderContext }) {
             item={detail}
             onClose={() => setDetail(null)}
             onAdd={(opts) => {
-              cart.addItem(detail, opts);
+              const lineId = cart.addItem(detail, opts);
               setDetail(null);
+              toast(`${opts.quantity} × ${detail.name} added to your order`, {
+                action: { label: 'Undo', onClick: () => cart.adjustQty(lineId, -opts.quantity) },
+              });
             }}
           />
         )}
@@ -245,7 +298,14 @@ export default function MenuBrowser({ categories, items, orderContext }) {
         <form onSubmit={placeOrder} className="flex min-h-full flex-col">
           <div className="flex items-center justify-between border-b border-navy-700 px-6 py-5">
             <h2 className="font-serif text-2xl font-semibold text-navy-50">Your order</h2>
-            <button type="button" onClick={() => setCartOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800">✕</button>
+            <div className="flex items-center gap-2">
+              {cart.items.length > 0 && (
+                <button type="button" onClick={clearOrder} className="rounded px-2 py-1 text-xs text-navy-300 underline hover:text-navy-50">
+                  Clear
+                </button>
+              )}
+              <button type="button" onClick={() => setCartOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800">✕</button>
+            </div>
           </div>
 
           <div className="flex-1 space-y-4 px-6 py-5">
@@ -285,16 +345,21 @@ export default function MenuBrowser({ categories, items, orderContext }) {
 
                 <div className="space-y-3 pt-2">
                   <div>
-                    <label className="label" htmlFor="customerName">Name {!isTable && <span className="text-gold-500">*</span>}</label>
+                    <label className="label" htmlFor="customerName">Name {!isTable && <span className="text-gold-600">*</span>}</label>
                     <input id="customerName" className="input-field" value={form.customerName} required={!isTable} onChange={(e) => setForm((f) => ({ ...f, customerName: e.target.value }))} />
                   </div>
                   <div>
                     <label className="label" htmlFor="customerPhone">Phone (optional)</label>
-                    <input id="customerPhone" type="tel" className="input-field" value={form.customerPhone} onChange={(e) => setForm((f) => ({ ...f, customerPhone: e.target.value }))} />
+                    <PhoneInput id="customerPhone" value={form.customerPhone} onChange={(customerPhone) => setForm((f) => ({ ...f, customerPhone }))} />
+                  </div>
+                  <div>
+                    {/* Its own field so the kitchen sees it as a warning, not as an ordinary note. */}
+                    <label className="label" htmlFor="orderAllergy">Allergies (optional)</label>
+                    <input id="orderAllergy" className="input-field" maxLength={200} value={form.allergy} onChange={(e) => setForm((f) => ({ ...f, allergy: e.target.value }))} placeholder="e.g. peanuts, shellfish" />
                   </div>
                   <div>
                     <label className="label" htmlFor="orderNotes">Note for the kitchen (optional)</label>
-                    <textarea id="orderNotes" rows={2} className="input-field" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Allergies, when to serve…" />
+                    <textarea id="orderNotes" rows={2} maxLength={700} className="input-field" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="When to serve, anything else…" />
                   </div>
                 </div>
               </>
@@ -303,7 +368,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
 
           {cart.items.length > 0 && (
             <div className="sticky bottom-0 border-t border-navy-700 bg-navy-950 px-6 py-4">
-              {error && <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
+              {error && <p role="alert" className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
               <button type="submit" disabled={status === 'placing'} className="btn-gold w-full disabled:opacity-60">
                 {status === 'placing' ? 'Placing order…' : `Place order · ${inr(cart.total)}`}
               </button>

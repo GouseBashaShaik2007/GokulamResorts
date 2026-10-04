@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
+import { useConfirm } from '@/components/ui/Confirm';
 
 const emptyCategoryForm = { name: '', sortOrder: 0 };
 const emptyItemForm = { categoryId: '', name: '', description: '', price: '', image: '', isVeg: true, spiceAdjustable: false };
@@ -16,6 +17,8 @@ export default function MenuManager() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const ask = useConfirm();
+  const [itemSearch, setItemSearch] = useState('');
 
   const loadCategories = async () => {
     try {
@@ -71,12 +74,17 @@ export default function MenuManager() {
   };
 
   const handleDeleteCategory = async (id) => {
-    if (!confirm('Remove this category from the menu?')) return;
+    const ok = await ask({
+      title: 'Hide this category?',
+      body: 'Its dishes disappear from the guest menu until you restore it. Nothing is deleted.',
+      confirmLabel: 'Hide category',
+    });
+    if (!ok) return;
     try {
       await api.delete(`/admin/menu/categories/${id}`, withAdminAuth());
       loadCategories();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Could not delete category');
+      setError(err?.response?.data?.message || 'Could not hide that category');
     }
   };
 
@@ -142,12 +150,11 @@ export default function MenuManager() {
   };
 
   const handleDeleteItem = async (id) => {
-    if (!confirm('Remove this item from the menu?')) return;
     try {
       await api.delete(`/admin/menu/items/${id}`, withAdminAuth());
       loadItems();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Could not delete item');
+      setError(err?.response?.data?.message || 'Could not mark that item sold out');
     }
   };
 
@@ -174,14 +181,17 @@ export default function MenuManager() {
       await api.put(`/admin/menu/items/${id}`, { isAvailable: true }, withAdminAuth());
       loadItems();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Could not restore item');
+      setError(err?.response?.data?.message || 'Could not put that item back on the menu');
     }
   };
 
+  const searchWords = itemSearch.trim().toLowerCase();
+  const visibleItems = items.filter((i) => `${i.name} ${i.category_name || ''}`.toLowerCase().includes(searchWords));
+
   return (
     <div className="space-y-8">
-      {message && <p className="text-sm text-green-300">{message}</p>}
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {message && <p className="text-sm text-green-700">{message}</p>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
 
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="card p-6">
@@ -208,26 +218,26 @@ export default function MenuManager() {
             {categories.map((c) => (
               <div key={c.id} className="flex items-center justify-between rounded-lg border border-navy-700 bg-navy-800 p-3">
                 <span className="text-navy-50">
-                  {c.name} {!c.is_active && <span className="ml-2 text-xs text-red-300">(inactive)</span>}
+                  {c.name} {!c.is_active && <span className="ml-2 text-xs text-red-700">(inactive)</span>}
                 </span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => startEditCategory(c)}
-                    className="rounded-lg border border-gold-500/50 px-3 py-1 text-xs text-gold-400 hover:bg-gold-500/10"
+                    className="rounded-lg border border-gold-500/50 px-3 py-1 text-xs text-gold-600 hover:bg-gold-500/10"
                   >
                     Edit
                   </button>
                   {c.is_active ? (
                     <button
                       onClick={() => handleDeleteCategory(c.id)}
-                      className="rounded-lg border border-red-500/50 px-3 py-1 text-xs text-red-300 hover:bg-red-500/10"
+                      className="rounded-lg border border-red-500/50 px-3 py-1 text-xs text-red-700 hover:bg-red-500/10"
                     >
-                      Delete
+                      Hide
                     </button>
                   ) : (
                     <button
                       onClick={() => handleReactivateCategory(c.id)}
-                      className="rounded-lg border border-green-500/50 px-3 py-1 text-xs text-green-300 hover:bg-green-500/10"
+                      className="rounded-lg border border-green-500/50 px-3 py-1 text-xs text-green-700 hover:bg-green-500/10"
                     >
                       Restore
                     </button>
@@ -246,7 +256,7 @@ export default function MenuManager() {
           <form onSubmit={handleSubmitItem} className="mt-4 space-y-4">
             <div>
               <label className="label">Category</label>
-              <select
+              <select aria-label="Category"
                 name="categoryId" required className="input-field"
                 value={itemForm.categoryId} onChange={handleItemChange}
               >
@@ -258,16 +268,16 @@ export default function MenuManager() {
             </div>
             <div>
               <label className="label">Name</label>
-              <input name="name" required className="input-field" value={itemForm.name} onChange={handleItemChange} />
+              <input aria-label="Name" name="name" required className="input-field" value={itemForm.name} onChange={handleItemChange} />
             </div>
             <div>
               <label className="label">Description</label>
-              <textarea name="description" rows={2} className="input-field" value={itemForm.description} onChange={handleItemChange} />
+              <textarea aria-label="Description" name="description" rows={2} className="input-field" value={itemForm.description} onChange={handleItemChange} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Price (₹)</label>
-                <input name="price" type="number" min="0" step="1" required className="input-field" value={itemForm.price} onChange={handleItemChange} />
+                <input aria-label="Price (₹)" name="price" type="number" min="0" step="1" required className="input-field" value={itemForm.price} onChange={handleItemChange} />
               </div>
               <div className="flex items-end gap-2 pb-3">
                 <input id="isVeg" name="isVeg" type="checkbox" checked={itemForm.isVeg} onChange={handleItemChange} />
@@ -280,7 +290,7 @@ export default function MenuManager() {
                 checked={itemForm.spiceAdjustable} onChange={handleItemChange}
               />
               <label htmlFor="spiceAdjustable" className="text-sm text-navy-200">
-                Offer spice level (guests pick Mild / Medium / Spicy when ordering)
+                Offer spice level (guests pick Mild / Medium / Hot when ordering)
               </label>
             </div>
             <div>
@@ -297,14 +307,14 @@ export default function MenuManager() {
                   <input
                     type="file" accept="image/jpeg,image/png,image/webp"
                     onChange={handleImageUpload} disabled={uploadingImage}
-                    className="block w-full text-sm text-navy-300 file:mr-3 file:rounded-lg file:border-0 file:bg-gold-500 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-navy-950 hover:file:bg-gold-400"
+                    className="block w-full text-sm text-navy-300 file:mr-3 file:rounded-lg file:border-0 file:bg-ocean-500 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ocean-600"
                   />
                   {uploadingImage && <p className="mt-1 text-xs text-navy-400">Uploading...</p>}
                   {itemForm.image && !uploadingImage && (
                     <button
                       type="button"
                       onClick={() => setItemForm((p) => ({ ...p, image: '' }))}
-                      className="mt-1 text-xs text-red-300 hover:underline"
+                      className="mt-1 text-xs text-red-700 hover:underline"
                     >
                       Remove photo
                     </button>
@@ -324,9 +334,19 @@ export default function MenuManager() {
       </div>
 
       <div className="card p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">All Menu Items</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-serif text-xl font-bold text-navy-50">All Menu Items</h2>
+          <input
+            type="search"
+            aria-label="Search menu items"
+            className="input-field w-full py-2 sm:w-64"
+            placeholder="Search by dish or category"
+            value={itemSearch}
+            onChange={(e) => setItemSearch(e.target.value)}
+          />
+        </div>
         <div className="mt-4 space-y-3">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <div key={item.id} className="flex items-center justify-between rounded-lg border border-navy-700 bg-navy-800 p-4">
               <div className="flex items-center gap-3">
                 {item.image ? (
@@ -338,7 +358,7 @@ export default function MenuManager() {
                 )}
                 <div>
                   <p className="font-medium text-navy-50">
-                    {item.name} {!item.is_available && <span className="ml-2 text-xs text-red-300">(unavailable)</span>}
+                    {item.name} {!item.is_available && <span className="ml-2 text-xs text-red-700">(sold out)</span>}
                   </p>
                   <p className="text-sm text-navy-400">
                     {item.category_name} · ₹{Number(item.price).toLocaleString('en-IN')} · {item.is_veg ? 'Veg' : 'Non-Veg'}
@@ -347,22 +367,23 @@ export default function MenuManager() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => startEditItem(item)} className="rounded-lg border border-gold-500/50 px-3 py-1.5 text-xs text-gold-400 hover:bg-gold-500/10">
+                <button onClick={() => startEditItem(item)} className="rounded-lg border border-gold-500/50 px-3 py-1.5 text-xs text-gold-600 hover:bg-gold-500/10">
                   Edit
                 </button>
                 {item.is_available ? (
-                  <button onClick={() => handleDeleteItem(item.id)} className="rounded-lg border border-red-500/50 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10">
-                    Delete
+                  <button onClick={() => handleDeleteItem(item.id)} className="rounded-lg border border-red-500/50 px-3 py-1.5 text-xs text-red-700 hover:bg-red-500/10">
+                    Mark sold out
                   </button>
                 ) : (
-                  <button onClick={() => handleRestoreItem(item.id)} className="rounded-lg border border-green-500/50 px-3 py-1.5 text-xs text-green-300 hover:bg-green-500/10">
-                    Restore
+                  <button onClick={() => handleRestoreItem(item.id)} className="rounded-lg border border-green-500/50 px-3 py-1.5 text-xs text-green-700 hover:bg-green-500/10">
+                    Back on menu
                   </button>
                 )}
               </div>
             </div>
           ))}
           {items.length === 0 && <p className="text-navy-400">No menu items yet.</p>}
+          {items.length > 0 && visibleItems.length === 0 && <p className="text-navy-400">No dishes match “{itemSearch}”.</p>}
         </div>
       </div>
     </div>

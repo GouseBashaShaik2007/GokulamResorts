@@ -9,6 +9,9 @@
 // Set NEXT_PUBLIC_SITE_URL in the deployment (e.g. https://gokulamresorts.in).
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
 
+// The one place the brand name is spelled, for titles and metadata.
+export const SITE_NAME = 'Gokulam Resorts';
+
 export const CONTACT = {
   phone: null, // e.g. '+91 98xxx xxxxx' — Call buttons and tel: links appear once set
   whatsapp: null, // digits only incl. country code, e.g. '9198xxxxxxxx' — WhatsApp button appears once set
@@ -23,6 +26,9 @@ export const directionsUrl = () =>
   CONTACT.mapsUrl || `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(CONTACT.mapQuery)}`;
 
 export const mapEmbedUrl = () => `https://maps.google.com/maps?q=${encodeURIComponent(CONTACT.mapQuery)}&z=12&output=embed`;
+
+// tel: link for the resort phone; null while no number is set.
+export const telHref = () => (CONTACT.phone ? `tel:${CONTACT.phone.replace(/\s/g, '')}` : null);
 
 export const whatsappUrl = (text = '') =>
   CONTACT.whatsapp ? `https://wa.me/${CONTACT.whatsapp}${text ? `?text=${encodeURIComponent(text)}` : ''}` : null;

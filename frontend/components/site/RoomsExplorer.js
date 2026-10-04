@@ -2,13 +2,27 @@
 
 import { useMemo, useState } from 'react';
 import RoomCard from '../RoomCard';
+import { useBooking } from '../booking/BookingContext';
+import { formatRange } from '@/lib/dateRange';
+import useAvailability from '@/lib/useAvailability';
 import { viewGroupsOf } from '@/lib/rooms';
 
 const SORTS = {
-  recommended: { label: 'Recommended', fn: () => 0 },
   priceAsc: { label: 'Price: low to high', fn: (a, b) => a.price_per_night - b.price_per_night },
   priceDesc: { label: 'Price: high to low', fn: (a, b) => b.price_per_night - a.price_per_night },
 };
+
+// What each room type costs, and how many are free, for the dates the guest
+// has already chosen (in the hero or the booking panel). null until dates are
+// set, or if the check fails — cards then show the nightly "from" rate.
+function useStayPrices() {
+  const { stay, datesValid, guests } = useBooking();
+  const { types } = useAvailability({ checkIn: stay.checkIn, checkOut: stay.checkOut, guests, enabled: datesValid });
+  return useMemo(
+    () => (types ? new Map(types.map((type) => [type.roomType.id, { quote: type.quote, free: type.units.length }])) : null),
+    [types]
+  );
+}
 
 function Chip({ active, onClick, children }) {
   return (
@@ -28,7 +42,15 @@ function Chip({ active, onClick, children }) {
 export default function RoomsExplorer({ rooms }) {
   const [view, setView] = useState('all');
   const [guests, setGuests] = useState(0);
-  const [sort, setSort] = useState('recommended');
+  const [sort, setSort] = useState('priceAsc');
+  const booking = useBooking();
+  const prices = useStayPrices();
+
+  const stayFor = (room) => {
+    if (!prices) return undefined;
+    if (prices.has(room.id)) return prices.get(room.id);
+    return room.capacity < booking.guests ? { tooSmall: true } : { soldOut: true };
+  };
 
   const viewOptions = useMemo(() => [...new Set(rooms.flatMap(viewGroupsOf))].sort(), [rooms]);
 
@@ -47,7 +69,7 @@ export default function RoomsExplorer({ rooms }) {
   return (
     <>
       {/* Sticks just under the navbar while the list scrolls. */}
-      <div className="sticky top-[72px] z-30 -mx-4 mb-8 border-b border-navy-700 bg-navy-950/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
+      <div className="sticky top-[var(--nav-h)] z-30 -mx-4 mb-8 border-b border-navy-700 bg-navy-950/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           {viewOptions.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto" role="group" aria-label="View">
@@ -68,7 +90,7 @@ export default function RoomsExplorer({ rooms }) {
             >
               <option value={0}>Any</option>
               {[1, 2, 3, 4, 5, 6].map((n) => (
-                <option key={n} value={n}>{n}{n === 6 ? '' : ''} guest{n > 1 ? 's' : ''}</option>
+                <option key={n} value={n}>{n} guest{n > 1 ? 's' : ''}</option>
               ))}
             </select>
           </label>
@@ -88,9 +110,26 @@ export default function RoomsExplorer({ rooms }) {
         </div>
       </div>
 
-      <p className="mb-4 text-sm text-navy-400" aria-live="polite">
-        {shown.length} room type{shown.length === 1 ? '' : 's'}
-      </p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm text-navy-400">
+        <p aria-live="polite">
+          {shown.length} room type{shown.length === 1 ? '' : 's'}
+          {prices && (
+            <>
+              {' '}· prices for {formatRange(booking.stay.checkIn, booking.stay.checkOut)}, {booking.guests} guest{booking.guests === 1 ? '' : 's'}
+            </>
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            booking.openBooking();
+            booking.goTo('stay');
+          }}
+          className="font-semibold text-ocean-600 underline underline-offset-2"
+        >
+          {booking.datesValid ? 'Change dates' : 'Add your dates to see totals and what’s free'}
+        </button>
+      </div>
 
       {shown.length > 0 ? (
         <div className="grid gap-8 md:grid-cols-2">
@@ -98,7 +137,7 @@ export default function RoomsExplorer({ rooms }) {
             const lastAlone = oddCount && i === shown.length - 1 && shown.length > 1;
             return (
               <div key={room.id} className={lastAlone ? 'md:col-span-2' : ''}>
-                <RoomCard room={room} size={lastAlone ? 'wide' : 'large'} />
+                <RoomCard room={room} size={lastAlone ? 'wide' : 'large'} heading="h2" stay={stayFor(room)} />
               </div>
             );
           })}

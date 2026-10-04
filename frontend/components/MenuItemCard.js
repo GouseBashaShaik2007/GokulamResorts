@@ -1,5 +1,4 @@
-// Stock image for dishes without a photo yet (data-placeholder="true").
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80';
+import Photo from './ui/Photo';
 
 export function VegMark({ veg, className = '' }) {
   return (
@@ -14,15 +13,31 @@ export function VegMark({ veg, className = '' }) {
   );
 }
 
+// A dish without a photo gets a plain frame — never a stock picture of some
+// other plate, which made every unphotographed dish look the same (and wrong).
+function NoDishPhoto() {
+  return (
+    <div className="photo-coming-soon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-8 w-8 opacity-50" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+        <circle cx="12" cy="12" r="8.5" />
+        <circle cx="12" cy="12" r="4.5" />
+      </svg>
+    </div>
+  );
+}
+
 /** Menu dish. Tapping anywhere opens the item details; `inCart` shows a count badge. */
 export default function MenuItemCard({ item, inCart, onOpen }) {
-  const image = item.image || FALLBACK_IMAGE;
   const price = Number(item.price).toLocaleString('en-IN');
 
   return (
     <button type="button" onClick={onOpen} className="card group flex w-full flex-col overflow-hidden text-left transition-shadow hover:shadow-xl">
       <div className="media-zoom relative h-40 w-full overflow-hidden">
-        <img src={image} alt={item.name} className="h-full w-full object-cover" {...(item.image ? {} : { 'data-placeholder': 'true' })} />
+        {item.image ? (
+          <Photo src={item.image} alt="" sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" />
+        ) : (
+          <NoDishPhoto />
+        )}
         <VegMark veg={item.is_veg} className="absolute left-3 top-3" />
         {inCart > 0 && (
           <span className="absolute right-3 top-3 rounded-full bg-ocean-500 px-2.5 py-0.5 text-xs font-semibold text-white">{inCart} in order</span>

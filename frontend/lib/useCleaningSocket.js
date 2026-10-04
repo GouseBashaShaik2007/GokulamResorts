@@ -39,7 +39,7 @@ export default function useCleaningSocket(tokenKey, onUpdate, eventName = 'clean
 
 export function LiveBadge({ live }) {
   return (
-    <span className={`flex items-center gap-1.5 text-xs ${live ? 'text-green-300' : 'text-navy-400'}`}>
+    <span className={`flex items-center gap-1.5 text-xs ${live ? 'text-green-700' : 'text-navy-400'}`}>
       <span className={`h-2 w-2 rounded-full ${live ? 'bg-green-400' : 'bg-navy-500'}`} />
       {live ? 'Live' : 'Offline'}
     </span>

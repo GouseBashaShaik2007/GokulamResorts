@@ -2,8 +2,24 @@
 
 import { useEffect, useRef, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
+import useModal from '../../lib/useModal';
+import { errMsg } from '../../lib/bookingUi';
+import { useToast } from '@/components/ui/Toast';
 
-const errMsg = (err, fallback) => err?.response?.data?.message || fallback;
+// Offered as one-tap choices so the same amenity is worded the same on every room.
+const STANDARD_AMENITIES = [
+  'Air Conditioning', 'Free WiFi', 'Breakfast Included', 'Sea View', 'Garden View', 'Private Balcony',
+  'TV', 'Mini Fridge', 'Hot Water', 'Tea / Coffee Maker', 'Room Service', 'Power Backup',
+];
+
+// Amenities are edited as one comma-separated line; these read and change it.
+const parseAmenities = (text) => String(text || '').split(',').map((a) => a.trim()).filter(Boolean);
+const sameAmenity = (a, b) => a.toLowerCase() === b.toLowerCase();
+const hasAmenity = (text, name) => parseAmenities(text).some((a) => sameAmenity(a, name));
+const toggleAmenity = (text, name) => {
+  const list = parseAmenities(text);
+  return (hasAmenity(text, name) ? list.filter((a) => !sameAmenity(a, name)) : [...list, name]).join(', ');
+};
 
 const emptyForm = {
   name: '',
@@ -78,8 +94,16 @@ function ImageUploader({ images, onChange, error, setError }) {
           uploadFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
         className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center text-sm transition ${
-          dragOver ? 'border-gold-400 bg-gold-500/10 text-gold-300' : 'border-navy-600 text-navy-400 hover:border-navy-500'
+          dragOver ? 'border-gold-400 bg-gold-500/10 text-gold-700' : 'border-navy-600 text-navy-400 hover:border-navy-500'
         }`}
       >
         {uploading ? 'Uploading…' : 'Drag photos here, or click to choose files (JPG, PNG, WEBP)'}
@@ -88,23 +112,24 @@ function ImageUploader({ images, onChange, error, setError }) {
           className="hidden" onChange={(e) => { uploadFiles(e.target.files); e.target.value = ''; }}
         />
       </div>
-      {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
 
       {images.length > 0 && (
         <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
           {images.map((url, i) => (
-            <div key={url + i} className={`group relative overflow-hidden rounded-lg border ${i === 0 ? 'border-gold-400 ring-1 ring-gold-400' : 'border-navy-700'}`}>
+            <div key={url} className={`relative overflow-hidden rounded-lg border ${i === 0 ? 'border-gold-400 ring-1 ring-gold-400' : 'border-navy-700'}`}>
               <img src={url} alt="" className="h-20 w-full object-cover" />
               {i === 0 && (
-                <span className="absolute left-1 top-1 rounded bg-gold-500 px-1.5 py-0.5 text-[10px] font-bold text-navy-950">Cover</span>
+                <span className="absolute left-1 top-1 rounded bg-ocean-500 px-1.5 py-0.5 text-[10px] font-bold text-white">Cover</span>
               )}
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-navy-950/80 px-1 py-1 opacity-0 transition group-hover:opacity-100">
-                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="px-1 text-xs text-white disabled:opacity-30">◀</button>
+              {/* Always visible: a hover-only bar can't be reached on a tablet. */}
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/65 px-1 py-1">
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move photo ${i + 1} earlier`} className="px-1 text-xs text-white disabled:opacity-30">◀</button>
                 {i !== 0 && (
-                  <button type="button" onClick={() => makeCover(i)} className="px-1 text-[10px] text-gold-300 underline">cover</button>
+                  <button type="button" onClick={() => makeCover(i)} className="px-1 text-[10px] text-gold-200 underline">cover</button>
                 )}
-                <button type="button" onClick={() => removeAt(i)} className="px-1 text-xs text-red-300">✕</button>
-                <button type="button" onClick={() => move(i, 1)} disabled={i === images.length - 1} className="px-1 text-xs text-white disabled:opacity-30">▶</button>
+                <button type="button" onClick={() => removeAt(i)} aria-label={`Remove photo ${i + 1}`} className="px-1 text-xs text-red-300">✕</button>
+                <button type="button" onClick={() => move(i, 1)} disabled={i === images.length - 1} aria-label={`Move photo ${i + 1} later`} className="px-1 text-xs text-white disabled:opacity-30">▶</button>
               </div>
             </div>
           ))}
@@ -118,14 +143,14 @@ function ImageUploader({ images, onChange, error, setError }) {
 
 function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
   const [form, setForm] = useState(emptyForm);
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [imageError, setImageError] = useState('');
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
+  const panelRef = useModal(open, onClose);
 
   useEffect(() => {
     if (!open) return;
-    setMessage('');
     setError('');
     setImageError('');
     if (editingRoom) {
@@ -153,13 +178,12 @@ function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
     capacity: Number(form.capacity),
     sizeSqft: form.sizeSqft ? Number(form.sizeSqft) : null,
     bedType: form.bedType || null,
-    amenities: form.amenities ? form.amenities.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    amenities: parseAmenities(form.amenities),
     images: form.images,
   });
 
   const submit = async (e) => {
     e.preventDefault();
-    setMessage('');
     setError('');
     setSaving(true);
     try {
@@ -170,6 +194,7 @@ function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
       }
       onSaved();
       onClose();
+      toast(editingRoom ? 'Room saved' : 'Room added');
     } catch (err) {
       setError(errMsg(err, 'Could not save room'));
     } finally {
@@ -182,7 +207,14 @@ function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l border-navy-700 bg-navy-950 p-6 shadow-2xl">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={editingRoom ? `Edit ${editingRoom.name}` : 'Add a new room'}
+        tabIndex={-1}
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l border-navy-700 bg-navy-950 p-6 shadow-2xl focus:outline-none"
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-xl font-bold text-navy-50">{editingRoom ? `Edit ${editingRoom.name}` : 'Add a New Room'}</h2>
           <button onClick={onClose} className="rounded-lg px-2 py-1 text-navy-400 hover:bg-navy-800 hover:text-navy-100">✕</button>
@@ -191,34 +223,59 @@ function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
         <form onSubmit={submit} className="space-y-4">
           <div>
             <label className="label">Name</label>
-            <input name="name" required className="input-field" value={form.name} onChange={handleChange} />
+            <input aria-label="Name" name="name" required className="input-field" value={form.name} onChange={handleChange} />
           </div>
           <div>
             <label className="label">Description</label>
-            <textarea name="description" rows={3} className="input-field" value={form.description} onChange={handleChange} />
+            <textarea aria-label="Description" name="description" rows={3} className="input-field" value={form.description} onChange={handleChange} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Price / night (₹)</label>
-              <input name="pricePerNight" type="number" min="0" step="1" required className="input-field" value={form.pricePerNight} onChange={handleChange} />
+              <input aria-label="Price / night (₹)" name="pricePerNight" type="number" min="0" step="1" required className="input-field" value={form.pricePerNight} onChange={handleChange} />
             </div>
             <div>
               <label className="label">Max guests</label>
-              <input name="capacity" type="number" min="1" required className="input-field" value={form.capacity} onChange={handleChange} />
+              <input aria-label="Max guests" name="capacity" type="number" min="1" required className="input-field" value={form.capacity} onChange={handleChange} />
             </div>
             <div className="col-span-2 sm:col-span-1">
               <label className="label">Size (sq.ft.)</label>
-              <input name="sizeSqft" type="number" min="0" className="input-field" value={form.sizeSqft} onChange={handleChange} />
+              <input aria-label="Size (sq.ft.)" name="sizeSqft" type="number" min="0" className="input-field" value={form.sizeSqft} onChange={handleChange} />
             </div>
           </div>
           <div>
             <label className="label">Bed Type</label>
-            <input name="bedType" className="input-field" value={form.bedType} onChange={handleChange} />
+            <input aria-label="Bed Type" name="bedType" className="input-field" value={form.bedType} onChange={handleChange} />
           </div>
-          <div>
-            <label className="label">Amenities (comma separated)</label>
-            <input name="amenities" className="input-field" value={form.amenities} onChange={handleChange} placeholder="Sea View, Free WiFi, Breakfast" />
-          </div>
+          <fieldset>
+            <legend className="label">Amenities</legend>
+            {/* Tapping a standard one keeps the wording the same across rooms ("Free WiFi", not "wifi" / "Wi-Fi"). */}
+            <div className="flex flex-wrap gap-2">
+              {STANDARD_AMENITIES.map((name) => {
+                const on = hasAmenity(form.amenities, name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setForm((p) => ({ ...p, amenities: toggleAmenity(p.amenities, name) }))}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${on ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-navy-700 text-navy-200 hover:border-ocean-300'}`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              aria-label="All amenities, comma separated"
+              name="amenities"
+              className="input-field mt-3"
+              value={form.amenities}
+              onChange={handleChange}
+              placeholder="Add any others, separated by commas"
+            />
+            <p className="mt-1 text-xs text-navy-400">Shown to guests on the room page, in this order.</p>
+          </fieldset>
 
           <ImageUploader
             images={form.images}
@@ -227,8 +284,7 @@ function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
             setError={setImageError}
           />
 
-          {message && <p className="text-sm text-green-300">{message}</p>}
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
 
           <div className="flex gap-3 pt-2">
             <button type="submit" disabled={saving} className="btn-gold flex-1 disabled:opacity-60">
@@ -249,6 +305,8 @@ function DeleteRoomDialog({ room, onClose, onDeleted }) {
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const matches = confirmText.trim() === room.name;
+  const dialogRef = useModal(true, onClose);
+  const toast = useToast();
 
   const submit = async () => {
     setDeleting(true);
@@ -257,6 +315,7 @@ function DeleteRoomDialog({ room, onClose, onDeleted }) {
       await api.delete(`/admin/rooms/${room.id}`, withAdminAuth());
       onDeleted();
       onClose();
+      toast(`${room.name} removed from the site`);
     } catch (err) {
       setError(errMsg(err, 'Could not delete room'));
     } finally {
@@ -266,7 +325,7 @@ function DeleteRoomDialog({ room, onClose, onDeleted }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-navy-950 p-6">
+      <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-label={`Remove ${room.name}`} tabIndex={-1} className="w-full max-w-md rounded-2xl border border-red-500/30 bg-navy-950 p-6 focus:outline-none">
         <h2 className="font-serif text-lg font-bold text-navy-50">Remove &quot;{room.name}&quot;?</h2>
         <p className="mt-2 text-sm text-navy-300">
           This removes it from public listings. Past bookings for this room type are kept. Type the room name to
@@ -279,7 +338,7 @@ function DeleteRoomDialog({ room, onClose, onDeleted }) {
           value={confirmText}
           onChange={(e) => setConfirmText(e.target.value)}
         />
-        {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+        {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
         <div className="mt-4 flex gap-3">
           <button
             onClick={submit}
@@ -362,7 +421,7 @@ export default function RoomsManager() {
         <button onClick={openAdd} className="btn-gold px-4 py-2 text-sm">+ Add room</button>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-300">{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-700">{error}</p>}
 
       <div className="space-y-3">
         {rooms.map((room) => (
@@ -376,13 +435,13 @@ export default function RoomsManager() {
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-navy-50">
-                {room.name} {!room.is_active && <span className="ml-2 text-xs text-red-300">(inactive)</span>}
+                {room.name} {!room.is_active && <span className="ml-2 text-xs text-red-700">(inactive)</span>}
               </p>
               <p className="text-sm text-navy-400">
                 ₹{Number(room.price_per_night).toLocaleString('en-IN')} / night · {room.units_count} room{room.units_count === 1 ? '' : 's'} · Up to {room.capacity} guests
               </p>
             </div>
-            <button onClick={() => openEdit(room)} className="rounded-lg border border-gold-500/50 px-3 py-1.5 text-xs text-gold-400 hover:bg-gold-500/10">
+            <button onClick={() => openEdit(room)} className="rounded-lg border border-gold-500/50 px-3 py-1.5 text-xs text-gold-600 hover:bg-gold-500/10">
               Edit
             </button>
             <RoomRowMenu room={room} onEdit={() => openEdit(room)} onRequestDelete={() => setDeletingRoom(room)} />

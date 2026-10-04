@@ -21,6 +21,7 @@ export default function Navbar() {
   const pathname = usePathname();
   // Transparent only while sitting on top of the home page's full-bleed hero.
   const overHero = pathname === '/' && !scrolled && !open;
+  const isActive = (href) => (href === '/rooms' ? pathname.startsWith('/rooms') : pathname === href);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -37,7 +38,7 @@ export default function Navbar() {
     >
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <span className={`font-serif text-2xl font-semibold tracking-wide ${overHero ? 'text-white' : 'text-gold-400'}`}>Gokulam</span>
+          <span className={`font-serif text-2xl font-semibold tracking-wide ${overHero ? 'text-white' : 'text-gold-600'}`}>Gokulam</span>
           <span className={`hidden text-sm uppercase tracking-[0.3em] sm:inline lg:hidden xl:inline ${overHero ? 'text-white/80' : 'text-navy-200'}`}>Resorts</span>
         </Link>
 
@@ -46,10 +47,10 @@ export default function Navbar() {
             <Link
               key={link.href}
               href={link.href}
-              aria-current={pathname === link.href ? 'page' : undefined}
+              aria-current={isActive(link.href) ? 'page' : undefined}
               className={`whitespace-nowrap text-sm font-medium transition-colors ${
                 overHero ? 'text-white hover:text-white/75' : 'text-navy-100 hover:text-ocean-500'
-              } ${pathname === link.href ? 'underline decoration-gold-400 decoration-2 underline-offset-8' : ''}`}
+              } ${isActive(link.href) ? 'underline decoration-gold-400 decoration-2 underline-offset-8' : ''}`}
             >
               {link.label}
             </Link>
@@ -63,22 +64,25 @@ export default function Navbar() {
 
         <button
           type="button"
-          aria-label="Toggle menu"
-          className={`flex h-10 w-10 items-center justify-center rounded-full border lg:hidden ${overHero ? 'border-white/60 text-white' : 'border-gold-500/40 text-gold-400'}`}
+          aria-label="Menu"
+          aria-expanded={open}
+          aria-controls="mobile-menu"
+          className={`flex h-10 w-10 items-center justify-center rounded-full border lg:hidden ${overHero ? 'border-white/60 text-white' : 'border-gold-500/40 text-gold-600'}`}
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? '✕' : '☰'}
+          <span aria-hidden="true">{open ? '✕' : '☰'}</span>
         </button>
       </nav>
 
       {open && (
-        <div className="border-t border-navy-800 bg-navy-950 px-4 pb-4 lg:hidden">
+        <div id="mobile-menu" className="border-t border-navy-800 bg-navy-950 px-4 pb-4 lg:hidden">
           <div className="flex flex-col gap-3 pt-3">
             {publicLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-lg px-3 py-2 text-navy-100 hover:bg-navy-800 hover:text-gold-400"
+                aria-current={isActive(link.href) ? 'page' : undefined}
+                className="rounded-lg px-3 py-2 text-navy-100 hover:bg-navy-800 hover:text-gold-600"
                 onClick={() => setOpen(false)}
               >
                 {link.label}

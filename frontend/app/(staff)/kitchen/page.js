@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api, { withKitchenAuth } from '@/lib/api';
+import api, { TOKEN_KEYS, withKitchenAuth } from '@/lib/api';
 import { clearSignedIn } from '../_lib/session';
+import { useConfirm } from '@/components/ui/Confirm';
+import { useToast } from '@/components/ui/Toast';
+import { PREVIOUS_ORDER_STATUS, splitOrderNotes } from '@/lib/foodOrders';
 
 // Kitchen wall display. Deliberately its own high-contrast dark look (not the
 // guest site theme): readable from across a hot, bright kitchen.
 
-const TOKEN_KEY = 'gokulam_kitchen_token';
+const TOKEN_KEY = TOKEN_KEYS.kitchen;
 const STAFF_KEY = 'gokulam_kitchen_staff';
 const POLL_MS = 5000;
 const AMBER_MIN = 10;
@@ -100,7 +103,7 @@ function StartShift({ onStart }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/95 px-4">
       <div className="max-w-md text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Kitchen display</p>
-        <h1 className="mt-3 text-4xl font-bold text-white">Ready to start the shift?</h1>
+        <h2 className="mt-3 text-4xl font-bold text-white">Ready to start the shift?</h2>
         <p className="mt-4 text-lg text-neutral-300">
           This turns on the new-order sound and keeps this screen from going to sleep.
         </p>
@@ -125,9 +128,16 @@ function OrderCard({ order, now, onAdvance, onCancel }) {
     amber: 'bg-amber-400 text-neutral-950',
     red: 'animate-pulse bg-red-600 text-white',
   }[level];
+  const { allergy, notes } = splitOrderNotes(order.notes);
 
   return (
     <article className={`rounded-2xl border-2 bg-neutral-900 p-5 ${frame}`}>
+      {/* First thing on the ticket: an allergy must not read like an ordinary note. */}
+      {allergy && (
+        <p className="mb-4 rounded-lg bg-red-600 px-3 py-2 text-lg font-bold uppercase tracking-wide text-white">
+          Allergy: {allergy}
+        </p>
+      )}
       <header className="flex items-start justify-between gap-3">
         <div>
           <p className="text-2xl font-bold leading-tight text-white">
@@ -158,8 +168,8 @@ function OrderCard({ order, now, onAdvance, onCancel }) {
         ))}
       </ul>
 
-      {order.notes && (
-        <p className="mt-3 rounded-lg bg-yellow-300 px-3 py-2 text-base font-semibold text-neutral-950">Note: {order.notes}</p>
+      {notes && (
+        <p className="mt-3 rounded-lg bg-yellow-300 px-3 py-2 text-base font-semibold text-neutral-950">Note: {notes}</p>
       )}
 
       <div className="mt-5 flex gap-3">
@@ -178,6 +188,8 @@ function OrderCard({ order, now, onAdvance, onCancel }) {
 
 export default function KitchenPage() {
   const router = useRouter();
+  const ask = useConfirm();
+  const toast = useToast();
   const [loggedIn, setLoggedIn] = useState(false);
   const [staffName, setStaffName] = useState('');
   const [shiftStarted, setShiftStarted] = useState(false);
@@ -248,10 +260,20 @@ export default function KitchenPage() {
     setShiftStarted(true);
   };
 
-  const updateStatus = async (order, status) => {
+  const updateStatus = async (order, status, { undoable = true } = {}) => {
     try {
       await api.patch(`/kitchen/orders/${order.id}/status`, { status }, withKitchenAuth());
       loadOrders();
+      // One tap moves a ticket on (and "served" takes it off the board), so a
+      // slip of the thumb can be put back for a few seconds.
+      if (undoable && PREVIOUS_ORDER_STATUS[status] === order.status) {
+        const who = order.table_number ? `Table ${order.table_number}` : order.customer_name || `#${order.id}`;
+        toast(`${who}: ${STATUS_LABEL[status]}`, {
+          tone: 'info',
+          duration: 8000,
+          action: { label: 'Undo', onClick: () => updateStatus(order, order.status, { undoable: false }) },
+        });
+      }
     } catch (err) {
       setError(err?.response?.data?.message || 'Could not update that order.');
     }
@@ -302,7 +324,7 @@ export default function KitchenPage() {
 
       {error && <p className="bg-red-600 px-6 py-2 text-center font-semibold">{error}</p>}
 
-      <main className="grid gap-6 p-6 lg:grid-cols-3">
+      <div className="grid gap-6 p-6 lg:grid-cols-3">
         {grouped.map(({ status, orders: list }) => (
           <section key={status}>
             <h2 className={`mb-4 text-lg font-bold uppercase tracking-wider ${COLUMN_ACCENT[status]}`}>
@@ -315,8 +337,15 @@ export default function KitchenPage() {
                   order={order}
                   now={now}
                   onAdvance={(o) => updateStatus(o, STATUS_FLOW[o.status])}
-                  onCancel={(o) => {
-                    if (confirm(`Cancel order #${o.id}?`)) updateStatus(o, 'cancelled');
+                  onCancel={async (o) => {
+                    const ok = await ask({
+                      title: `Cancel order #${o.id}?`,
+                      body: 'It leaves the board and the guest sees it as cancelled.',
+                      confirmLabel: 'Cancel order',
+                      cancelLabel: 'Keep order',
+                      danger: true,
+                    });
+                    if (ok) updateStatus(o, 'cancelled');
                   }}
                 />
               ))}
@@ -324,7 +353,7 @@ export default function KitchenPage() {
             </div>
           </section>
         ))}
-      </main>
+      </div>
     </div>
   );
 }

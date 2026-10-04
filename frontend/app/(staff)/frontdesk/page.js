@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/api';
+import api, { TOKEN_KEYS } from '@/lib/api';
 import DeskBoard from '@/components/bookings/DeskBoard';
 import StaffSkeleton from '../_components/StaffSkeleton';
 import { clearSignedIn } from '../_lib/session';
 
-const TOKEN_KEY = 'gokulam_staff_token';
+const TOKEN_KEY = TOKEN_KEYS.staff;
 const STAFF_KEY = 'gokulam_staff_profile';
 
 export default function FrontDeskPage() {

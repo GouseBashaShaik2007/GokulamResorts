@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import api from '@/lib/api';
-import { errMsg, inr, todayIST } from '@/lib/bookingUi';
+import { useEffect } from 'react';
+import { inr, todayIST } from '@/lib/bookingUi';
+import useAvailability from '@/lib/useAvailability';
 import { useBooking } from '../booking/BookingContext';
 import DateRangePicker from '../booking/DateRangePicker';
-import { Price } from './Currency';
+import { Price, useCurrency } from './Currency';
 import ReviewBadge from './ReviewBadge';
 
 /**
@@ -14,44 +14,27 @@ import ReviewBadge from './ReviewBadge';
  * where the guest is (picking a room number of this type).
  */
 export default function RoomBookingBox({ room }) {
-  const { stay, setStay, datesValid, openBooking } = useBooking();
-  const [result, setResult] = useState(null); // { quote, free } | { none: true }
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const guests = Number(stay.adults) + Number(stay.children);
+  const { stay, setStay, datesValid, openBooking, adults, children: kids, guests, setPageRoomTypeId } = useBooking();
+  const { currency } = useCurrency();
   const tooMany = guests > room.capacity;
 
+  // Tell the booking panel which room page is open, so "Book" from the navbar
+  // or the floating bar continues with this room type instead of all of them.
   useEffect(() => {
-    if (!datesValid || tooMany) {
-      setResult(null);
-      return undefined;
-    }
-    let cancelled = false;
-    setLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await api.get('/availability', {
-          params: { checkIn: stay.checkIn, checkOut: stay.checkOut, roomTypeId: room.id, guests },
-        });
-        const type = res.data.types[0];
-        if (!cancelled) {
-          setResult(type ? { quote: type.quote, free: type.units.length } : { none: true });
-          setError('');
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setResult(null);
-          setError(errMsg(err, 'Could not check these dates'));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [stay.checkIn, stay.checkOut, guests, room.id, datesValid, tooMany]);
+    setPageRoomTypeId(room.id);
+    return () => setPageRoomTypeId(null);
+  }, [room.id, setPageRoomTypeId]);
+
+  const { types, loading, error } = useAvailability({
+    checkIn: stay.checkIn,
+    checkOut: stay.checkOut,
+    guests,
+    roomTypeId: room.id,
+    enabled: datesValid && !tooMany,
+  });
+  // { quote, free } when this room type has a room free; { none: true } when it is full.
+  const type = types?.[0];
+  const result = types ? (type ? { quote: type.quote, free: type.units.length } : { none: true }) : null;
 
   const q = result?.quote;
   const setNum = (k) => (e) => setStay({ [k]: e.target.value });
@@ -77,13 +60,13 @@ export default function RoomBookingBox({ room }) {
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="rounded-xl border border-navy-700 px-4 py-2">
+          <label className="rounded-xl border border-navy-700 px-4 py-2 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
             <span className="block text-xs font-semibold uppercase tracking-wider text-navy-400">Adults</span>
-            <input type="number" min={1} max={room.capacity} value={stay.adults} onChange={setNum('adults')} className="w-full bg-transparent text-navy-50 focus:outline-none" />
+            <input type="number" min={1} max={room.capacity} value={stay.adults} onChange={setNum('adults')} onBlur={() => stay.adults === '' && setStay({ adults })} className="w-full bg-transparent text-navy-50 focus:outline-none" />
           </label>
-          <label className="rounded-xl border border-navy-700 px-4 py-2">
+          <label className="rounded-xl border border-navy-700 px-4 py-2 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
             <span className="block text-xs font-semibold uppercase tracking-wider text-navy-400">Children</span>
-            <input type="number" min={0} max={Math.max(0, room.capacity - 1)} value={stay.children} onChange={setNum('children')} className="w-full bg-transparent text-navy-50 focus:outline-none" />
+            <input type="number" min={0} max={Math.max(0, room.capacity - 1)} value={stay.children} onChange={setNum('children')} onBlur={() => stay.children === '' && setStay({ children: kids })} className="w-full bg-transparent text-navy-50 focus:outline-none" />
           </label>
         </div>
         {tooMany && <p className="text-sm text-red-600">This room fits up to {room.capacity} guests.</p>}
@@ -116,6 +99,9 @@ export default function RoomBookingBox({ room }) {
                 <span className="font-semibold text-navy-50">Total incl. taxes</span>
                 <Price inr={q.total} className="text-xl" />
               </div>
+              {currency !== 'INR' && (
+                <p className="text-xs text-navy-400">Converted amounts are approximate. You are charged in Indian rupees.</p>
+              )}
               {result.free <= 2 && <p className="text-xs text-orange-700">Only {result.free} room{result.free > 1 ? 's' : ''} of this type left for these dates</p>}
             </>
           )}
@@ -131,7 +117,7 @@ export default function RoomBookingBox({ room }) {
         {datesValid ? 'Reserve — choose your room' : 'Check availability'}
       </button>
       <p className="text-center text-xs text-navy-400">
-        <span className="font-semibold text-gold-500">Best rate when you book direct.</span> You pick your exact
+        <span className="font-semibold text-gold-600">Best rate when you book direct.</span> You pick your exact
         room number next. Full payment secures the room; if the resort can&apos;t confirm within 24 hours you&apos;re
         refunded automatically.
       </p>

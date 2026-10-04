@@ -22,7 +22,7 @@ export default function RoomPicker({ types, selectedId, onSelect, showType = tru
             <p className="text-sm text-navy-300">
               {quote.promo > 0 && <span className="mr-2 text-navy-500 line-through">{inr(quote.base)}</span>}
               <span className="price">{inr(quote.total)}</span> for {quote.nights} night{quote.nights > 1 ? 's' : ''}
-              {quote.promo > 0 && <span className="ml-2 rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-300">{quote.promoDetails[0].name}</span>}
+              {quote.promo > 0 && <span className="ml-2 rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-700">{quote.promoDetails[0].name}</span>}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

@@ -1,10 +1,14 @@
 import Link from 'next/link';
 import Reveal from '@/components/motion/Reveal';
+import Photo from '@/components/ui/Photo';
 import { VegMark } from '@/components/MenuItemCard';
+import { getMenuByCategory } from '@/lib/server-api';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
-export const metadata = { title: 'Dining — Gokulam Resorts' };
+export const metadata = {
+  title: 'Dining',
+  description:
+    'The restaurant at Gokulam Resorts, Chirala Beach: coastal Andhra cooking, fresh seafood and vegetarian dishes. See the full menu with prices.',
+};
 
 // Stock stand-ins until the resort's own photos arrive.
 const PHOTOS = [
@@ -12,22 +16,8 @@ const PHOTOS = [
   { src: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=900&q=80', alt: 'A plated main course' },
 ];
 
-async function getMenu() {
-  try {
-    const [c, i] = await Promise.all([
-      fetch(`${API_URL}/menu/categories`, { cache: 'no-store' }),
-      fetch(`${API_URL}/menu/items`, { cache: 'no-store' }),
-    ]);
-    const categories = c.ok ? (await c.json()).categories || [] : [];
-    const items = i.ok ? (await i.json()).items || [] : [];
-    return categories.map((cat) => ({ ...cat, items: items.filter((x) => x.category_id === cat.id) })).filter((cat) => cat.items.length);
-  } catch {
-    return [];
-  }
-}
-
 export default async function DiningPage() {
-  const menu = await getMenu();
+  const menu = await getMenuByCategory();
 
   return (
     <div>
@@ -46,8 +36,12 @@ export default async function DiningPage() {
           </div>
         </Reveal>
         <div className="grid grid-cols-3 gap-3">
-          <img src={PHOTOS[0].src} alt={PHOTOS[0].alt} data-placeholder="true" className="col-span-2 h-80 w-full rounded-2xl object-cover" />
-          <img src={PHOTOS[1].src} alt={PHOTOS[1].alt} data-placeholder="true" className="h-80 w-full rounded-2xl object-cover" />
+          <div className="relative col-span-2 h-80 overflow-hidden rounded-2xl">
+            <Photo src={PHOTOS[0].src} alt={PHOTOS[0].alt} data-placeholder="true" sizes="(min-width: 1024px) 33vw, 66vw" priority />
+          </div>
+          <div className="relative h-80 overflow-hidden rounded-2xl">
+            <Photo src={PHOTOS[1].src} alt={PHOTOS[1].alt} data-placeholder="true" sizes="(min-width: 1024px) 17vw, 33vw" />
+          </div>
         </div>
       </section>
 

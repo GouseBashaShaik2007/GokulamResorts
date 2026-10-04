@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api, { authFor } from '../../lib/api';
+import api, { TOKEN_KEYS, authFor } from '../../lib/api';
 import useCleaningSocket, { LiveBadge } from '../../lib/useCleaningSocket';
 import { StatusBadge, inr, fmtDate, fmtDateTime, errMsg, STATUS_LABEL } from '../../lib/bookingUi';
 import BookingDetail from './BookingDetail';
@@ -25,7 +25,7 @@ function BookingRow({ b, onOpen, hint }) {
       </span>
       <span className="flex flex-wrap items-center gap-2">
         {hint}
-        {due > 0 && <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-300">Due {inr(due)}</span>}
+        {due > 0 && <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-700">Due {inr(due)}</span>}
         <StatusBadge status={b.status} />
       </span>
     </button>
@@ -70,13 +70,13 @@ function SearchPanel({ auth, onOpen, refreshKey }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <input className="input-field max-w-sm flex-1 py-2" placeholder="Booking #, guest name or phone" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input-field w-auto py-2" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <input className="input-field max-w-sm flex-1 py-2" placeholder="Booking #, guest name or phone" aria-label="Search bookings" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className="input-field w-auto py-2" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All statuses</option>
           {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
@@ -92,7 +92,19 @@ function SearchPanel({ auth, onOpen, refreshKey }) {
           <tbody>
             {rows.map((b) => (
               <tr key={b.id} onClick={() => onOpen(b.id)} className="cursor-pointer border-b border-navy-800 text-navy-100 hover:bg-navy-800">
-                <td className="px-4 py-2">{b.id}</td>
+                <td className="px-4 py-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen(b.id);
+                    }}
+                    aria-label={`Open booking ${b.id}, ${b.guest_name}`}
+                    className="font-medium text-ocean-600 underline underline-offset-2"
+                  >
+                    {b.id}
+                  </button>
+                </td>
                 <td className="px-4 py-2">
                   {b.guest_name}
                   <div className="text-xs text-navy-400">{b.guest_phone} · {b.source}</div>
@@ -101,7 +113,7 @@ function SearchPanel({ auth, onOpen, refreshKey }) {
                 <td className="px-4 py-2">{fmtDate(b.check_in)} → {fmtDate(b.check_out)}</td>
                 <td className="px-4 py-2">
                   {inr(b.total_amount)}
-                  {Number(b.balance_due) > 0 && <div className="text-xs text-red-300">Due {inr(b.balance_due)}</div>}
+                  {Number(b.balance_due) > 0 && <div className="text-xs text-red-700">Due {inr(b.balance_due)}</div>}
                 </td>
                 <td className="px-4 py-2"><StatusBadge status={b.status} /></td>
               </tr>
@@ -117,7 +129,7 @@ function SearchPanel({ auth, onOpen, refreshKey }) {
 /** mode: 'desk' (FrontDesk staff token) or 'admin' (manager token). */
 export default function DeskBoard({ mode }) {
   const auth = authFor(mode);
-  const tokenKey = mode === 'admin' ? 'gokulam_admin_token' : 'gokulam_staff_token';
+  const tokenKey = mode === 'admin' ? TOKEN_KEYS.admin : TOKEN_KEYS.staff;
   const [view, setView] = useState('today');
   const [data, setData] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -150,7 +162,7 @@ export default function DeskBoard({ mode }) {
   const tab = (key, label, count) => (
     <button
       onClick={() => setView(key)}
-      className={`rounded-full px-4 py-1.5 text-sm ${view === key ? 'bg-gold-500 font-medium text-navy-950' : 'bg-navy-800 text-navy-200'}`}
+      className={`rounded-full px-4 py-1.5 text-sm ${view === key ? 'bg-ocean-500 font-medium text-white' : 'bg-navy-800 text-navy-200'}`}
     >
       {label}{count ? ` (${count})` : ''}
     </button>
@@ -169,14 +181,14 @@ export default function DeskBoard({ mode }) {
         </div>
         <LiveBadge live={live} />
       </div>
-      {error && <p className="mb-4 text-sm text-red-300">{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-700">{error}</p>}
 
       {view === 'today' && data && (
         <div className="space-y-8">
           {data.awaitingApproval.length > 0 && (
             <Group
               title={mode === 'admin' ? 'Needs your approval' : 'Awaiting manager approval'}
-              accent="text-gold-400"
+              accent="text-gold-600"
               items={data.awaitingApproval}
               onOpen={setOpenId}
               hint={(b) => <span className="text-xs text-navy-400">auto-cancels {fmtDateTime(b.hold_expires_at)}</span>}
@@ -184,12 +196,12 @@ export default function DeskBoard({ mode }) {
           )}
           {data.pendingRefunds.length > 0 && (
             <section>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gold-400">Refunds to pay out at the counter ({data.pendingRefunds.length})</h3>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gold-600">Refunds to pay out at the counter ({data.pendingRefunds.length})</h3>
               <div className="space-y-2">
                 {data.pendingRefunds.map((r) => (
                   <button key={r.id} onClick={() => setOpenId(r.booking_id)} className="flex w-full justify-between rounded-xl border border-gold-500/30 bg-gold-500/5 px-4 py-3 text-left text-sm">
                     <span className="text-navy-100">#{r.booking_id} · {r.guest_name} · Room {r.unit_number}</span>
-                    <span className="font-semibold text-gold-400">{inr(r.amount)} · {r.method.toUpperCase()}</span>
+                    <span className="font-semibold text-gold-600">{inr(r.amount)} · {r.method.toUpperCase()}</span>
                   </button>
                 ))}
               </div>
@@ -200,14 +212,14 @@ export default function DeskBoard({ mode }) {
             items={data.arrivals}
             empty="No arrivals due."
             onOpen={setOpenId}
-            hint={(b) => (b.check_in < today ? <span className="text-xs text-orange-300">late since {fmtDate(b.check_in)}</span> : null)}
+            hint={(b) => (b.check_in < today ? <span className="text-xs text-orange-700">late since {fmtDate(b.check_in)}</span> : null)}
           />
           <Group
             title="Departures"
             items={data.departures}
             empty="No departures due today."
             onOpen={setOpenId}
-            hint={(b) => (b.check_out < today ? <span className="text-xs text-orange-300">overdue</span> : null)}
+            hint={(b) => (b.check_out < today ? <span className="text-xs text-orange-700">overdue</span> : null)}
           />
           <Group
             title="In house"

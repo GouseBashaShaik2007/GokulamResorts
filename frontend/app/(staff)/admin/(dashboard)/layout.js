@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import api from '@/lib/api';
+import api, { TOKEN_KEYS } from '@/lib/api';
 import StaffSkeleton from '../../_components/StaffSkeleton';
 import { clearSignedIn } from '../../_lib/session';
 
-const TOKEN_KEY = 'gokulam_admin_token';
+const TOKEN_KEY = TOKEN_KEYS.admin;
 
 const NAV = [
   { href: '/admin', label: 'Overview', exact: true },
@@ -27,8 +27,9 @@ function NavLink({ item, pathname, onClick }) {
     <Link
       href={item.href}
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-        active ? 'bg-gold-500 text-navy-950' : 'text-navy-200 hover:bg-navy-800 hover:text-navy-50'
+        active ? 'bg-ocean-500 text-white' : 'text-navy-200 hover:bg-navy-800 hover:text-navy-50'
       }`}
     >
       {item.label}
@@ -59,7 +60,7 @@ export default function AdminDashboardLayout({ children }) {
       return;
     }
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       setAdminEmail(payload.email || '');
     } catch {
       // cosmetic only — a malformed token still fails on the first API call
@@ -97,9 +98,10 @@ export default function AdminDashboardLayout({ children }) {
 
       {/* Mobile top bar */}
       <div className="flex items-center justify-between border-b border-navy-800 bg-navy-950 px-4 py-3 lg:hidden">
-        <span className="font-serif text-lg font-bold text-gold-400">Gokulam Admin</span>
+        <span className="font-serif text-lg font-bold text-gold-600">Gokulam Admin</span>
         <button
           onClick={() => setMobileNavOpen((v) => !v)}
+          aria-expanded={mobileNavOpen}
           className="rounded-lg border border-navy-700 px-3 py-1.5 text-sm text-navy-200"
         >
           {mobileNavOpen ? 'Close' : 'Menu'}
@@ -113,7 +115,7 @@ export default function AdminDashboardLayout({ children }) {
       >
         <div className="hidden lg:block">
           <p className="eyebrow">Gokulam Resorts</p>
-          <h1 className="font-serif text-xl font-bold text-navy-50">Admin</h1>
+          <p className="font-serif text-xl font-bold text-navy-50">Admin</p>
         </div>
         <nav className="mt-6 space-y-1">
           {NAV.map((item) => (
@@ -128,7 +130,7 @@ export default function AdminDashboardLayout({ children }) {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-10">{children}</main>
+      <div className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-10">{children}</div>
     </div>
   );
 }

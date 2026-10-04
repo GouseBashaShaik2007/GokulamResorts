@@ -1,25 +1,11 @@
 import MenuBrowser from '@/components/MenuBrowser';
+import { getMenu } from '@/lib/server-api';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
-async function getMenu() {
-  try {
-    const [categoriesRes, itemsRes] = await Promise.all([
-      fetch(`${API_URL}/menu/categories`, { cache: 'no-store' }),
-      fetch(`${API_URL}/menu/items`, { cache: 'no-store' }),
-    ]);
-    const categories = categoriesRes.ok ? (await categoriesRes.json()).categories || [] : [];
-    const items = itemsRes.ok ? (await itemsRes.json()).items || [] : [];
-    return { categories, items };
-  } catch (err) {
-    return { categories: [], items: [] };
-  }
-}
-
-export const metadata = { title: 'Dine With Us — Gokulam Resorts' };
+// An ordering screen, not a landing page: /dining is the one to index.
+export const metadata = { title: 'Dine With Us', robots: { index: false } };
 
 export default async function KioskPage() {
-  const { categories, items } = await getMenu();
+  const { categories, items } = await getMenu({ fresh: true });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">

@@ -1,13 +1,14 @@
 import Link from 'next/link';
-import { CONTACT, directionsUrl, whatsappUrl } from '@/lib/site';
+import { CONTACT, directionsUrl, telHref, whatsappUrl } from '@/lib/site';
 
 export default function Footer() {
   const wa = whatsappUrl();
+  const tel = telHref();
   return (
     <footer className="border-t border-night-800 bg-night text-white/70">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-4 lg:px-8">
         <div className="md:col-span-2">
-          <h3 className="font-serif text-2xl font-semibold text-gold-300">Gokulam Resorts</h3>
+          <p className="font-serif text-2xl font-semibold text-gold-300">Gokulam Resorts</p>
           <p className="mt-3 max-w-md text-sm leading-relaxed">
             A beachfront escape on Chirala Beach, Andhra Pradesh — where the Bay of Bengal meets
             timeless hospitality.
@@ -16,15 +17,15 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">Contact</h4>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">Contact</h2>
           <ul className="space-y-2 text-sm">
             <li>
               <a href={directionsUrl()} target="_blank" rel="noopener noreferrer" className="hover:text-gold-300">
                 {CONTACT.address}
               </a>
             </li>
-            {CONTACT.phone && (
-              <li><a href={`tel:${CONTACT.phone.replace(/s/g, '')}`} className="hover:text-gold-300">{CONTACT.phone}</a></li>
+            {tel && (
+              <li><a href={tel} className="hover:text-gold-300">{CONTACT.phone}</a></li>
             )}
             {wa && <li><a href={wa} target="_blank" rel="noopener noreferrer" className="hover:text-gold-300">WhatsApp us</a></li>}
             <li><a href={`mailto:${CONTACT.email}`} className="hover:text-gold-300">{CONTACT.email}</a></li>
@@ -32,7 +33,7 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">Explore</h4>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">Explore</h2>
           <ul className="space-y-2 text-sm">
             <li><Link href="/rooms" className="hover:text-gold-300">Rooms &amp; Suites</Link></li>
             <li><Link href="/dining" className="hover:text-gold-300">Dining</Link></li>

@@ -1,50 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import api from '../../../lib/api';
-import { errMsg } from '../../../lib/bookingUi';
+import { formatRange } from '../../../lib/dateRange';
+import useAvailability from '../../../lib/useAvailability';
 import { useBooking } from '../BookingContext';
 import RoomPicker from '../../bookings/RoomPicker';
+import Photo from '../../ui/Photo';
+import { realPhotos } from '../../../lib/rooms';
 
 export default function RoomStep() {
-  const { stay, roomTypeFilter, clearRoomTypeFilter, pick, setPick, goTo } = useBooking();
-  const [types, setTypes] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { stay, guests, roomTypeFilter, clearRoomTypeFilter, pick, setPick, goTo } = useBooking();
 
-  const guests = Number(stay.adults) + Number(stay.children);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await api.get('/availability', {
-          params: {
-            checkIn: stay.checkIn,
-            checkOut: stay.checkOut,
-            guests,
-            ...(roomTypeFilter ? { roomTypeId: roomTypeFilter } : {}),
-          },
-        });
-        if (!cancelled) {
-          setTypes(res.data.types);
-          setError('');
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setTypes(null);
-          setError(errMsg(err, 'Could not check availability'));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [stay.checkIn, stay.checkOut, guests, roomTypeFilter]);
+  const { types, loading, error } = useAvailability({
+    checkIn: stay.checkIn,
+    checkOut: stay.checkOut,
+    guests,
+    roomTypeId: roomTypeFilter,
+  });
 
   const handleSelect = (unit, roomType, quote) => {
     setPick({ unit, roomType, quote });
@@ -58,22 +29,22 @@ export default function RoomStep() {
           <p className="eyebrow">Step 2 of 4</p>
           <h2 className="mt-1 font-serif text-2xl font-semibold text-navy-50">Choose Your Room</h2>
           <p className="mt-1 text-sm text-navy-400">
-            {stay.checkIn} → {stay.checkOut} · {guests} guest{guests > 1 ? 's' : ''}
+            {formatRange(stay.checkIn, stay.checkOut)} · {guests} guest{guests > 1 ? 's' : ''}
           </p>
         </div>
-        <button type="button" onClick={() => goTo('stay')} className="text-xs text-gold-400 hover:underline">
+        <button type="button" onClick={() => goTo('stay')} className="text-xs text-gold-600 hover:underline">
           Edit dates
         </button>
       </div>
 
       {roomTypeFilter && (
-        <button type="button" onClick={clearRoomTypeFilter} className="text-xs text-gold-400 hover:underline">
+        <button type="button" onClick={clearRoomTypeFilter} className="text-xs text-gold-600 hover:underline">
           Show all room types
         </button>
       )}
 
       {loading && <p className="text-sm text-navy-400">Checking availability...</p>}
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
 
       {!loading && !error && (
         <RoomPicker
@@ -84,12 +55,10 @@ export default function RoomStep() {
           renderTypeHeader={
             !roomTypeFilter
               ? (roomType) =>
-                  roomType.image ? (
-                    <img
-                      src={roomType.image}
-                      alt={roomType.name}
-                      className="mb-2 h-28 w-full rounded-lg object-cover"
-                    />
+                  realPhotos({ images: [roomType.image] }).length > 0 ? (
+                    <div className="relative mb-2 h-28 w-full overflow-hidden rounded-lg">
+                      <Photo src={roomType.image} alt="" sizes="(min-width: 640px) 32rem, 100vw" />
+                    </div>
                   ) : null
               : undefined
           }

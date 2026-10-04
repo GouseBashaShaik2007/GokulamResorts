@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import api from '../lib/api';
 import { inr, fmtDate, fmtDateTime, errMsg, todayIST, nightsBetween } from '../lib/bookingUi';
-import { CONTACT, directionsUrl, whatsappUrl } from '../lib/site';
+import { CONTACT, directionsUrl, telHref, whatsappUrl } from '../lib/site';
 import { realPhotos } from '../lib/rooms';
 import PhoneInput from './site/PhoneInput';
 import RoomPhoto from './site/RoomPhoto';
@@ -47,12 +47,31 @@ function Progress({ status }) {
   return (
     <ol className="grid grid-cols-4 gap-2" aria-label="Booking progress">
       {STEPS.map((s, i) => (
-        <li key={s.key} className="text-center">
+        <li key={s.key} className="text-center" aria-current={i === at ? 'step' : undefined}>
           <span className={`mx-auto block h-1.5 rounded-full ${i <= at ? 'bg-ocean-500' : 'bg-navy-700'}`} />
           <span className={`mt-2 block text-xs ${i === at ? 'font-semibold text-navy-50' : 'text-navy-400'}`}>{s.label}</span>
         </li>
       ))}
     </ol>
+  );
+}
+
+// The reference is what a guest needs to keep; one tap puts it on the clipboard.
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard blocked — the reference is on screen to copy by hand
+    }
+  };
+  return (
+    <button type="button" onClick={copy} className="rounded-full border border-navy-700 px-2.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ocean-600 hover:border-ocean-400">
+      <span aria-live="polite">{copied ? 'Copied' : 'Copy'}</span>
+    </button>
   );
 }
 
@@ -72,11 +91,17 @@ function Summary({ b }) {
 
   return (
     <div className="card overflow-hidden">
-      <div className="h-48 sm:h-56">{photo !== undefined && <RoomPhoto src={photo} alt={b.room.type} />}</div>
+      <div className="relative h-48 sm:h-56">
+        {photo === undefined ? <div className="h-full w-full animate-pulse bg-navy-800" /> : <RoomPhoto src={photo} alt={b.room.type} />}
+      </div>
       <div className="space-y-6 p-6 sm:p-8">
         <div>
-          <p className="text-xs uppercase tracking-wider text-navy-400">Booking {b.reference}</p>
-          <h2 className="mt-1 font-serif text-3xl font-semibold text-navy-50">{s.title}</h2>
+          <p className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wider text-navy-400">
+            Booking
+            <span className="font-mono text-sm font-semibold normal-case tracking-normal text-navy-50">{b.reference}</span>
+            <CopyButton text={b.reference} />
+          </p>
+          <h1 className="mt-1 font-serif text-3xl font-semibold text-navy-50" aria-live="polite">{s.title}</h1>
           {s.text && <p className="mt-2 text-navy-300">{s.text}</p>}
           {b.closeReason && b.status === 'cancelled' && <p className="mt-2 text-navy-300">{b.closeReason}.</p>}
         </div>
@@ -130,18 +155,19 @@ function Summary({ b }) {
 
 function Help() {
   const wa = whatsappUrl();
+  const tel = telHref();
   return (
     <aside className="space-y-4">
       <h2 className="font-serif text-2xl font-semibold text-navy-50">What you can do here</h2>
       <ul className="space-y-3 text-navy-200">
-        <li className="flex gap-3"><span className="text-ocean-500">✓</span> See whether your booking is confirmed, and its reference</li>
-        <li className="flex gap-3"><span className="text-ocean-500">✓</span> Check your dates, room number and what you paid</li>
-        <li className="flex gap-3"><span className="text-ocean-500">✓</span> Track a refund</li>
-        <li className="flex gap-3"><span className="text-ocean-500">✓</span> Get directions to the resort</li>
+        <li className="flex gap-3"><span className="text-ocean-500" aria-hidden="true">✓</span> See whether your booking is confirmed, and its reference</li>
+        <li className="flex gap-3"><span className="text-ocean-500" aria-hidden="true">✓</span> Check your dates, room number and what you paid</li>
+        <li className="flex gap-3"><span className="text-ocean-500" aria-hidden="true">✓</span> Track a refund</li>
+        <li className="flex gap-3"><span className="text-ocean-500" aria-hidden="true">✓</span> Get directions to the resort</li>
       </ul>
       <p className="text-sm text-navy-400">
         To change dates or cancel, contact the resort{wa ? ' on WhatsApp' : ''} at{' '}
-        {CONTACT.phone ? <a className="text-ocean-600 underline" href={`tel:${CONTACT.phone.replace(/\s/g, '')}`}>{CONTACT.phone}</a> : <a className="text-ocean-600 underline" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>}.
+        {tel ? <a className="text-ocean-600 underline" href={tel}>{CONTACT.phone}</a> : <a className="text-ocean-600 underline" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>}.
         Your reference is in the SMS / WhatsApp we sent after booking.
       </p>
     </aside>
@@ -152,17 +178,19 @@ function Help() {
  * Looks up a booking by reference + phone. If both are known up front (right
  * after paying, same tab) it loads straight away; otherwise it asks for them.
  */
-export default function GuestBookingStatus({ initialRef = '', initialPhone = '' }) {
+export default function GuestBookingStatus({ initialRef = '', initialPhone = '', intro = '' }) {
   const [form, setForm] = useState({ ref: initialRef, phone: initialPhone });
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const lastLookup = useRef(null); // { reference, phone } of the booking on screen
 
   const lookup = useCallback(async (reference, phone) => {
     setLoading(true);
     setError('');
     try {
       const res = await api.get('/bookings/lookup', { params: { reference, phone } });
+      lastLookup.current = { reference, phone };
       setBooking(res.data.booking);
     } catch (err) {
       setBooking(null);
@@ -175,6 +203,24 @@ export default function GuestBookingStatus({ initialRef = '', initialPhone = '' 
   useEffect(() => {
     if (initialRef && initialPhone) lookup(initialRef, initialPhone);
   }, [initialRef, initialPhone, lookup]);
+
+  // While the booking is waiting on payment or the resort's approval, check
+  // again quietly so "Booking confirmed" appears without a reload. Once a
+  // minute: the lookup API allows 30 requests per 15 minutes.
+  const waiting = !!booking && ['pending_payment', 'paid'].includes(booking.status);
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const id = setInterval(async () => {
+      if (document.visibilityState !== 'visible' || !lastLookup.current) return;
+      try {
+        const res = await api.get('/bookings/lookup', { params: lastLookup.current });
+        setBooking(res.data.booking);
+      } catch {
+        // keep what's on screen; the next check may succeed
+      }
+    }, 60000);
+    return () => clearInterval(id);
+  }, [waiting]);
 
   if (booking) {
     return (
@@ -190,6 +236,7 @@ export default function GuestBookingStatus({ initialRef = '', initialPhone = '' 
       <div className="card p-8">
         <p className="eyebrow">My Booking</p>
         <h1 className="mt-2 font-serif text-3xl font-semibold text-navy-50">Find your booking</h1>
+        {intro && <p className="mt-2 text-sm text-navy-300">{intro}</p>}
         <form
           className="mt-6 space-y-4"
           onSubmit={(e) => {
@@ -199,13 +246,20 @@ export default function GuestBookingStatus({ initialRef = '', initialPhone = '' 
         >
           <div>
             <label className="label" htmlFor="bookingRef">Booking reference</label>
-            <input id="bookingRef" required className="input-field uppercase" placeholder="e.g. GKL-7F3K2" value={form.ref} onChange={(e) => setForm((f) => ({ ...f, ref: e.target.value }))} />
+            <input id="bookingRef" required className="input-field" placeholder="e.g. GKL-7F3K2" autoCapitalize="characters" value={form.ref} onChange={(e) => setForm((f) => ({ ...f, ref: e.target.value.toUpperCase() }))} />
           </div>
           <div>
             <label className="label" htmlFor="lookupPhone">Mobile number used for the booking</label>
             <PhoneInput id="lookupPhone" required value={form.phone} onChange={(phone) => setForm((f) => ({ ...f, phone }))} />
           </div>
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && (
+            <div role="alert" className="text-sm">
+              <p className="text-red-700">{error}</p>
+              <p className="mt-1 text-xs text-navy-400">
+                Check the reference (it looks like GKL-7F3K2) and use the mobile number the booking was made with, with its country code.
+              </p>
+            </div>
+          )}
           <button disabled={loading} className="btn-gold w-full disabled:opacity-60">{loading ? 'Looking up…' : 'Show my booking'}</button>
         </form>
       </div>

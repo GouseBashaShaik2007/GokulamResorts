@@ -63,3 +63,8 @@ export function formatMonthLabel(date) {
 export function formatShort(date) {
   return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
+
+// "Wed, 14 Oct → Fri, 16 Oct" from two YYYY-MM-DD strings.
+export function formatRange(checkInISO, checkOutISO) {
+  return `${formatShort(fromISO(checkInISO))} → ${formatShort(fromISO(checkOutISO))}`;
+}

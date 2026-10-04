@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/api';
+import api, { TOKEN_KEYS } from '@/lib/api';
 import { markSignedIn } from '../../_lib/session';
 
-const TOKEN_KEY = 'gokulam_staff_token';
+const TOKEN_KEY = TOKEN_KEYS.staff;
 const STAFF_KEY = 'gokulam_staff_profile';
 
 // Shared sign-in for every staff.controller role (FrontDesk, Bedding,
@@ -54,7 +54,7 @@ export default function StaffLoginPage() {
               value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
             />
           </div>
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
           <button type="submit" disabled={loading} className="btn-gold w-full disabled:opacity-60">
             {loading ? 'Signing in...' : 'Sign In'}
           </button>

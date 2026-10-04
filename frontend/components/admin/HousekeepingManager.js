@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api, { withAdminAuth } from '../../lib/api';
-import useCleaningSocket from '../../lib/useCleaningSocket';
+import api, { TOKEN_KEYS, withAdminAuth } from '../../lib/api';
+import { useConfirm } from '@/components/ui/Confirm';
+import useCleaningSocket, { LiveBadge } from '../../lib/useCleaningSocket';
+import { errMsg } from '../../lib/bookingUi';
 import { JOB_STATUS_STYLE, PRIORITY_STYLE, TASK_STATUS_STYLE } from '../../lib/cleaningStyles';
 
 const PRIORITIES = ['VIP', 'High', 'Normal'];
@@ -12,7 +14,6 @@ const TASK_ROLES = [
   { type: 'Inspection', role: 'Inspector', field: 'inspectorId' },
 ];
 
-const errMsg = (err, fallback) => err?.response?.data?.message || fallback;
 const fmtTime = (t) => (t ? new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—');
 
 function Badge({ className, children }) {
@@ -27,6 +28,8 @@ const TILE_COLOR = {
   Inspection: '#8B5CF6',
   Ready: '#2E9E6A',
 };
+// A mark as well as a colour, so status doesn't depend on telling amber from green.
+const TILE_MARK = { Dirty: 'D', Cleaning: 'C', Inspection: 'I', Ready: '✓' };
 
 // One tile per physical room, colored by current housekeeping status — a
 // glanceable summary above the detailed job cards below.
@@ -40,7 +43,7 @@ function RoomStatusBoard({ units, filter, onFilterStatus }) {
           {Object.entries(TILE_COLOR).map(([status, color]) => (
             <span key={status} className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-              {status}
+              {status} ({TILE_MARK[status]})
             </span>
           ))}
         </div>
@@ -51,12 +54,15 @@ function RoomStatusBoard({ units, filter, onFilterStatus }) {
             key={u.id}
             onClick={() => onFilterStatus(u.status)}
             title={`${u.unit_number} — ${u.status}`}
-            className={`flex h-11 items-center justify-center rounded-lg text-xs font-bold text-white transition ${
-              filter === u.status ? 'ring-2 ring-offset-2 ring-offset-navy-950' : ''
-            }`}
+            aria-label={`Room ${u.unit_number}, ${u.status}`}
+            aria-pressed={filter === u.status}
+            className={`flex h-11 flex-col items-center justify-center rounded-lg text-xs font-bold leading-tight transition ${
+              u.status === 'Dirty' ? 'text-navy-50' : 'text-white' // white is unreadable on the amber tile
+            } ${filter === u.status ? 'ring-2 ring-offset-2 ring-offset-navy-950' : ''}`}
             style={{ backgroundColor: TILE_COLOR[u.status], ...(filter === u.status ? { '--tw-ring-color': TILE_COLOR[u.status] } : {}) }}
           >
             {u.unit_number}
+            <span className="text-[9px] font-semibold opacity-90" aria-hidden="true">{TILE_MARK[u.status]}</span>
           </button>
         ))}
       </div>
@@ -68,7 +74,7 @@ function SubTab({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-sm ${active ? 'bg-navy-700 text-gold-400' : 'text-navy-300 hover:text-navy-100'}`}
+      className={`rounded-lg px-3 py-1.5 text-sm ${active ? 'bg-navy-700 text-gold-600' : 'text-navy-300 hover:text-navy-100'}`}
     >
       {children}
     </button>
@@ -135,7 +141,7 @@ function JobCard({ job, staff, onChanged, onError }) {
 
       {job.notes && <p className="mt-2 text-xs italic text-navy-300">Note: {job.notes}</p>}
       {rejection && (
-        <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">
+        <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-700">
           Rejected ({rejection.failed_tasks.join(' + ')}): {rejection.failure_reason}
         </p>
       )}
@@ -196,20 +202,20 @@ function MarkDirtyForm({ units, openUnitIds, onCreated, onError }) {
     <form onSubmit={submit} className="card flex flex-wrap items-end gap-3 p-4">
       <div className="min-w-[8rem] flex-1">
         <label className="label">Mark room dirty</label>
-        <select required className="input-field py-2" value={form.roomUnitId} onChange={(e) => setForm((p) => ({ ...p, roomUnitId: e.target.value }))}>
+        <select aria-label="Mark room dirty" required className="input-field py-2" value={form.roomUnitId} onChange={(e) => setForm((p) => ({ ...p, roomUnitId: e.target.value }))}>
           <option value="">Select room…</option>
           {available.map((u) => <option key={u.id} value={u.id}>{u.unit_number} — {u.room_type}</option>)}
         </select>
       </div>
       <div>
         <label className="label">Priority</label>
-        <select className="input-field py-2" value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}>
+        <select aria-label="Priority" className="input-field py-2" value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}>
           {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
         </select>
       </div>
       <div className="min-w-[10rem] flex-[2]">
         <label className="label">Note (optional)</label>
-        <input className="input-field py-2" value={form.notes} placeholder="e.g. VIP arriving 2 PM" onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+        <input aria-label="Note (optional)" className="input-field py-2" value={form.notes} placeholder="e.g. VIP arriving 2 PM" onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
       </div>
       <button type="submit" className="btn-gold px-5 py-2 text-sm">Mark Dirty</button>
     </form>
@@ -222,6 +228,7 @@ function CleaningBoard({ staff, units }) {
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('open');
   const [nightlyMenuOpen, setNightlyMenuOpen] = useState(false);
+  const ask = useConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -235,13 +242,16 @@ function CleaningBoard({ staff, units }) {
   useEffect(() => {
     load();
   }, [load]);
-  const live = useCleaningSocket('gokulam_admin_token', load);
+  const live = useCleaningSocket(TOKEN_KEYS.admin, load);
 
   const runNightly = async () => {
     setNightlyMenuOpen(false);
-    if (!confirm('Run the nightly cleaning-job generation now? This creates a Dirty job for every checkout that doesn\'t already have one. It never creates duplicates, but it does affect the live board for every housekeeper immediately.')) {
-      return;
-    }
+    const ok = await ask({
+      title: 'Create missing cleaning jobs now?',
+      body: 'This is the run that happens automatically at 11 PM: every checkout without a cleaning job gets one. It never creates duplicates, but new jobs appear on every housekeeper’s screen straight away.',
+      confirmLabel: 'Run now',
+    });
+    if (!ok) return;
     setMessage('');
     try {
       const res = await api.post('/admin/cleaning/run-nightly', {}, withAdminAuth());
@@ -260,20 +270,17 @@ function CleaningBoard({ staff, units }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setFilter('open')} className={`rounded-full px-3 py-1 text-xs ${filter === 'open' ? 'bg-gold-500 text-navy-950' : 'bg-navy-800 text-navy-200'}`}>
+          <button onClick={() => setFilter('open')} className={`rounded-full px-3 py-1 text-xs ${filter === 'open' ? 'bg-ocean-500 text-white' : 'bg-navy-800 text-navy-200'}`}>
             Open ({jobs.filter((j) => j.status !== 'Ready').length})
           </button>
           {counts.map(([s, n]) => (
-            <button key={s} onClick={() => setFilter(s)} className={`rounded-full px-3 py-1 text-xs ${filter === s ? 'bg-gold-500 text-navy-950' : 'bg-navy-800 text-navy-200'}`}>
+            <button key={s} onClick={() => setFilter(s)} className={`rounded-full px-3 py-1 text-xs ${filter === s ? 'bg-ocean-500 text-white' : 'bg-navy-800 text-navy-200'}`}>
               {s === 'Ready' ? 'Ready today' : s} ({n})
             </button>
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <span className={`flex items-center gap-1.5 text-xs ${live ? 'text-green-300' : 'text-navy-400'}`}>
-            <span className={`h-2 w-2 rounded-full ${live ? 'bg-green-400' : 'bg-navy-500'}`} />
-            {live ? 'Live' : 'Offline'}
-          </span>
+          <LiveBadge live={live} />
           <div className="relative">
             <button
               onClick={() => setNightlyMenuOpen((v) => !v)}
@@ -307,9 +314,9 @@ function CleaningBoard({ staff, units }) {
 
       <MarkDirtyForm units={units} openUnitIds={openUnitIds} onCreated={load} onError={setError} />
 
-      {message && <p className="text-sm text-green-300">{message}</p>}
+      {message && <p className="text-sm text-green-700">{message}</p>}
       {error && (
-        <p className="text-sm text-red-300">
+        <p className="text-sm text-red-700">
           {error} <button className="ml-2 underline" onClick={() => setError('')}>dismiss</button>
         </p>
       )}
@@ -329,6 +336,7 @@ function CleaningBoard({ staff, units }) {
 // ---------------------------------------------------------------------------
 
 function StaffPanel({ staff, reload }) {
+  const ask = useConfirm();
   const empty = { name: '', phone: '', role: 'Bedding', password: '' };
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
@@ -340,7 +348,7 @@ function StaffPanel({ staff, reload }) {
     setMessage('');
     try {
       await api.post('/admin/staff', form, withAdminAuth());
-      setMessage(`${form.name} added. They sign in at ${form.role === 'FrontDesk' ? '/frontdesk' : '/staff'} with ${form.phone}.`);
+      setMessage(`${form.name} added. They sign in at /staff/login with ${form.phone}.`);
       setForm(empty);
       reload();
     } catch (err) {
@@ -348,19 +356,32 @@ function StaffPanel({ staff, reload }) {
     }
   };
 
+  // Resolves true only when the server accepted the change.
   const update = async (s, body) => {
     setError('');
+    setMessage('');
     try {
       await api.put(`/admin/staff/${s.id}`, body, withAdminAuth());
       reload();
+      return true;
     } catch (err) {
       setError(errMsg(err, 'Could not update staff'));
+      return false;
     }
   };
 
-  const resetPassword = (s) => {
-    const password = prompt(`New password for ${s.name} (min 6 characters):`);
-    if (password) update(s, { password }).then(() => setMessage(`Password reset for ${s.name}.`));
+  const resetPassword = async (s) => {
+    const password = await ask({
+      title: `New password for ${s.name}`,
+      confirmLabel: 'Reset password',
+      input: {
+        label: 'New password',
+        hint: 'At least 6 characters. Give it to them in person.',
+        validate: (v) => (v.trim().length < 6 ? 'Use at least 6 characters.' : ''),
+      },
+    });
+    if (!password) return;
+    if (await update(s, { password })) setMessage(`Password reset for ${s.name}.`);
   };
 
   return (
@@ -369,15 +390,15 @@ function StaffPanel({ staff, reload }) {
         <h2 className="font-serif text-xl font-bold text-navy-50">Add Staff</h2>
         <div>
           <label className="label">Name</label>
-          <input required className="input-field" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+          <input aria-label="Name" required className="input-field" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
         </div>
         <div>
           <label className="label">Phone (login)</label>
-          <input required inputMode="tel" className="input-field" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} />
+          <input aria-label="Phone (login)" required inputMode="tel" className="input-field" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} />
         </div>
         <div>
           <label className="label">Role</label>
-          <select className="input-field" value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}>
+          <select aria-label="Role" className="input-field" value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}>
             <option value="FrontDesk">Front desk</option>
             <option>Bedding</option>
             <option>Toiletry</option>
@@ -386,10 +407,10 @@ function StaffPanel({ staff, reload }) {
         </div>
         <div>
           <label className="label">Password</label>
-          <input required minLength={6} type="text" className="input-field" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} />
+          <input aria-label="Password" required minLength={6} type="text" className="input-field" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} />
         </div>
-        {message && <p className="text-sm text-green-300">{message}</p>}
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {message && <p className="text-sm text-green-700">{message}</p>}
+        {error && <p className="text-sm text-red-700">{error}</p>}
         <button type="submit" className="btn-gold w-full">Add Staff</button>
       </form>
 
@@ -411,7 +432,7 @@ function StaffPanel({ staff, reload }) {
                     </button>
                     <button
                       onClick={() => update(s, { isActive: !s.is_active })}
-                      className={`rounded-lg border px-3 py-1 text-xs ${s.is_active ? 'border-red-500/50 text-red-300 hover:bg-red-500/10' : 'border-green-500/50 text-green-300 hover:bg-green-500/10'}`}
+                      className={`rounded-lg border px-3 py-1 text-xs ${s.is_active ? 'border-red-500/50 text-red-700 hover:bg-red-500/10' : 'border-green-500/50 text-green-700 hover:bg-green-500/10'}`}
                     >
                       {s.is_active ? 'Deactivate' : 'Reactivate'}
                     </button>
@@ -437,7 +458,7 @@ function RoomUnitsPanel({ units, reload }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/admin/rooms', withAdminAuth()).then((res) => setRoomTypes(res.data.rooms)).catch(() => {});
+    api.get('/admin/rooms', withAdminAuth()).then((res) => setRoomTypes(res.data.rooms)).catch((err) => setError(errMsg(err, 'Could not load room types')));
   }, []);
 
   const submit = async (e) => {
@@ -470,26 +491,26 @@ function RoomUnitsPanel({ units, reload }) {
       <form onSubmit={submit} className="card flex flex-wrap items-end gap-3 p-4">
         <div className="min-w-[12rem] flex-[2]">
           <label className="label">Room type</label>
-          <select required className="input-field py-2" value={form.roomTypeId} onChange={(e) => setForm((p) => ({ ...p, roomTypeId: e.target.value }))}>
+          <select aria-label="Room type" required className="input-field py-2" value={form.roomTypeId} onChange={(e) => setForm((p) => ({ ...p, roomTypeId: e.target.value }))}>
             <option value="">Select type…</option>
             {roomTypes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </div>
         <div className="w-28">
           <label className="label">Room no.</label>
-          <input required className="input-field py-2" value={form.unitNumber} placeholder="101" onChange={(e) => setForm((p) => ({ ...p, unitNumber: e.target.value }))} />
+          <input aria-label="Room no." required className="input-field py-2" value={form.unitNumber} placeholder="101" onChange={(e) => setForm((p) => ({ ...p, unitNumber: e.target.value }))} />
         </div>
         <div className="w-28">
           <label className="label">Floor</label>
-          <input className="input-field py-2" value={form.floor} onChange={(e) => setForm((p) => ({ ...p, floor: e.target.value }))} />
+          <input aria-label="Floor" className="input-field py-2" value={form.floor} onChange={(e) => setForm((p) => ({ ...p, floor: e.target.value }))} />
         </div>
         <div className="w-40">
           <label className="label">View (shown to guests)</label>
-          <input className="input-field py-2" value={form.view} placeholder="Sea View" onChange={(e) => setForm((p) => ({ ...p, view: e.target.value }))} />
+          <input aria-label="View (shown to guests)" className="input-field py-2" value={form.view} placeholder="Sea View" onChange={(e) => setForm((p) => ({ ...p, view: e.target.value }))} />
         </div>
         <button type="submit" className="btn-gold px-5 py-2 text-sm">Add Room</button>
       </form>
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {units.map((u) => (
@@ -500,7 +521,7 @@ function RoomUnitsPanel({ units, reload }) {
             </div>
             <p className="truncate text-xs text-navy-400" title={u.room_type}>{u.room_type}</p>
             {u.view_label && <p className="truncate text-xs text-navy-500">{u.view_label}</p>}
-            <button onClick={() => toggle(u)} className="mt-2 text-xs text-navy-300 underline hover:text-gold-400">
+            <button onClick={() => toggle(u)} className="mt-2 text-xs text-navy-300 underline hover:text-gold-600">
               {u.is_active ? 'Deactivate' : 'Reactivate'}
             </button>
           </div>
@@ -516,12 +537,13 @@ export default function HousekeepingManager() {
   const [view, setView] = useState('board');
   const [staff, setStaff] = useState([]);
   const [units, setUnits] = useState([]);
+  const [loadError, setLoadError] = useState('');
 
   const loadStaff = useCallback(() => {
-    api.get('/admin/staff', withAdminAuth()).then((res) => setStaff(res.data.staff)).catch(() => {});
+    api.get('/admin/staff', withAdminAuth()).then((res) => setStaff(res.data.staff)).catch((err) => setLoadError(errMsg(err, 'Could not load staff')));
   }, []);
   const loadUnits = useCallback(() => {
-    api.get('/admin/room-units', withAdminAuth()).then((res) => setUnits(res.data.units)).catch(() => {});
+    api.get('/admin/room-units', withAdminAuth()).then((res) => setUnits(res.data.units)).catch((err) => setLoadError(errMsg(err, 'Could not load rooms')));
   }, []);
 
   useEffect(() => {
@@ -531,6 +553,7 @@ export default function HousekeepingManager() {
 
   return (
     <div>
+      {loadError && <p role="alert" className="mb-4 text-sm text-red-700">{loadError}. Reload the page to try again.</p>}
       <div className="mb-6 flex gap-2 border-b border-navy-800 pb-3">
         <SubTab active={view === 'board'} onClick={() => setView('board')}>Cleaning Board</SubTab>
         <SubTab active={view === 'staff'} onClick={() => setView('staff')}>Staff</SubTab>

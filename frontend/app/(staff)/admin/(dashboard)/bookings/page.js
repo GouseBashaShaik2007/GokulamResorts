@@ -22,7 +22,7 @@ export default function AdminBookingsPage() {
             <button
               key={key}
               onClick={() => setView(key)}
-              className={`rounded-lg px-3 py-1.5 text-sm ${view === key ? 'bg-navy-700 text-gold-400' : 'text-navy-300 hover:text-navy-100'}`}
+              className={`rounded-lg px-3 py-1.5 text-sm ${view === key ? 'bg-navy-700 text-gold-600' : 'text-navy-300 hover:text-navy-100'}`}
             >
               {label}
             </button>

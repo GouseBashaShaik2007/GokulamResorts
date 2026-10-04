@@ -91,7 +91,7 @@ Log in at `http://localhost:3000/admin` with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, t
 
 | URL | Who | What |
 |-----|-----|------|
-| `/rooms`, `/booking/:typeId` | Guests | Pick dates → pick an actual room number → pay |
+| `/rooms`, `/rooms/:slug` | Guests | Pick dates → pick an actual room number → pay |
 | `/booking/status` | Guests | Look up a booking with booking ID + mobile number (no login) |
 | `/admin` | Manager | Bookings (approvals, discounts, cancellations, IDs, promotions), rooms, housekeeping, menu |
 | `/frontdesk` | Front desk staff | Arrivals / departures / in-house, walk-ins, payments, ID capture, check-in/out |

@@ -1,9 +1,11 @@
 // Room-type helpers shared by the room cards, rooms list and room detail page.
 
-// The seeded /images/room-*.jpg files are generated title cards, not photos of
-// the resort. Room pages must never show stock or fake bedrooms, so these are
+// The seeded room-*.jpg files are generated title cards, not photos of the
+// resort. Room pages must never show stock or fake bedrooms, so these are
 // treated as "no photo yet" and render the neutral coming-soon frame instead.
-const PLACEHOLDER_ROOM_IMAGE = /^\/images\/room-(deluxe|suite|villa|presidential)\.jpg$/;
+// Matched by file name, not folder: the seeds started in /images/ and were
+// later copied to image storage under the same names.
+const PLACEHOLDER_ROOM_IMAGE = /(^|\/)room-(deluxe|suite|villa|presidential)\.jpg$/;
 
 export const realPhotos = (room) => (room?.images || []).filter((url) => url && !PLACEHOLDER_ROOM_IMAGE.test(url));
 
@@ -19,3 +21,7 @@ export const viewGroup = (label) => {
 };
 
 export const viewGroupsOf = (room) => [...new Set((room.views || []).map(viewGroup).filter(Boolean))];
+
+// Where a room type's page lives: /rooms/<slug>. Falls back to the old numeric
+// address (which redirects) for data saved before slugs were used in links.
+export const roomPath = (room) => (room?.slug ? `/rooms/${room.slug}` : `/booking/${room.id}`);

@@ -1,8 +1,11 @@
+import Photo from '../ui/Photo';
+
 /**
  * A room photo, or the neutral "Photos coming soon" frame when the resort
- * hasn't supplied one. Never falls back to a stock bedroom.
+ * hasn't supplied one. Never falls back to a stock bedroom. Fills its parent,
+ * which must be `relative` and have a height.
  */
-export default function RoomPhoto({ src, alt, className = '', label = 'Photos coming soon' }) {
+export default function RoomPhoto({ src, alt, className = '', label = 'Photos coming soon', sizes = '(min-width: 768px) 50vw, 100vw' }) {
   if (!src) {
     return (
       <div className={`photo-coming-soon ${className}`} role="img" aria-label={`${alt} — ${label.toLowerCase()}`}>
@@ -15,5 +18,5 @@ export default function RoomPhoto({ src, alt, className = '', label = 'Photos co
       </div>
     );
   }
-  return <img src={src} alt={alt} className={`h-full w-full object-cover ${className}`} />;
+  return <Photo src={src} alt={alt} sizes={sizes} className={className} />;
 }

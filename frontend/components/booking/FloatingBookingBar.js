@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { useBooking } from './BookingContext';
 import useScrollDirection from '../../lib/useScrollDirection';
 import { todayIST } from '../../lib/bookingUi';
+import { formatRange } from '../../lib/dateRange';
 import DateRangePicker from './DateRangePicker';
 
 const HIDDEN_PREFIXES = [
@@ -16,7 +17,7 @@ const BAR_SPACE_PX = 96;
 
 export default function FloatingBookingBar() {
   const pathname = usePathname();
-  const { stay, setStay, datesValid, isOpen, openBooking } = useBooking();
+  const { stay, setStay, datesValid, isOpen, openBooking, adults, children: kids, guests } = useBooking();
 
   // Roughly "past the hero" on any device, and a fair threshold on hero-less
   // pages too — the bar shouldn't compete with the Hero's own booking CTA.
@@ -54,8 +55,7 @@ export default function FloatingBookingBar() {
         className="glass flex w-full max-w-sm items-center justify-between gap-3 rounded-full px-5 py-3 text-left sm:hidden"
       >
         <span className="text-sm text-navy-100">
-          {datesValid ? `${stay.checkIn} → ${stay.checkOut}` : 'Select dates'} · {Number(stay.adults) + Number(stay.children)} guest
-          {Number(stay.adults) + Number(stay.children) > 1 ? 's' : ''}
+          {datesValid ? formatRange(stay.checkIn, stay.checkOut) : 'Select dates'} · {guests} guest{guests > 1 ? 's' : ''}
         </span>
         <span className="btn-gold px-4 py-1.5 text-xs">Check</span>
       </button>
@@ -70,19 +70,21 @@ export default function FloatingBookingBar() {
             minDateISO={todayIST()}
             dropDirection="up"
           />
-          <div className="hidden items-center gap-2 border-l border-white/10 pl-3 md:flex">
+          <div className="hidden items-center gap-2 border-l border-navy-700 pl-3 md:flex">
             <label className="flex flex-col text-xs text-navy-400">
               Adults
               <input
                 type="number" min={1} max={10} value={stay.adults} onChange={setField('adults')}
-                className="w-12 bg-transparent text-sm text-navy-50 focus:outline-none"
+                onBlur={() => stay.adults === '' && setStay({ adults })}
+                className="w-12 rounded bg-transparent text-sm text-navy-50 focus:outline-none focus-visible:ring-1 focus-visible:ring-ocean-400"
               />
             </label>
             <label className="flex flex-col text-xs text-navy-400">
               Children
               <input
                 type="number" min={0} max={6} value={stay.children} onChange={setField('children')}
-                className="w-12 bg-transparent text-sm text-navy-50 focus:outline-none"
+                onBlur={() => stay.children === '' && setStay({ children: kids })}
+                className="w-12 rounded bg-transparent text-sm text-navy-50 focus:outline-none focus-visible:ring-1 focus-visible:ring-ocean-400"
               />
             </label>
           </div>

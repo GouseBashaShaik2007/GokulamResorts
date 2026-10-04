@@ -1,6 +1,11 @@
 import Link from 'next/link';
+import { jsonLd } from '@/lib/jsonLd';
 
-export const metadata = { title: 'FAQ & Policies — Gokulum Resorts' };
+export const metadata = {
+  title: 'FAQ & Policies',
+  description:
+    'Answers about booking, payment, GST, check-in ID, extending a stay, cancellations and refunds at Gokulam Resorts, Chirala Beach.',
+};
 
 // Only answers the owner has confirmed. TODO(owner): add check-in / check-out
 // times, pets, children and any other policies — they are left out, not guessed.
@@ -23,6 +28,8 @@ const FAQS = [
       {
         q: 'How do I check my booking?',
         a: <>Use <Link href="/booking/status" className="text-ocean-600 underline">My Booking</Link> with your booking reference (for example GKL-7F3K2) and the mobile number you booked with.</>,
+        // Plain-text version of an answer that contains a link, for search engines.
+        text: 'Use My Booking with your booking reference (for example GKL-7F3K2) and the mobile number you booked with.',
       },
       {
         q: 'Can I book at the resort?',
@@ -62,6 +69,21 @@ const FAQS = [
   },
 ];
 
+// "What if I need to cancel?" -> "what-if-i-need-to-cancel"
+const anchor = (question) => question.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+const FAQ_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQS.flatMap((section) =>
+    section.items.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.text || f.a },
+    }))
+  ),
+};
+
 export default function FaqPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
@@ -73,8 +95,8 @@ export default function FaqPage() {
           <h2 className="font-serif text-2xl font-semibold text-navy-50">{section.group}</h2>
           <div className="mt-4 divide-y divide-navy-700 border-y border-navy-700">
             {section.items.map((f) => (
-              <details key={f.q} className="group py-4">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium text-navy-50">
+              <details key={f.q} id={anchor(f.q)} className="group scroll-mt-24 py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded font-medium text-navy-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-400 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950">
                   {f.q}
                   <span className="text-xl text-ocean-500 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
                 </summary>
@@ -88,6 +110,9 @@ export default function FaqPage() {
       <p className="mt-12 text-navy-300">
         Something else? <Link href="/contact" className="text-ocean-600 underline">Contact us</Link>.
       </p>
+
+      {/* The same questions and answers, in the format search engines read. */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(FAQ_JSON_LD) }} />
     </div>
   );
 }

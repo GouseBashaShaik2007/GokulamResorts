@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api, { withStaffAuth } from '@/lib/api';
-import useCleaningSocket from '@/lib/useCleaningSocket';
+import api, { TOKEN_KEYS, withStaffAuth } from '@/lib/api';
+import useCleaningSocket, { LiveBadge } from '@/lib/useCleaningSocket';
+import { errMsg } from '@/lib/bookingUi';
 import { JOB_STATUS_STYLE, PRIORITY_STYLE, TASK_STATUS_STYLE } from '@/lib/cleaningStyles';
 import StaffSkeleton from '../_components/StaffSkeleton';
 import { clearSignedIn } from '../_lib/session';
 
-const TOKEN_KEY = 'gokulam_staff_token';
+const TOKEN_KEY = TOKEN_KEYS.staff;
 const STAFF_KEY = 'gokulam_staff_profile';
 
-const errMsg = (err, fallback) => err?.response?.data?.message || fallback;
 const fmtTime = (t) => (t ? new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—');
 const REASON_LABEL = { checkout: 'Checkout clean', manual: 'Marked dirty' };
 
@@ -42,7 +42,7 @@ function CleaningTaskCard({ task, onAction, busy }) {
       <RoomHeader task={task} />
       {task.job_notes && <p className="mt-2 text-sm italic text-navy-300">Note: {task.job_notes}</p>}
       {task.failure_reason && (
-        <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">
           <span className="font-semibold">Redo — inspector said:</span> {task.failure_reason}
         </p>
       )}
@@ -53,22 +53,22 @@ function CleaningTaskCard({ task, onAction, busy }) {
 
       <div className="mt-4 flex gap-3">
         {task.status === 'Pending' && (
-          <button disabled={busy} onClick={() => onAction(task, 'start')} className={`${big} bg-gold-500 text-navy-950`}>
+          <button disabled={busy} onClick={() => onAction(task, 'start')} className={`${big} bg-ocean-500 text-white`}>
             Start
           </button>
         )}
         {task.status === 'InProgress' && (
           <>
-            <button disabled={busy} onClick={() => onAction(task, 'pause')} className={`${big} border border-orange-400/60 text-orange-300`}>
+            <button disabled={busy} onClick={() => onAction(task, 'pause')} className={`${big} border border-orange-400/60 text-orange-700`}>
               Pause
             </button>
-            <button disabled={busy} onClick={() => onAction(task, 'complete')} className={`${big} bg-green-500 text-navy-950`}>
+            <button disabled={busy} onClick={() => onAction(task, 'complete')} className={`${big} bg-green-700 text-white`}>
               Complete
             </button>
           </>
         )}
         {task.status === 'Paused' && (
-          <button disabled={busy} onClick={() => onAction(task, 'start')} className={`${big} bg-gold-500 text-navy-950`}>
+          <button disabled={busy} onClick={() => onAction(task, 'start')} className={`${big} bg-ocean-500 text-white`}>
             Resume
           </button>
         )}
@@ -122,10 +122,10 @@ function InspectionCard({ task, onAction, busy }) {
 
       {ready && !rejecting && (
         <div className="mt-4 flex gap-3">
-          <button disabled={busy} onClick={() => setRejecting(true)} className="flex-1 rounded-xl border border-red-500/60 py-3.5 font-semibold text-red-300 disabled:opacity-50">
+          <button disabled={busy} onClick={() => setRejecting(true)} className="flex-1 rounded-xl border border-red-500/60 py-3.5 font-semibold text-red-700 disabled:opacity-50">
             Reject
           </button>
-          <button disabled={busy} onClick={() => onAction(task, 'approve')} className="flex-1 rounded-xl bg-green-500 py-3.5 font-semibold text-navy-950 disabled:opacity-50">
+          <button disabled={busy} onClick={() => onAction(task, 'approve')} className="flex-1 rounded-xl bg-green-700 py-3.5 font-semibold text-white disabled:opacity-50">
             Approve
           </button>
         </div>
@@ -136,7 +136,7 @@ function InspectionCard({ task, onAction, busy }) {
           <p className="text-sm font-medium text-navy-100">Which task failed?</p>
           <div className="flex gap-3">
             {['Bedding', 'Toiletry'].map((type) => (
-              <label key={type} className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border py-3 text-sm ${failed.includes(type) ? 'border-red-400 bg-red-500/10 text-red-200' : 'border-navy-600 text-navy-200'}`}>
+              <label key={type} className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border py-3 text-sm ${failed.includes(type) ? 'border-red-400 bg-red-500/10 text-red-800' : 'border-navy-600 text-navy-200'}`}>
                 <input type="checkbox" className="accent-red-400" checked={failed.includes(type)} onChange={() => toggleFailed(type)} />
                 {type}
               </label>
@@ -156,7 +156,7 @@ function InspectionCard({ task, onAction, busy }) {
             <button
               disabled={busy || failed.length === 0 || reason.trim().length < 3}
               onClick={submitReject}
-              className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-semibold text-white disabled:opacity-50"
+              className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
               Send back
             </button>
@@ -170,7 +170,7 @@ function InspectionCard({ task, onAction, busy }) {
 function TaskBoard({ staff, onLogout }) {
   const [tasks, setTasks] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState(null); // the task being saved
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -190,7 +190,7 @@ function TaskBoard({ staff, onLogout }) {
   const live = useCleaningSocket(TOKEN_KEY, load);
 
   const act = async (task, action, body) => {
-    setBusy(true);
+    setBusyId(task.id);
     setError('');
     try {
       await api.post(`/staff/tasks/${task.id}/${action}`, body || {}, withStaffAuth());
@@ -201,7 +201,7 @@ function TaskBoard({ staff, onLogout }) {
       load();
       return false;
     } finally {
-      setBusy(false);
+      setBusyId(null);
     }
   };
 
@@ -222,15 +222,12 @@ function TaskBoard({ staff, onLogout }) {
           <h1 className="font-serif text-2xl font-bold text-navy-50">Hi, {staff.name.split(' ')[0]}</h1>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span className={`flex items-center gap-1.5 text-xs ${live ? 'text-green-300' : 'text-navy-400'}`}>
-            <span className={`h-2 w-2 rounded-full ${live ? 'bg-green-400' : 'bg-navy-500'}`} />
-            {live ? 'Live' : 'Offline'}
-          </span>
+          <LiveBadge live={live} />
           <button onClick={onLogout} className="text-xs text-navy-300 underline">Log out</button>
         </div>
       </div>
 
-      {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+      {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {loaded && tasks.length === 0 && (
         <div className="card p-8 text-center">
@@ -250,9 +247,9 @@ function TaskBoard({ staff, onLogout }) {
             <div className="space-y-4">
               {list.map((task) =>
                 isInspector ? (
-                  <InspectionCard key={task.id} task={task} onAction={act} busy={busy} />
+                  <InspectionCard key={task.id} task={task} onAction={act} busy={busyId === task.id} />
                 ) : (
-                  <CleaningTaskCard key={task.id} task={task} onAction={act} busy={busy} />
+                  <CleaningTaskCard key={task.id} task={task} onAction={act} busy={busyId === task.id} />
                 )
               )}
             </div>

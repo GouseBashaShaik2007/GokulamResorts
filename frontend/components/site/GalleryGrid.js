@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Lightbox from './Lightbox';
-import { GALLERY, GALLERY_CATEGORIES } from '@/lib/gallery';
+import { GALLERY, GALLERY_CATEGORIES, thumb } from '@/lib/gallery';
 
 /** Filterable photo grid with a full-screen viewer. `roomPhotos`: the resort's real room photos. */
 export default function GalleryGrid({ roomPhotos = [] }) {
@@ -42,7 +42,7 @@ export default function GalleryGrid({ roomPhotos = [] }) {
     <>
       <div className="mb-8 flex flex-wrap gap-2">
         {chip('all', 'All')}
-        {GALLERY_CATEGORIES.map((c) => chip(c.key, c.label))}
+        {GALLERY_CATEGORIES.filter((c) => c.key !== 'rooms' || roomPhotos.length > 0).map((c) => chip(c.key, c.label))}
       </div>
 
       {category === 'rooms' && roomPhotos.length === 0 && (
@@ -60,7 +60,7 @@ export default function GalleryGrid({ roomPhotos = [] }) {
             className="media-zoom mb-4 block w-full overflow-hidden rounded-2xl"
             aria-label={`Open photo: ${p.alt}`}
           >
-            <img src={p.src} alt={p.alt} loading="lazy" className="w-full" {...(p.placeholder ? { 'data-placeholder': 'true' } : {})} />
+            <img src={thumb(p.src)} alt={p.alt} loading="lazy" decoding="async" className="w-full" {...(p.placeholder ? { 'data-placeholder': 'true' } : {})} />
           </button>
         ))}
       </div>

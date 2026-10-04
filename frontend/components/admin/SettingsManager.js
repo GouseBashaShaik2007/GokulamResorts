@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
+import { useConfirm } from '@/components/ui/Confirm';
+import { errMsg } from '../../lib/bookingUi';
 
-const errMsg = (err, fallback) => err?.response?.data?.message || fallback;
 
 function SiteAddressCard() {
   const [siteUrl, setSiteUrl] = useState('');
@@ -53,8 +54,8 @@ function SiteAddressCard() {
         onChange={(e) => setDraft(e.target.value)}
       />
       {siteUrl && <p className="text-xs text-navy-400">Currently: <code>{siteUrl}</code></p>}
-      {message && <p className="text-sm text-green-300">{message}</p>}
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {message && <p className="text-sm text-green-700">{message}</p>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
       <button type="submit" disabled={saving} className="btn-gold px-5 py-2 text-sm disabled:opacity-60">
         {saving ? 'Saving…' : 'Save address'}
       </button>
@@ -65,11 +66,12 @@ function SiteAddressCard() {
 function KitchenStaffCard() {
   const [staff, setStaff] = useState([]);
   const [form, setForm] = useState({ name: '', pin: '' });
+  const ask = useConfirm();
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
   const load = () => {
-    api.get('/admin/kitchen-staff', withAdminAuth()).then((res) => setStaff(res.data.staff)).catch(() => {});
+    api.get('/admin/kitchen-staff', withAdminAuth()).then((res) => setStaff(res.data.staff)).catch((err) => setError(errMsg(err, 'Could not load kitchen staff')));
   };
   useEffect(load, []);
 
@@ -79,7 +81,7 @@ function KitchenStaffCard() {
     setMessage('');
     try {
       await api.post('/admin/kitchen-staff', form, withAdminAuth());
-      setMessage(`${form.name} added — they sign in at /kitchen with PIN ${form.pin}.`);
+      setMessage(`${form.name} added. They sign in at /kitchen with the PIN you just set.`);
       setForm({ name: '', pin: '' });
       load();
     } catch (err) {
@@ -96,13 +98,18 @@ function KitchenStaffCard() {
     }
   };
 
-  const resetPin = (s) => {
-    const pin = prompt(`New 4-6 digit PIN for ${s.name}:`);
+  const resetPin = async (s) => {
+    const pin = await ask({
+      title: `New PIN for ${s.name}`,
+      confirmLabel: 'Reset PIN',
+      input: {
+        label: 'New PIN',
+        inputMode: 'numeric',
+        hint: '4 to 6 digits. Give it to them in person.',
+        validate: (v) => (/^\d{4,6}$/.test(v) ? '' : 'PIN must be 4 to 6 digits.'),
+      },
+    });
     if (!pin) return;
-    if (!/^\d{4,6}$/.test(pin)) {
-      setError('PIN must be 4-6 digits');
-      return;
-    }
     api
       .put(`/admin/kitchen-staff/${s.id}`, { pin }, withAdminAuth())
       .then(() => {
@@ -125,11 +132,11 @@ function KitchenStaffCard() {
       <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
         <div className="min-w-[10rem] flex-1">
           <label className="label">Name</label>
-          <input required className="input-field" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+          <input aria-label="Name" required className="input-field" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
         </div>
         <div className="w-32">
           <label className="label">PIN (4-6 digits)</label>
-          <input
+          <input aria-label="PIN (4-6 digits)"
             required inputMode="numeric" pattern="\d{4,6}" className="input-field"
             value={form.pin} onChange={(e) => setForm((p) => ({ ...p, pin: e.target.value.replace(/\D/g, '') }))}
           />
@@ -137,8 +144,8 @@ function KitchenStaffCard() {
         <button type="submit" className="btn-gold px-5 py-2 text-sm">Add</button>
       </form>
 
-      {message && <p className="text-sm text-green-300">{message}</p>}
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {message && <p className="text-sm text-green-700">{message}</p>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
 
       <div className="space-y-2">
         {staff.map((s) => (
@@ -150,7 +157,7 @@ function KitchenStaffCard() {
               </button>
               <button
                 onClick={() => toggle(s)}
-                className={`rounded-lg border px-3 py-1 text-xs ${s.is_active ? 'border-red-500/50 text-red-300 hover:bg-red-500/10' : 'border-green-500/50 text-green-300 hover:bg-green-500/10'}`}
+                className={`rounded-lg border px-3 py-1 text-xs ${s.is_active ? 'border-red-500/50 text-red-700 hover:bg-red-500/10' : 'border-green-500/50 text-green-700 hover:bg-green-500/10'}`}
               >
                 {s.is_active ? 'Deactivate' : 'Reactivate'}
               </button>

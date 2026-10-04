@@ -8,7 +8,7 @@ import { whatsappUrl } from '@/lib/site';
 export default function WhatsAppButton() {
   const pathname = usePathname();
   const href = whatsappUrl("Hello Gokulam Resorts, I'd like to ask about a stay.");
-  if (!href || pathname.startsWith('/order')) return null;
+  if (!href || pathname.startsWith('/order') || pathname === '/dine' || pathname.startsWith('/dine/')) return null;
 
   return (
     <a

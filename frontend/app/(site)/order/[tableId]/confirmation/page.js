@@ -1,9 +1,7 @@
-'use client';
-
 import OrderConfirmation from '@/components/OrderConfirmation';
-import { useParams } from 'next/navigation';
 
-export default function TableOrderConfirmationPage() {
-  const params = useParams();
+export const metadata = { title: 'Your order', robots: { index: false, follow: false } };
+
+export default function TableOrderConfirmationPage({ params }) {
   return <OrderConfirmation browseHref={`/order/${params.tableId}`} />;
 }

@@ -1,19 +1,15 @@
 import GalleryGrid from '@/components/site/GalleryGrid';
 import { realPhotos } from '@/lib/rooms';
+import { getRooms } from '@/lib/server-api';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
-export const metadata = { title: 'Gallery — Gokulam Resorts' };
+export const metadata = {
+  title: 'Gallery',
+  description: 'Photos of the rooms, the beach and dining at Gokulam Resorts, Chirala Beach.',
+};
 
 async function getRoomPhotos() {
-  try {
-    const res = await fetch(`${API_URL}/rooms`, { cache: 'no-store' });
-    if (!res.ok) return [];
-    const { rooms = [] } = await res.json();
-    return rooms.flatMap((r) => realPhotos(r).map((src, i) => ({ src, alt: `${r.name} — photo ${i + 1}` })));
-  } catch {
-    return [];
-  }
+  const rooms = await getRooms();
+  return rooms.flatMap((r) => realPhotos(r).map((src, i) => ({ src, alt: `${r.name} — photo ${i + 1}` })));
 }
 
 export default async function GalleryPage() {

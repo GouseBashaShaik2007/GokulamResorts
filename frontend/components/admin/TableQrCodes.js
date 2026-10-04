@@ -41,21 +41,21 @@ export default function TableQrCodes() {
       <div className="mt-4 flex flex-wrap items-end gap-4 border-b border-navy-800 pb-6">
         <div>
           <label className="label">Number of tables</label>
-          <input
+          <input aria-label="Number of tables"
             type="number" min="1" max="100" className="input-field w-32"
             value={tableCount} onChange={(e) => setTableCount(e.target.value)}
           />
         </div>
         <p className="text-xs text-navy-400">
           Production site address is set once for the whole resort — see{' '}
-          <Link href="/admin/settings" className="text-gold-400 underline">Admin → Settings</Link>.
+          <Link href="/admin/settings" className="text-gold-600 underline">Admin → Settings</Link>.
         </p>
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
 
       {loaded && blocked && (
-        <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">
           ⚠️ Set a production site address in{' '}
           <Link href="/admin/settings" className="underline">Settings</Link> before printing QR codes. Right now
           they would point at {siteUrl ? <code>{siteUrl}</code> : 'no address'} — every table code would be broken
@@ -85,6 +85,7 @@ export default function TableQrCodes() {
             : null;
           return (
             <div key={n} className="rounded-lg border border-navy-700 bg-navy-800 p-3 text-center print:border-navy-300 print:bg-white">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-navy-400 print:text-black">Gokulam Resorts</p>
               {qrSrc ? (
                 <img src={qrSrc} alt={`QR code for table ${n}`} className="mx-auto h-32 w-32" />
               ) : (
@@ -93,6 +94,7 @@ export default function TableQrCodes() {
                 </div>
               )}
               <p className="mt-2 text-sm font-semibold text-navy-50 print:text-black">Table {n}</p>
+              <p className="text-[11px] text-navy-400 print:text-black">Scan to see the menu and order</p>
             </div>
           );
         })}

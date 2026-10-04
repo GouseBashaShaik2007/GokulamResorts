@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import OpenBookingButton from '@/components/booking/OpenBookingButton';
 import { GETTING_HERE, directionsUrl } from '@/lib/site';
 
 export const metadata = {
-  title: 'Chirala Guide — handloom villages, beaches and getting here | Gokulam Resorts',
+  title: 'Chirala Guide — handloom villages, beaches and getting here',
   description:
     'A short guide to Chirala, Andhra Pradesh: the handloom weaving tradition, Vetapalem, Vodarevu and Suryalanka beaches near Bapatla, and how to reach Chirala by air and train.',
 };
@@ -60,6 +61,14 @@ export default function ChiralaGuidePage() {
         <div className="mt-6 flex flex-wrap gap-3">
           <a href={directionsUrl()} target="_blank" rel="noopener noreferrer" className="btn-gold">Get directions</a>
           <Link href="/contact" className="btn-outline">Ask us about transfers</Link>
+        </div>
+      </section>
+
+      <section className="mt-14 text-center">
+        <h2 className="font-serif text-2xl font-semibold text-navy-50">Planning a visit?</h2>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <OpenBookingButton className="btn-gold">Check availability</OpenBookingButton>
+          <Link href="/rooms" className="btn-outline">See the rooms</Link>
         </div>
       </section>
     </div>

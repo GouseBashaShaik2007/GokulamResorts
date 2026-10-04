@@ -67,19 +67,19 @@ export default function CounterBookingForm({ mode, onCreated }) {
       <form onSubmit={search} className="card grid grid-cols-2 gap-3 p-4 sm:grid-cols-5 sm:items-end">
         <div>
           <label className="label">Check-in</label>
-          <input type="date" required min={today} className="input-field py-2" value={stay.checkIn} onChange={(e) => setStay((s) => ({ ...s, checkIn: e.target.value, checkOut: s.checkOut <= e.target.value ? addDays(e.target.value, 1) : s.checkOut }))} />
+          <input aria-label="Check-in" type="date" required min={today} className="input-field py-2" value={stay.checkIn} onChange={(e) => setStay((s) => ({ ...s, checkIn: e.target.value, checkOut: s.checkOut <= e.target.value ? addDays(e.target.value, 1) : s.checkOut }))} />
         </div>
         <div>
           <label className="label">Check-out</label>
-          <input type="date" required min={addDays(stay.checkIn, 1)} className="input-field py-2" value={stay.checkOut} onChange={setS('checkOut')} />
+          <input aria-label="Check-out" type="date" required min={addDays(stay.checkIn, 1)} className="input-field py-2" value={stay.checkOut} onChange={setS('checkOut')} />
         </div>
         <div>
           <label className="label">Adults</label>
-          <input type="number" min={1} max={10} className="input-field py-2" value={stay.adults} onChange={setS('adults')} />
+          <input aria-label="Adults" type="number" min={1} max={10} className="input-field py-2" value={stay.adults} onChange={setS('adults')} />
         </div>
         <div>
           <label className="label">Children</label>
-          <input type="number" min={0} max={10} className="input-field py-2" value={stay.children} onChange={setS('children')} />
+          <input aria-label="Children" type="number" min={0} max={10} className="input-field py-2" value={stay.children} onChange={setS('children')} />
         </div>
         <button className="btn-gold col-span-2 py-2.5 sm:col-span-1">Find rooms</button>
       </form>
@@ -98,20 +98,20 @@ export default function CounterBookingForm({ mode, onCreated }) {
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <label className="label">Guest name</label>
-              <input required className="input-field py-2" value={guest.name} onChange={setG('name')} />
+              <input aria-label="Guest name" required className="input-field py-2" value={guest.name} onChange={setG('name')} />
             </div>
             <div>
               <label className="label">Phone</label>
-              <input required type="tel" className="input-field py-2" value={guest.phone} onChange={setG('phone')} placeholder="+91 …" />
+              <input aria-label="Phone" required type="tel" className="input-field py-2" value={guest.phone} onChange={setG('phone')} placeholder="+91 …" />
             </div>
             <div>
               <label className="label">Email (optional)</label>
-              <input type="email" className="input-field py-2" value={guest.email} onChange={setG('email')} />
+              <input aria-label="Email (optional)" type="email" className="input-field py-2" value={guest.email} onChange={setG('email')} />
             </div>
           </div>
           <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3">
             <p className="mb-2 text-sm text-navy-100">
-              Collect full payment: <span className="font-semibold text-gold-400">{inr(pick.quote.total)}</span>
+              Collect full payment: <span className="font-semibold text-gold-600">{inr(pick.quote.total)}</span>
             </p>
             <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
               <select className="input-field py-2" value={payment.paymentMethod} onChange={(e) => setPayment((p) => ({ ...p, paymentMethod: e.target.value }))}>
@@ -122,12 +122,12 @@ export default function CounterBookingForm({ mode, onCreated }) {
               <input required minLength={2} className="input-field py-2" placeholder="Reference — receipt no. / UPI UTR / card slip no." value={payment.paymentReference} onChange={(e) => setPayment((p) => ({ ...p, paymentReference: e.target.value }))} />
             </div>
           </div>
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p className="text-sm text-red-700">{error}</p>}
           <button disabled={busy} className="btn-gold w-full disabled:opacity-60">{busy ? 'Saving…' : 'Confirm booking & payment'}</button>
           <p className="text-center text-xs text-navy-400">Counter bookings are confirmed immediately. Record the guest's ID at check-in.</p>
         </form>
       )}
-      {!pick && error && <p className="text-sm text-red-300">{error}</p>}
+      {!pick && error && <p className="text-sm text-red-700">{error}</p>}
     </div>
   );
 }

@@ -43,7 +43,7 @@ export function useCart(cartKey) {
     [cartKey]
   );
 
-  /** Add `quantity` of a dish with optional { spiceLevel, notes }. */
+  /** Add `quantity` of a dish with optional { spiceLevel, notes }. Returns the line's id (for undo). */
   const addItem = useCallback(
     (menuItem, { quantity = 1, spiceLevel = null, notes = '' } = {}) => {
       const lineId = lineIdFor(menuItem.id, spiceLevel, notes);
@@ -57,6 +57,21 @@ export function useCart(cartKey) {
             ];
         return persist(next);
       });
+      return lineId;
+    },
+    [persist]
+  );
+
+  /** Change a line's quantity by `delta`; the line goes when it reaches 0. */
+  const adjustQty = useCallback(
+    (lineId, delta) => {
+      setItems((prev) =>
+        persist(
+          prev
+            .map((i) => (i.lineId === lineId ? { ...i, quantity: Math.min(20, i.quantity + delta) } : i))
+            .filter((i) => i.quantity > 0)
+        )
+      );
     },
     [persist]
   );
@@ -76,10 +91,12 @@ export function useCart(cartKey) {
 
   const removeItem = useCallback((lineId) => updateQty(lineId, 0), [updateQty]);
   const clear = useCallback(() => setItems(persist([])), [persist]);
+  /** Put a set of lines back (undo for "clear"). */
+  const restore = useCallback((lines) => setItems(persist(lines)), [persist]);
 
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const quantityOf = (id) => items.filter((i) => i.id === id).reduce((s, i) => s + i.quantity, 0);
 
-  return { items, addItem, removeItem, updateQty, clear, total, itemCount, quantityOf };
+  return { items, addItem, adjustQty, removeItem, updateQty, clear, restore, total, itemCount, quantityOf };
 }

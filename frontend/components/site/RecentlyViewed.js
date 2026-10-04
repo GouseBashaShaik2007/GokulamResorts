@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { roomPath } from '@/lib/rooms';
 
 const KEY = 'gokulam_recent_rooms';
 const MAX = 4;
@@ -18,13 +19,13 @@ function read() {
 export function TrackRoomView({ room }) {
   useEffect(() => {
     try {
-      const entry = { id: room.id, name: room.name, price: Number(room.price_per_night) };
+      const entry = { id: room.id, slug: room.slug, name: room.name, price: Number(room.price_per_night) };
       const next = [entry, ...read().filter((r) => r.id !== room.id)].slice(0, MAX);
       window.localStorage.setItem(KEY, JSON.stringify(next));
     } catch {
       // storage blocked — just don't remember
     }
-  }, [room.id, room.name, room.price_per_night]);
+  }, [room.id, room.slug, room.name, room.price_per_night]);
   return null;
 }
 
@@ -38,7 +39,7 @@ export default function RecentlyViewed({ excludeId, className = '' }) {
     <div className={`flex flex-wrap items-center gap-2 text-sm ${className}`}>
       <span className="text-navy-400">Recently viewed:</span>
       {rooms.map((r) => (
-        <Link key={r.id} href={`/booking/${r.id}`} className="rounded-full border border-navy-700 px-3 py-1 text-navy-100 hover:border-ocean-400 hover:text-ocean-500">
+        <Link key={r.id} href={roomPath(r)} className="rounded-full border border-navy-700 px-3 py-1 text-navy-100 hover:border-ocean-400 hover:text-ocean-500">
           {r.name}
         </Link>
       ))}

@@ -3,6 +3,9 @@
 // Rooms deliberately has no stock photos: room pages must show the real rooms.
 const u = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&q=80`;
 
+// Grid-sized version of a gallery photo (the stock stand-ins are served at any width).
+export const thumb = (src) => (src.startsWith('https://images.unsplash.com/') ? src.replace('w=1600', 'w=800') : src);
+
 export const GALLERY_CATEGORIES = [
   { key: 'rooms', label: 'Rooms' },
   { key: 'beach', label: 'Beach' },

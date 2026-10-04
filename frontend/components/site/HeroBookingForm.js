@@ -5,7 +5,7 @@ import DateRangePicker from '../booking/DateRangePicker';
 import { todayIST } from '@/lib/bookingUi';
 
 export default function HeroBookingForm() {
-  const { stay, setStay, openBooking } = useBooking();
+  const { stay, setStay, openBooking, adults, children: kids } = useBooking();
   const setNum = (k) => (e) => setStay({ [k]: e.target.value });
 
   return (
@@ -26,17 +26,17 @@ export default function HeroBookingForm() {
           minDateISO={todayIST()}
         />
       </div>
-      <label className="rounded-xl border border-navy-700 px-4 py-2.5">
+      <label className="rounded-xl border border-navy-700 px-4 py-2.5 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
         <span className="block text-[0.65rem] font-semibold uppercase tracking-wider text-navy-400">Adults</span>
-        <input type="number" min={1} max={10} value={stay.adults} onChange={setNum('adults')} className="w-full bg-transparent text-sm text-navy-50 focus:outline-none" />
+        <input type="number" min={1} max={10} value={stay.adults} onChange={setNum('adults')} onBlur={() => stay.adults === '' && setStay({ adults })} className="w-full bg-transparent text-sm text-navy-50 focus:outline-none" />
       </label>
-      <label className="rounded-xl border border-navy-700 px-4 py-2.5">
+      <label className="rounded-xl border border-navy-700 px-4 py-2.5 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
         <span className="block text-[0.65rem] font-semibold uppercase tracking-wider text-navy-400">Children</span>
-        <input type="number" min={0} max={6} value={stay.children} onChange={setNum('children')} className="w-full bg-transparent text-sm text-navy-50 focus:outline-none" />
+        <input type="number" min={0} max={6} value={stay.children} onChange={setNum('children')} onBlur={() => stay.children === '' && setStay({ children: kids })} className="w-full bg-transparent text-sm text-navy-50 focus:outline-none" />
       </label>
       <div className="text-center">
         <button type="submit" className="btn-gold w-full whitespace-nowrap sm:w-auto">Check availability</button>
-        <p className="mt-1.5 text-[0.7rem] font-medium text-gold-500">Best rate when you book direct</p>
+        <p className="mt-1.5 text-[0.7rem] font-medium text-gold-600">Best rate when you book direct</p>
       </div>
     </form>
   );

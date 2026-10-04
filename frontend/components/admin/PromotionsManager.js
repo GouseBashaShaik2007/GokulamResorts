@@ -28,13 +28,13 @@ function DiscountPreview({ roomTypeId, discountType, value, types }) {
 
   return (
     <div className="rounded-lg border border-gold-500/30 bg-gold-500/5 px-4 py-3 text-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gold-400">Live preview</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gold-600">Live preview</p>
       <ul className="mt-1.5 space-y-1">
         {previewRooms.map((room) => {
           const { name, original, discounted } = line(room);
           return (
             <li key={name} className="text-navy-100">
-              {name}: {inr(original)} → <span className="font-semibold text-gold-400">{inr(discounted)}</span> per
+              {name}: {inr(original)} → <span className="font-semibold text-gold-600">{inr(discounted)}</span> per
               night <span className="text-navy-400">(≈ {inr(discounted * PREVIEW_NIGHTS)} for {PREVIEW_NIGHTS} nights)</span>
             </li>
           );
@@ -47,6 +47,21 @@ function DiscountPreview({ roomTypeId, discountType, value, types }) {
   );
 }
 
+const OFFER_STATE = {
+  Live: 'bg-green-500/15 text-green-700',
+  Scheduled: 'bg-blue-400/10 text-blue-700',
+  Ended: 'bg-navy-700 text-navy-300',
+  Off: 'bg-navy-700 text-navy-300',
+};
+
+// Where an offer stands today (resort calendar): its switch, then its dates.
+function offerState(offer, today) {
+  if (!offer.is_active) return 'Off';
+  if (today < String(offer.start_date).slice(0, 10)) return 'Scheduled';
+  if (today > String(offer.end_date).slice(0, 10)) return 'Ended';
+  return 'Live';
+}
+
 export default function PromotionsManager() {
   const today = todayIST();
   const empty = { name: '', roomTypeId: '', discountType: 'percent', value: '', startDate: today, endDate: today, reason: '' };
@@ -56,11 +71,11 @@ export default function PromotionsManager() {
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    api.get('/admin/rate-discounts', withAdminAuth()).then((r) => setRows(r.data.discounts)).catch(() => {});
+    api.get('/admin/rate-discounts', withAdminAuth()).then((r) => setRows(r.data.discounts)).catch((err) => setError(errMsg(err, 'Could not load offers')));
   }, []);
   useEffect(() => {
     load();
-    api.get('/admin/rooms', withAdminAuth()).then((r) => setTypes(r.data.rooms)).catch(() => {});
+    api.get('/admin/rooms', withAdminAuth()).then((r) => setTypes(r.data.rooms)).catch((err) => setError(errMsg(err, 'Could not load room types')));
   }, [load]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -82,7 +97,12 @@ export default function PromotionsManager() {
   };
 
   const toggle = async (p) => {
-    await api.put(`/admin/rate-discounts/${p.id}`, { isActive: !p.is_active }, withAdminAuth()).catch(() => {});
+    setError('');
+    try {
+      await api.put(`/admin/rate-discounts/${p.id}`, { isActive: !p.is_active }, withAdminAuth());
+    } catch (err) {
+      setError(errMsg(err, `Could not turn "${p.name}" ${p.is_active ? 'off' : 'on'}`));
+    }
     load();
   };
 
@@ -96,11 +116,11 @@ export default function PromotionsManager() {
         </p>
         <div>
           <label className="label">Name (shown to guests)</label>
-          <input required className="input-field py-2" placeholder="Monsoon Villa Offer" value={form.name} onChange={set('name')} />
+          <input aria-label="Name (shown to guests)" required className="input-field py-2" placeholder="Monsoon Villa Offer" value={form.name} onChange={set('name')} />
         </div>
         <div>
           <label className="label">Room type</label>
-          <select className="input-field py-2" value={form.roomTypeId} onChange={set('roomTypeId')}>
+          <select aria-label="Room type" className="input-field py-2" value={form.roomTypeId} onChange={set('roomTypeId')}>
             <option value="">All room types</option>
             {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -118,18 +138,18 @@ export default function PromotionsManager() {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="label">First night</label>
-            <input required type="date" className="input-field py-2" value={form.startDate} onChange={set('startDate')} />
+            <input aria-label="First night" required type="date" className="input-field py-2" value={form.startDate} onChange={set('startDate')} />
           </div>
           <div>
             <label className="label">Last night</label>
-            <input required type="date" min={form.startDate} className="input-field py-2" value={form.endDate} onChange={set('endDate')} />
+            <input aria-label="Last night" required type="date" min={form.startDate} className="input-field py-2" value={form.endDate} onChange={set('endDate')} />
           </div>
         </div>
         <div>
           <label className="label">Reason (internal, required)</label>
-          <input required minLength={3} className="input-field py-2" value={form.reason} onChange={set('reason')} />
+          <input aria-label="Reason (internal, required)" required minLength={3} className="input-field py-2" value={form.reason} onChange={set('reason')} />
         </div>
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {error && <p className="text-sm text-red-700">{error}</p>}
         <button className="btn-gold w-full">Add offer</button>
       </form>
 
@@ -137,9 +157,10 @@ export default function PromotionsManager() {
         <h2 className="font-serif text-xl font-bold text-navy-50">Offers</h2>
         <div className="mt-4 space-y-2">
           {rows.map((p) => (
-            <div key={p.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 py-3 ${p.is_active ? '' : 'opacity-50'}`}>
+            <div key={p.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 py-3 ${offerState(p, today) === 'Live' || offerState(p, today) === 'Scheduled' ? '' : 'opacity-60'}`}>
               <div>
                 <p className="font-medium text-navy-50">
+                  <span className={`mr-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${OFFER_STATE[offerState(p, today)]}`}>{offerState(p, today)}</span>
                   {p.name} · {p.discount_type === 'percent' ? `${Number(p.value)}% off` : `${inr(p.value)} off`}/night
                 </p>
                 <p className="text-xs text-navy-400">

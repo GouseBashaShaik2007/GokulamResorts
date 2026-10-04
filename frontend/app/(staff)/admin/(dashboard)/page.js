@@ -4,14 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api, { withAdminAuth } from '@/lib/api';
 
-function todayIST() {
-  // Resort operates on IST regardless of the browser/server timezone.
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
-}
+const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 function StatCard({ label, value, hint, href }) {
   const body = (
-    <div className="card h-full p-5">
+    <div className={`card h-full p-5 ${href ? 'transition-colors hover:border-ocean-400' : ''}`}>
       <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">{label}</p>
       <p className="mt-2 font-serif text-3xl font-bold text-navy-50">{value}</p>
       {hint && <p className="mt-1 text-xs text-navy-400">{hint}</p>}
@@ -30,11 +27,12 @@ export default function AdminOverviewPage() {
 
     async function load() {
       try {
-        const [overviewRes, unitsRes, ordersRes, bookingsRes] = await Promise.all([
+        const [overviewRes, unitsRes, ordersRes, moneyRes] = await Promise.all([
           api.get('/desk/overview', withAdminAuth()),
           api.get('/admin/room-units', withAdminAuth()),
           api.get('/admin/food-orders', withAdminAuth()),
-          api.get('/desk/bookings', withAdminAuth()).catch(() => ({ data: { bookings: [] } })),
+          // Summed on the server by the resort's own calendar day.
+          api.get('/admin/stats/today', withAdminAuth()).catch(() => ({ data: { stats: null } })),
         ]);
         if (cancelled) return;
 
@@ -45,10 +43,7 @@ export default function AdminOverviewPage() {
 
         const openOrders = ordersRes.data.orders.filter((o) => ['new', 'preparing', 'ready'].includes(o.status));
 
-        const today = todayIST();
-        const revenueToday = bookingsRes.data.bookings
-          .filter((b) => b.paid_at && b.paid_at.slice(0, 10) === today)
-          .reduce((sum, b) => sum + Number(b.amount_paid || 0), 0);
+        const money = moneyRes.data.stats;
 
         setStats({
           arrivals: arrivals.length,
@@ -60,7 +55,8 @@ export default function AdminOverviewPage() {
           openOrders: openOrders.length,
           awaitingApproval: awaitingApproval.length,
           pendingRefunds: pendingRefunds.length,
-          revenueToday,
+          paymentsToday: money ? money.paymentsToday : null,
+          refundsToday: money ? money.refundsToday : 0,
         });
       } catch (err) {
         if (!cancelled) setError(err?.response?.data?.message || 'Could not load the overview.');
@@ -70,19 +66,24 @@ export default function AdminOverviewPage() {
     }
 
     load();
+    // Keep the numbers current while the page stays open.
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 60000);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
 
   return (
     <div>
       <div className="mb-8">
-        <p className="eyebrow">Today, {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <p className="eyebrow">Today, {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
         <h1 className="section-heading mt-1">Overview</h1>
       </div>
 
-      {error && <p className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
+      {error && <p className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {loading ? (
         <div className="grid animate-pulse gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -95,7 +96,17 @@ export default function AdminOverviewPage() {
           <StatCard label="Arrivals Today" value={stats.arrivals} href="/admin/bookings" />
           <StatCard label="Departures Today" value={stats.departures} href="/admin/bookings" />
           <StatCard label="Occupancy" value={`${stats.occupancyPct}%`} hint={`${stats.inHouse} of ${stats.totalUnits} rooms`} />
-          <StatCard label="Revenue Today" value={`₹${stats.revenueToday.toLocaleString('en-IN')}`} hint="Payments captured today" />
+          <StatCard
+            label="Payments Today"
+            value={stats.paymentsToday === null ? '—' : rupees(stats.paymentsToday)}
+            hint={
+              stats.paymentsToday === null
+                ? 'Could not load'
+                : stats.refundsToday > 0
+                  ? `Online and counter · ${rupees(stats.refundsToday)} refunded`
+                  : 'Online and counter'
+            }
+          />
           <StatCard label="Open Food Orders" value={stats.openOrders} href="/admin/orders" />
           <StatCard label="Rooms Needing Cleaning" value={stats.dirty} href="/admin/housekeeping" />
           <StatCard label="Awaiting Approval" value={stats.awaitingApproval} hint="Bookings needing a decision" href="/admin/bookings" />

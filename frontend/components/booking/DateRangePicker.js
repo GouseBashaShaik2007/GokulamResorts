@@ -38,15 +38,17 @@ function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, onPi
 
           return (
             <button
-              key={i}
+              key={toISO(date)}
               type="button"
+              aria-label={date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              aria-pressed={!!(isStart || isEnd)}
               disabled={disabled || !inMonth}
               onClick={() => onPick(date)}
               onMouseEnter={() => onHover(date)}
               className={`relative flex h-9 items-center justify-center text-sm transition-colors ${
                 !inMonth ? 'invisible' : ''
               } ${disabled ? 'cursor-not-allowed text-navy-700' : 'text-navy-100 hover:bg-navy-800'} ${
-                isStart || isEnd ? 'z-10 rounded-full bg-gold-500 font-semibold text-navy-950 hover:bg-gold-500' : ''
+                isStart || isEnd ? 'z-10 rounded-full bg-ocean-500 font-semibold text-white hover:bg-ocean-500' : ''
               } ${inRange ? 'bg-gold-500/15' : ''}`}
             >
               {date.getDate()}
@@ -120,10 +122,12 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
   const secondMonth = addMonths(viewMonth, 1);
 
   return (
-    <div ref={containerRef} className={`relative ${className || ''}`}>
+    <div ref={containerRef} data-popover-open={open} className={`relative ${className || ''}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         className="flex items-center gap-2 rounded-full bg-transparent text-left text-sm text-navy-50"
       >
         <span aria-hidden>📅</span>
@@ -145,7 +149,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
               <button
                 type="button"
                 onClick={() => setViewMonth((m) => addMonths(m, -1))}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-gold-400"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-gold-600"
                 aria-label="Previous month"
               >
                 ‹
@@ -154,7 +158,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
               <button
                 type="button"
                 onClick={() => setViewMonth((m) => addMonths(m, 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-gold-400"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-gold-600"
                 aria-label="Next month"
               >
                 ›
@@ -185,7 +189,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
             </div>
 
             {checkInDate && (
-              <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3">
+              <div className="mt-3 flex items-center justify-between border-t border-navy-700 pt-3">
                 <p className="text-xs text-navy-400">
                   {checkOutDate ? `${formatShort(checkInDate)} → ${formatShort(checkOutDate)}` : 'Now pick your check-out date'}
                 </p>
@@ -195,7 +199,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
                     onChange({ checkIn: '', checkOut: '' });
                     setHoverDate(null);
                   }}
-                  className="text-xs text-gold-400 hover:underline"
+                  className="text-xs text-gold-600 hover:underline"
                 >
                   Clear
                 </button>

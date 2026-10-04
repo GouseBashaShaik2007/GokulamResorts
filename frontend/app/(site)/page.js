@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Hero from '@/components/Hero';
+import Photo from '@/components/ui/Photo';
 import Reveal from '@/components/motion/Reveal';
 import { RevealStagger, RevealStaggerItem } from '@/components/motion/RevealStagger';
 import RoomSlider from '@/components/site/RoomSlider';
@@ -7,18 +8,7 @@ import RecentlyViewed from '@/components/site/RecentlyViewed';
 import { Price } from '@/components/site/Currency';
 import OpenBookingButton from '@/components/booking/OpenBookingButton';
 import { REVIEWS, GETTING_HERE, PACKAGES, mapEmbedUrl, directionsUrl } from '@/lib/site';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
-async function getRooms() {
-  try {
-    const res = await fetch(`${API_URL}/rooms`, { cache: 'no-store' });
-    if (!res.ok) return [];
-    return (await res.json()).rooms || [];
-  } catch (err) {
-    return []; // backend down — the rooms section says so instead of breaking the page
-  }
-}
+import { getRooms } from '@/lib/server-api';
 
 // Stock photos until the resort's own arrive (data-placeholder="true").
 const EXPERIENCES = [
@@ -73,7 +63,10 @@ export default async function HomePage() {
         {rooms.length > 0 ? (
           <RoomSlider rooms={rooms} />
         ) : (
-          <p className="card p-8 text-center text-navy-300">Rooms are not available to view right now. Please try again shortly.</p>
+          <p className="card p-8 text-center text-navy-300">
+            Rooms are not available to view right now. Please try again shortly, or{' '}
+            <Link href="/contact" className="font-semibold text-ocean-600 underline">contact us</Link>.
+          </p>
         )}
       </section>
 
@@ -85,7 +78,7 @@ export default async function HomePage() {
             {EXPERIENCES.map((x) => (
               <RevealStaggerItem key={x.title}>
                 <ExperienceTile href={x.href}>
-                  <img src={x.image} alt={x.title} data-placeholder="true" className="h-full w-full object-cover" />
+                  <Photo src={x.image} alt="" data-placeholder="true" sizes="(min-width: 1024px) 25vw, 50vw" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" aria-hidden="true" />
                   <div className="absolute inset-x-0 bottom-0 p-5">
                     <h3 className="font-serif text-2xl font-semibold text-white">{x.title}</h3>
@@ -130,7 +123,7 @@ export default async function HomePage() {
             <ul className="mt-6 space-y-4">
               {GETTING_HERE.map((g) => (
                 <li key={g.place} className="flex gap-4">
-                  <span className="w-20 flex-none text-xs font-semibold uppercase tracking-wider text-gold-500">{g.mode}</span>
+                  <span className="w-20 flex-none text-xs font-semibold uppercase tracking-wider text-gold-600">{g.mode}</span>
                   <span>
                     <span className="block font-medium text-navy-50">{g.place}</span>
                     <span className="text-sm text-navy-300">{g.detail}</span>

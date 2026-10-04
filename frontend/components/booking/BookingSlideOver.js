@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import useModal from '../../lib/useModal';
+import { useToast } from '../ui/Toast';
 import { useBooking } from './BookingContext';
 import StayStep from './steps/StayStep';
 import RoomStep from './steps/RoomStep';
@@ -18,28 +20,32 @@ const STEPS = [
 const STEP_COMPONENT = { stay: StayStep, room: RoomStep, guest: GuestStep, pay: PayStep };
 
 export default function BookingSlideOver() {
-  const { isOpen, step, close, hold } = useBooking();
-  const panelRef = useRef(null);
+  const { isOpen, step, close, hold, goTo } = useBooking();
+  const toast = useToast();
 
-  // Lock page scroll while open, restore whatever it was on close.
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const prev = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.documentElement.style.overflow = prev;
-    };
-  }, [isOpen]);
+  // Closing never drops a held room — say so, since the timer keeps running.
+  const requestClose = useCallback(() => {
+    close();
+    if (hold) toast('Your room is still on hold. Tap Book Now to finish paying.', { tone: 'info', duration: 6000 });
+  }, [close, hold, toast]);
 
-  // Esc to close.
+  // Focus trap, Escape, scroll lock, and focus back to the button that opened it.
+  const panelRef = useModal(isOpen, requestClose);
+
+  // Each step starts at the top, with focus on the panel so its heading is read.
+  const firstStep = useRef(true);
   useEffect(() => {
-    if (!isOpen) return undefined;
-    const onKey = (e) => {
-      if (e.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, close]);
+    if (!isOpen) {
+      firstStep.current = true;
+      return;
+    }
+    if (firstStep.current) {
+      firstStep.current = false; // opening is handled by useModal
+      return;
+    }
+    panelRef.current?.scrollTo({ top: 0 });
+    panelRef.current?.focus({ preventScroll: true });
+  }, [step, isOpen, panelRef]);
 
   const StepComponent = STEP_COMPONENT[step];
   const activeIndex = STEPS.findIndex((s) => s.key === step);
@@ -53,41 +59,56 @@ export default function BookingSlideOver() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={close}
+            onClick={requestClose}
           />
           <motion.div
             ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-label="Book a room"
-            className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col overflow-y-auto border-l border-navy-700/60 bg-navy-950 shadow-2xl sm:max-w-xl"
+            tabIndex={-1}
+            className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col overflow-y-auto border-l border-navy-700/60 bg-navy-950 shadow-2xl focus:outline-none sm:max-w-xl"
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
           >
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-              <div className="flex items-center gap-2">
-                {STEPS.map((s, i) => (
-                  <span
-                    key={s.key}
-                    className={`h-1.5 w-6 rounded-full transition-colors ${
-                      i <= activeIndex ? 'bg-gold-500' : 'bg-navy-700'
-                    }`}
-                    title={s.label}
-                  />
-                ))}
-              </div>
+            <div className="flex items-center justify-between gap-4 border-b border-navy-700 px-6 py-4">
+              <ol className="flex flex-1 items-start gap-2" aria-label="Booking steps">
+                {STEPS.map((s, i) => {
+                  const done = i < activeIndex;
+                  const current = i === activeIndex;
+                  // Earlier steps can be revisited until a room is on hold.
+                  const canGoBack = done && !hold;
+                  const label = (
+                    <>
+                      <span className={`block h-1.5 rounded-full transition-colors ${i <= activeIndex ? 'bg-ocean-500' : 'bg-navy-700'}`} />
+                      <span className={`mt-1.5 block text-[0.7rem] ${current ? 'font-semibold text-navy-50' : 'text-navy-400'}`}>{s.label}</span>
+                    </>
+                  );
+                  return (
+                    <li key={s.key} className="flex-1" aria-current={current ? 'step' : undefined}>
+                      {canGoBack ? (
+                        <button type="button" onClick={() => goTo(s.key)} className="block w-full rounded text-left hover:opacity-80" aria-label={`Back to ${s.label}`}>
+                          {label}
+                        </button>
+                      ) : (
+                        label
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
               <button
-                type="button" onClick={close} aria-label="Close booking panel"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-navy-50"
+                type="button" onClick={requestClose} aria-label="Close booking panel"
+                className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-navy-50"
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </button>
             </div>
 
             {hold && step !== 'pay' && (
-              <div className="border-b border-white/10 bg-gold-500/5 px-6 py-2 text-xs text-gold-400">
+              <div className="border-b border-navy-700 bg-gold-500/5 px-6 py-2 text-xs text-gold-600">
                 You have a room on hold — return to Payment to finish.
               </div>
             )}

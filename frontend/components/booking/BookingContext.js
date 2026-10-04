@@ -2,21 +2,55 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useBookingCheckout } from '../../lib/useBookingCheckout';
-import { errMsg } from '../../lib/bookingUi';
+import { errMsg, todayIST } from '../../lib/bookingUi';
 
 const BookingCtx = createContext(null);
+
+const STAY_KEY = 'gokulam_booking_stay';
+const HOLD_KEY = 'gokulam_booking_hold';
 
 const emptyStay = { checkIn: '', checkOut: '', adults: 1, children: 0 };
 const emptyGuest = { name: '', email: '', phone: '', specialRequests: '' };
 
+const LIMITS = { adults: [1, 10], children: [0, 6] };
+
+// What a guest-count field may hold: '' while it is being retyped, otherwise a
+// whole number inside the allowed range. Never 0 adults, never 99.
+function cleanCount(key, value) {
+  if (value === '' || value === null || value === undefined) return '';
+  const [min, max] = LIMITS[key];
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+}
+
+// The number to actually book with (an empty field counts as the minimum).
+const countOf = (key, value) => (cleanCount(key, value) === '' ? LIMITS[key][0] : cleanCount(key, value));
+
 function loadPersistedStay() {
-  if (typeof window === 'undefined') return emptyStay;
   try {
-    const raw = window.sessionStorage.getItem('gokulam_booking_stay');
-    return raw ? { ...emptyStay, ...JSON.parse(raw) } : emptyStay;
+    const raw = window.sessionStorage.getItem(STAY_KEY);
+    if (!raw) return emptyStay;
+    const saved = { ...emptyStay, ...JSON.parse(raw) };
+    // A tab left open overnight: yesterday's check-in can't be booked.
+    if (saved.checkIn && saved.checkIn < todayIST()) {
+      saved.checkIn = '';
+      saved.checkOut = '';
+    }
+    return { ...saved, adults: cleanCount('adults', saved.adults), children: cleanCount('children', saved.children) };
   } catch {
     return emptyStay;
   }
+}
+
+// A room held for payment earlier in this tab, if its hold is still running.
+function loadPersistedHold() {
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(HOLD_KEY) || 'null');
+    if (saved?.hold?.holdExpiresAt && new Date(saved.hold.holdExpiresAt).getTime() > Date.now()) return saved;
+  } catch {
+    // unreadable — treat as no hold
+  }
+  return null;
 }
 
 export function BookingProvider({ children }) {
@@ -26,17 +60,43 @@ export function BookingProvider({ children }) {
   const [step, setStep] = useState('stay'); // 'stay' | 'room' | 'guest' | 'pay'
   const [stay, setStayState] = useState(emptyStay);
   const [roomTypeFilter, setRoomTypeFilter] = useState(null);
+  // The room type of the room page currently on screen, if any — so "Book"
+  // from the navbar or floating bar continues with that room, not all rooms.
+  const [pageRoomTypeId, setPageRoomTypeId] = useState(null);
   const [pick, setPick] = useState(null);
   const [guest, setGuestState] = useState(emptyGuest);
   const [hold, setHold] = useState(null); // {bookingId, holdExpiresAt, orderId, amount, currency, keyId, mock}
   const [status, setStatus] = useState('idle'); // idle | booking | paying | error
   const [error, setError] = useState('');
+  const [restored, setRestored] = useState(false);
 
-  useEffect(() => setStayState(loadPersistedStay()), []);
+  // Restore after a refresh: the dates, and a room still on hold for payment.
+  // Without this a reload on the payment step loses the hold, and the guest's
+  // own hold then blocks them from re-booking the room until it expires.
+  useEffect(() => {
+    setStayState(loadPersistedStay());
+    const saved = loadPersistedHold();
+    if (saved) {
+      setHold(saved.hold);
+      setPick(saved.pick || null);
+      setGuestState({ ...emptyGuest, ...saved.guest });
+    }
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restored) return; // don't wipe the saved hold before it has been read
+    try {
+      if (hold) window.sessionStorage.setItem(HOLD_KEY, JSON.stringify({ hold, pick, guest }));
+      else window.sessionStorage.removeItem(HOLD_KEY);
+    } catch {
+      // storage blocked — the hold just won't survive a refresh
+    }
+  }, [restored, hold, pick, guest]);
 
   const persistStay = useCallback((next) => {
     try {
-      window.sessionStorage.setItem('gokulam_booking_stay', JSON.stringify(next));
+      window.sessionStorage.setItem(STAY_KEY, JSON.stringify(next));
     } catch {
       // ignore — non-essential convenience
     }
@@ -45,7 +105,8 @@ export function BookingProvider({ children }) {
   const setStay = useCallback(
     (partial) => {
       setStayState((s) => {
-        const next = typeof partial === 'function' ? partial(s) : { ...s, ...partial };
+        const merged = typeof partial === 'function' ? partial(s) : { ...s, ...partial };
+        const next = { ...merged, adults: cleanCount('adults', merged.adults), children: cleanCount('children', merged.children) };
         persistStay(next);
         return next;
       });
@@ -65,11 +126,14 @@ export function BookingProvider({ children }) {
   }, []);
 
   const datesValid = !!(stay.checkIn && stay.checkOut && stay.checkOut > stay.checkIn);
+  const adults = countOf('adults', stay.adults);
+  const kids = countOf('children', stay.children);
 
   const openBooking = useCallback(
     (prefill = {}) => {
       setError('');
-      if (prefill.roomTypeId) setRoomTypeFilter(prefill.roomTypeId);
+      const typeId = prefill.roomTypeId || pageRoomTypeId;
+      if (typeId) setRoomTypeFilter(typeId);
 
       if (hold) {
         // A hold from earlier in this session is still live — resume there
@@ -82,7 +146,7 @@ export function BookingProvider({ children }) {
       }
       setIsOpen(true);
     },
-    [hold, datesValid]
+    [hold, datesValid, pageRoomTypeId]
   );
 
   const close = useCallback(() => setIsOpen(false), []);
@@ -96,6 +160,16 @@ export function BookingProvider({ children }) {
     setError('');
     setStep('stay');
     setIsOpen(false);
+  }, []);
+
+  // The hold ran out: drop it and the picked room, but keep the dates and the
+  // guest's details so they only have to choose a room again.
+  const releaseHold = useCallback(() => {
+    setHold(null);
+    setPick(null);
+    setStatus('idle');
+    setError('');
+    setStep('room');
   }, []);
 
   // Room + order creation, then either the mock confirm UI or a live
@@ -112,8 +186,8 @@ export function BookingProvider({ children }) {
         roomUnitId: pick.unit.id,
         checkIn: stay.checkIn,
         checkOut: stay.checkOut,
-        adults: stay.adults,
-        children: stay.children,
+        adults,
+        children: kids,
         guest,
       });
       setHold(order);
@@ -150,7 +224,7 @@ export function BookingProvider({ children }) {
         setStep('room');
       }
     }
-  }, [pick, stay, guest, checkout, reset]);
+  }, [pick, stay.checkIn, stay.checkOut, adults, kids, guest, checkout, reset]);
 
   // Re-open Razorpay for an existing order (e.g. the guest dismissed it,
   // or closed and reopened the panel) without re-holding the room.
@@ -179,7 +253,7 @@ export function BookingProvider({ children }) {
       setStatus('error');
       setError(err.message || 'Could not open checkout. Please try again.');
     }
-  }, [hold, pick, stay, guest, checkout, reset]);
+  }, [hold, pick, stay.checkIn, stay.checkOut, guest, checkout, reset]);
 
   const confirmMock = useCallback(async () => {
     if (!hold) return;
@@ -194,14 +268,21 @@ export function BookingProvider({ children }) {
     }
   }, [hold, checkout, reset]);
 
+  const clearRoomTypeFilter = useCallback(() => setRoomTypeFilter(null), []);
+
   const value = useMemo(
     () => ({
       isOpen,
       step,
       stay,
       datesValid,
+      // Guest counts as numbers, safe to send or add up (stay.adults may be '' mid-edit).
+      adults,
+      children: kids,
+      guests: adults + kids,
       roomTypeFilter,
-      clearRoomTypeFilter: () => setRoomTypeFilter(null),
+      clearRoomTypeFilter,
+      setPageRoomTypeId,
       pick,
       setPick,
       guest,
@@ -214,6 +295,7 @@ export function BookingProvider({ children }) {
       openBooking,
       close,
       reset,
+      releaseHold,
       submitAndPay,
       resumePayment,
       confirmMock,
@@ -223,7 +305,10 @@ export function BookingProvider({ children }) {
       step,
       stay,
       datesValid,
+      adults,
+      kids,
       roomTypeFilter,
+      clearRoomTypeFilter,
       pick,
       guest,
       hold,
@@ -235,6 +320,7 @@ export function BookingProvider({ children }) {
       openBooking,
       close,
       reset,
+      releaseHold,
       submitAndPay,
       resumePayment,
       confirmMock,

@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/api';
+import api, { TOKEN_KEYS } from '@/lib/api';
 import { markSignedIn } from '../../_lib/session';
 
-const TOKEN_KEY = 'gokulam_admin_token';
+const TOKEN_KEY = TOKEN_KEYS.admin;
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -49,15 +49,18 @@ export default function AdminLoginPage() {
               value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
             />
           </div>
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
           <button type="submit" disabled={loading} className="btn-gold w-full disabled:opacity-60">
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <p className="mt-4 text-center text-xs text-navy-400">
-          Default credentials come from ADMIN_EMAIL / ADMIN_PASSWORD in the backend .env (set via{' '}
-          <code className="text-gold-400">npm run db:seed</code>).
-        </p>
+        {/* Setup hint for developers only — never shown on the deployed site. */}
+        {process.env.NODE_ENV === 'development' && (
+          <p className="mt-4 text-center text-xs text-navy-400">
+            Default credentials come from ADMIN_EMAIL / ADMIN_PASSWORD in the backend .env (set via{' '}
+            <code className="text-gold-600">npm run db:seed</code>).
+          </p>
+        )}
       </div>
     </div>
   );

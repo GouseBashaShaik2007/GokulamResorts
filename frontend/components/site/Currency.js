@@ -25,7 +25,7 @@ export function CurrencyProvider({ children }) {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) setCurrencyState(saved);
+      if (CURRENCIES.some((c) => c.code === saved)) setCurrencyState(saved);
     } catch {
       // storage unavailable — stay on INR
     }

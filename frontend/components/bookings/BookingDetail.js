@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import api, { authFor } from '../../lib/api';
+import useModal from '../../lib/useModal';
+import { useConfirm } from '@/components/ui/Confirm';
 import {
   StatusBadge, inr, fmtDate, fmtDateTime, nightsBetween, todayIST, addDays, errMsg, ID_TYPES,
 } from '../../lib/bookingUi';
@@ -63,6 +65,7 @@ const btn = 'rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50';
 export default function BookingDetail({ bookingId, mode, onClose, onChanged, refreshKey }) {
   const auth = authFor(mode);
   const isAdmin = mode === 'admin';
+  const ask = useConfirm();
   const [b, setB] = useState(null);
   const [panel, setPanel] = useState(null);
   const [form, setForm] = useState({});
@@ -182,29 +185,29 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
 
       <div className="px-6 pb-8">
         {b.status === 'paid' && b.hold_expires_at && (
-          <p className="mt-3 rounded-lg bg-gold-500/10 px-3 py-2 text-sm text-gold-300">
+          <p className="mt-3 rounded-lg bg-gold-500/10 px-3 py-2 text-sm text-gold-700">
             Waiting for manager approval — auto-cancels with full refund at {fmtDateTime(b.hold_expires_at)}.
           </p>
         )}
         {b.close_reason && <p className="mt-3 rounded-lg bg-navy-800 px-3 py-2 text-sm text-navy-200">Reason: {b.close_reason}</p>}
-        {notice && <p className="mt-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300">{notice}</p>}
-        {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+        {notice && <p className="mt-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-700">{notice}</p>}
+        {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         {/* ---------------- Actions ---------------- */}
         <div className="mt-4 flex flex-wrap gap-2">
           {isAdmin && b.status === 'paid' && (
             <>
-              <button disabled={busy} onClick={() => run(() => adminPost('/approve'), 'Approved — guest notified')} className={`${btn} bg-green-500 text-navy-950`}>
+              <button disabled={busy} onClick={() => run(() => adminPost('/approve'), 'Approved — guest notified')} className={`${btn} bg-green-700 text-white`}>
                 Approve
               </button>
-              <button disabled={busy} onClick={() => open('reject')} className={`${btn} border border-red-500/60 text-red-300`}>Reject</button>
+              <button disabled={busy} onClick={() => open('reject')} className={`${btn} border border-red-500/60 text-red-700`}>Reject</button>
             </>
           )}
           {b.status === 'confirmed' && (
             <button
               disabled={busy || !!checkInBlock}
               onClick={() => run(() => post('/check-in'), 'Checked in')}
-              className={`${btn} bg-gold-500 text-navy-950`}
+              className={`${btn} bg-ocean-500 text-white`}
               title={checkInBlock || ''}
             >
               Check in{checkInBlock ? ` · ${checkInBlock}` : ''}
@@ -213,19 +216,22 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
           {b.status === 'checked_in' && (
             <button
               disabled={busy || due > 0}
-              onClick={() => {
+              onClick={async () => {
                 const early = today < b.check_out;
-                if (!early || confirm(`Early check-out: the stay ends today instead of ${fmtDate(b.check_out)}. No automatic refund for unused nights. Continue?`)) {
-                  run(() => post('/check-out'), 'Checked out — housekeeping notified');
-                }
+                const ok = !early || (await ask({
+                  title: 'Check out early?',
+                  body: `The stay ends today instead of ${fmtDate(b.check_out)}. There is no automatic refund for the unused nights.`,
+                  confirmLabel: 'Check out today',
+                }));
+                if (ok) run(() => post('/check-out'), 'Checked out — housekeeping notified');
               }}
-              className={`${btn} bg-gold-500 text-navy-950`}
+              className={`${btn} bg-ocean-500 text-white`}
             >
               Check out{due > 0 ? ` · collect ${inr(due)}` : ''}
             </button>
           )}
           {['confirmed', 'checked_in'].includes(b.status) && due > 0 && (
-            <button disabled={busy} onClick={() => open('payment', { amount: due, method: 'cash' })} className={`${btn} bg-green-500 text-navy-950`}>
+            <button disabled={busy} onClick={() => open('payment', { amount: due, method: 'cash' })} className={`${btn} bg-green-700 text-white`}>
               Record payment
             </button>
           )}
@@ -242,19 +248,27 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
           {b.status === 'confirmed' && today >= b.check_in && (
             <button
               disabled={busy}
-              onClick={() => confirm('Mark as no-show? The room is released and the payment is kept (no refund).') && run(() => post('/no-show'), 'Marked no-show')}
-              className={`${btn} border border-orange-400/50 text-orange-300`}
+              onClick={async () => {
+                const ok = await ask({
+                  title: 'Mark as no-show?',
+                  body: 'The room is released and the payment is kept. There is no refund.',
+                  confirmLabel: 'Mark no-show',
+                  danger: true,
+                });
+                if (ok) run(() => post('/no-show'), 'Marked no-show');
+              }}
+              className={`${btn} border border-orange-400/50 text-orange-700`}
             >
               No-show
             </button>
           )}
           {isAdmin && ['paid', 'confirmed', 'checked_in'].includes(b.status) && (
-            <button disabled={busy} onClick={() => open('discount', { type: 'percent', value: '' })} className={`${btn} border border-gold-500/50 text-gold-400`}>
+            <button disabled={busy} onClick={() => open('discount', { type: 'percent', value: '' })} className={`${btn} border border-gold-500/50 text-gold-600`}>
               Discount
             </button>
           )}
           {isAdmin && ['pending_payment', 'paid', 'confirmed'].includes(b.status) && (
-            <button disabled={busy} onClick={() => open('cancel')} className={`${btn} border border-red-500/40 text-red-300`}>
+            <button disabled={busy} onClick={() => open('cancel')} className={`${btn} border border-red-500/40 text-red-700`}>
               Cancel booking
             </button>
           )}
@@ -274,7 +288,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
               {b.payments.some((p) => p.method !== 'razorpay') ? '(counter payments are refunded at the desk)' : 'to the original payment method'}.
             </p>
             <input required minLength={3} className="input-field py-2 text-sm" placeholder="Reason (required)" value={form.reason || ''} onChange={set('reason')} />
-            <button disabled={busy} className={`${btn} bg-red-500 text-white`}>Confirm {panel}</button>
+            <button disabled={busy} className={`${btn} bg-red-600 text-white`}>Confirm {panel}</button>
           </form>
         )}
 
@@ -297,7 +311,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             <p className="text-xs text-navy-400">
               Replaces any earlier manual discount (0 removes it). Applied after promotions. If the guest already paid more than the new total, the difference is refunded automatically.
             </p>
-            <button disabled={busy} className={`${btn} bg-gold-500 text-navy-950`}>Apply discount</button>
+            <button disabled={busy} className={`${btn} bg-ocean-500 text-white`}>Apply discount</button>
           </form>
         )}
 
@@ -316,7 +330,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
               </select>
             </div>
             <input required minLength={2} className="input-field py-2 text-sm" placeholder="Reference — receipt no. / UPI UTR / card slip no." value={form.reference || ''} onChange={set('reference')} />
-            <button disabled={busy} className={`${btn} bg-green-500 text-navy-950`}>Save payment</button>
+            <button disabled={busy} className={`${btn} bg-green-700 text-white`}>Save payment</button>
           </form>
         )}
 
@@ -330,9 +344,9 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
           >
             <div>
               <label className="label">New check-out</label>
-              <input required type="date" min={addDays(b.check_out, 1)} className="input-field py-2 text-sm" value={form.checkOut} onChange={set('checkOut')} />
+              <input aria-label="New check-out" required type="date" min={addDays(b.check_out, 1)} className="input-field py-2 text-sm" value={form.checkOut} onChange={set('checkOut')} />
             </div>
-            <button disabled={busy} className={`${btn} bg-gold-500 text-navy-950`}>Extend</button>
+            <button disabled={busy} className={`${btn} bg-ocean-500 text-white`}>Extend</button>
             <p className="w-full text-xs text-navy-400">Extra nights use current rates and promotions and are added as a balance due.</p>
           </form>
         )}
@@ -342,33 +356,33 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             <div className="grid gap-2 sm:grid-cols-2">
               <div>
                 <label className="label">Guest name (as on ID)</label>
-                <input required className="input-field py-2 text-sm" value={form.guestName} onChange={set('guestName')} />
+                <input aria-label="Guest name (as on ID)" required className="input-field py-2 text-sm" value={form.guestName} onChange={set('guestName')} />
               </div>
               <div>
                 <label className="label">ID type</label>
-                <select className="input-field py-2 text-sm" value={form.idType} onChange={set('idType')}>
+                <select aria-label="ID type" className="input-field py-2 text-sm" value={form.idType} onChange={set('idType')}>
                   {ID_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Last 4 characters of ID no.</label>
-                <input required maxLength={4} pattern="[A-Za-z0-9]{4}" className="input-field py-2 text-sm tracking-widest" placeholder="1234" value={form.idLast4 || ''} onChange={set('idLast4')} />
+                <input aria-label="Last 4 characters of ID no." required maxLength={4} pattern="[A-Za-z0-9]{4}" className="input-field py-2 text-sm tracking-widest" placeholder="1234" value={form.idLast4 || ''} onChange={set('idLast4')} />
               </div>
               <div>
                 <label className="label">Nationality</label>
-                <input className="input-field py-2 text-sm" value={form.nationality} onChange={set('nationality')} />
+                <input aria-label="Nationality" className="input-field py-2 text-sm" value={form.nationality} onChange={set('nationality')} />
               </div>
             </div>
             <div>
               <label className="label">Photo or PDF of the ID (max 5 MB)</label>
-              <input
-                required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment"
+              <input aria-label="Photo or PDF of the ID (max 5 MB)"
+                required type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
                 className="block w-full text-sm text-navy-200 file:mr-3 file:rounded-lg file:border-0 file:bg-navy-700 file:px-3 file:py-2 file:text-navy-100"
                 onChange={(e) => setForm((f) => ({ ...f, file: e.target.files[0] }))}
               />
             </div>
             {form.idType === 'Aadhaar' && (
-              <label className="flex items-start gap-2 rounded-lg bg-gold-500/10 p-3 text-sm text-gold-200">
+              <label className="flex items-start gap-2 rounded-lg bg-gold-500/10 p-3 text-sm text-gold-800">
                 <input type="checkbox" className="mt-1" checked={!!form.maskedConfirmed} onChange={set('maskedConfirmed')} />
                 The first 8 digits are covered in this image — only the last 4 digits are visible (masked Aadhaar).
               </label>
@@ -380,7 +394,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             <p className="text-xs text-navy-400">
               By saving you confirm you checked the original ID against the guest. The file is stored privately and only managers can open it.
             </p>
-            <button disabled={busy || (form.idType === 'Aadhaar' && !form.maskedConfirmed)} className={`${btn} bg-gold-500 text-navy-950`}>
+            <button disabled={busy || (form.idType === 'Aadhaar' && !form.maskedConfirmed)} className={`${btn} bg-ocean-500 text-white`}>
               Save verified ID
             </button>
           </form>
@@ -418,7 +432,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
           ))}
           <Row label={Number(b.tax_amount) > 0 ? 'Total incl. GST' : 'Total'} strong>{inr(b.total_amount)}</Row>
           <Row label="Paid (net of refunds)">{inr(b.amount_paid)}</Row>
-          <Row label="Balance due" strong>{due > 0 ? <span className="text-red-300">{inr(due)}</span> : inr(0)}</Row>
+          <Row label="Balance due" strong>{due > 0 ? <span className="text-red-700">{inr(due)}</span> : inr(0)}</Row>
 
           {b.payments.length > 0 && (
             <ul className="mt-3 space-y-1 text-xs text-navy-300">
@@ -439,7 +453,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-navy-300">
                   <span>
                     − {inr(r.amount)} refund · {r.method.toUpperCase()} ·{' '}
-                    <span className={r.status === 'failed' ? 'text-red-300' : r.status === 'pending' ? 'text-gold-400' : 'text-green-300'}>{r.status}</span>
+                    <span className={r.status === 'failed' ? 'text-red-700' : r.status === 'pending' ? 'text-gold-600' : 'text-green-700'}>{r.status}</span>
                     {r.reference ? ` · ${r.reference}` : ''} — {r.reason}
                   </span>
                 </li>
@@ -458,7 +472,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
               <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-navy-800 px-3 py-2 text-sm">
                 <span className="text-navy-100">
                   {d.guest_name}
-                  {d.is_primary && <span className="ml-2 rounded bg-gold-500/15 px-1.5 text-[10px] uppercase text-gold-400">Primary</span>}
+                  {d.is_primary && <span className="ml-2 rounded bg-gold-500/15 px-1.5 text-[10px] uppercase text-gold-600">Primary</span>}
                   <span className="block text-xs text-navy-400">
                     {ID_TYPES.find((t) => t.value === d.id_type)?.label.replace(' (masked)', '')} ····{d.id_last4} · {d.nationality} · verified by {d.verified_by} {fmtDateTime(d.verified_at)}
                     {d.purged_at && ` · file deleted ${fmtDate(d.purged_at)}`}
@@ -466,12 +480,15 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
                 </span>
                 <span className="flex gap-2">
                   {isAdmin && !d.purged_at && (
-                    <button onClick={() => viewDocument(d.id)} className="text-xs text-gold-400 underline">View</button>
+                    <button onClick={() => viewDocument(d.id)} className="text-xs text-gold-600 underline">View</button>
                   )}
                   {b.status === 'confirmed' && (
                     <button
-                      onClick={() => confirm('Remove this ID?') && run(() => api.delete(`/desk/bookings/${b.id}/documents/${d.id}`, auth()), 'ID removed')}
-                      className="text-xs text-red-300 underline"
+                      onClick={async () => {
+                        const ok = await ask({ title: `Remove the ID for ${d.guest_name}?`, confirmLabel: 'Remove ID', danger: true });
+                        if (ok) run(() => api.delete(`/desk/bookings/${b.id}/documents/${d.id}`, auth()), 'ID removed');
+                      }}
+                      className="text-xs text-red-700 underline"
                     >
                       Remove
                     </button>
@@ -526,20 +543,29 @@ function PayoutForm({ refund, auth, onDone, onError }) {
         }
       }}
     >
-      <span className="text-gold-300">Pay back {inr(refund.amount)}:</span>
+      <span className="text-gold-700">Pay back {inr(refund.amount)}:</span>
       <select className="rounded border border-navy-600 bg-navy-800 px-2 py-1" value={method} onChange={(e) => setMethod(e.target.value)}>
         {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
       </select>
       <input required minLength={2} className="flex-1 rounded border border-navy-600 bg-navy-800 px-2 py-1" placeholder="Reference" value={reference} onChange={(e) => setReference(e.target.value)} />
-      <button className="rounded bg-gold-500 px-3 py-1 font-medium text-navy-950">Paid out</button>
+      <button className="rounded bg-ocean-500 px-3 py-1 font-medium text-white">Paid out</button>
     </form>
   );
 }
 
 function Shell({ children, onClose }) {
+  const ref = useModal(true, onClose); // focus trap, Escape, scroll lock, focus return
   return (
     <div className="fixed inset-0 z-[60] flex justify-end bg-black/60" onClick={onClose}>
-      <div className="h-full w-full max-w-xl overflow-y-auto bg-navy-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Booking details"
+        tabIndex={-1}
+        className="h-full w-full max-w-xl overflow-y-auto bg-navy-900 shadow-2xl focus:outline-none"
+        onClick={(e) => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>

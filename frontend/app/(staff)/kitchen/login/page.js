@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/api';
+import api, { TOKEN_KEYS } from '@/lib/api';
 import { markSignedIn } from '../../_lib/session';
 
-const TOKEN_KEY = 'gokulam_kitchen_token';
+const TOKEN_KEY = TOKEN_KEYS.kitchen;
 const STAFF_KEY = 'gokulam_kitchen_staff';
 const MAX_PIN = 6;
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
@@ -70,9 +70,10 @@ export default function KitchenLoginPage() {
             }`}
           />
         ))}
+        <span className="sr-only">{pin.length} of up to {MAX_PIN} digits entered</span>
       </div>
 
-      {error && <p className="mt-4 text-sm font-semibold text-red-400">{error}</p>}
+      {error && <p role="alert" className="mt-4 text-sm font-semibold text-red-400">{error}</p>}
 
       <div className="mt-8 grid w-full max-w-xs grid-cols-3 gap-3">
         {KEYS.map((key, i) => (
@@ -81,10 +82,11 @@ export default function KitchenLoginPage() {
             type="button"
             disabled={!key || loading}
             onClick={() => press(key)}
+            aria-label={key === '⌫' ? 'Delete last digit' : undefined}
             className={`h-16 rounded-2xl text-2xl font-bold transition active:scale-95 ${
               key
                 ? key === '⌫'
-                  ? 'bg-neutral-800 text-neutral-300'
+                  ? 'bg-neutral-700 text-neutral-200'
                   : 'bg-neutral-800 text-white hover:bg-neutral-700'
                 : 'invisible'
             }`}

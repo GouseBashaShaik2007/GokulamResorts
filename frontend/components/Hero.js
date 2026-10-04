@@ -1,8 +1,9 @@
+import Image from 'next/image';
 import ReviewBadge from './site/ReviewBadge';
 import HeroBookingForm from './site/HeroBookingForm';
 
 // TODO(owner): replace with the resort's own photo (or a silent 8-second wave
-// loop: add <video autoPlay muted loop playsInline poster=...> in place of <img>).
+// loop: add <video autoPlay muted loop playsInline poster=...> in place of <Image>).
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80';
 
 /**
@@ -12,14 +13,17 @@ const HERO_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e
  */
 export default function Hero() {
   return (
-    <section className="relative -mt-[72px]">
-      <div className="relative h-[88vh] min-h-[560px] w-full overflow-hidden">
-        <img
+    <section className="relative -mt-[var(--nav-h)]">
+      <div className="relative h-[88vh] min-h-[560px] supports-[height:1svh]:h-[88svh] w-full overflow-hidden">
+        {/* The page's largest image: sized per device and loaded first. */}
+        <Image
           src={HERO_IMAGE}
           alt="Waves on a quiet beach at sunrise"
           data-placeholder="true"
-          className="absolute inset-0 h-full w-full object-cover"
-          fetchPriority="high"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" aria-hidden="true" />
 

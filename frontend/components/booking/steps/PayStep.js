@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useBooking } from '../BookingContext';
 import { inr } from '../../../lib/bookingUi';
+import StaySummary from '../StaySummary';
 
 function useCountdown(target) {
   const [remaining, setRemaining] = useState(null);
@@ -17,7 +18,7 @@ function useCountdown(target) {
 }
 
 export default function PayStep() {
-  const { hold, pick, status, error, resumePayment, confirmMock, reset, goTo } = useBooking();
+  const { hold, pick, status, error, resumePayment, confirmMock, reset, releaseHold, goTo } = useBooking();
   const remainingMs = useCountdown(hold?.holdExpiresAt);
   const expired = remainingMs !== null && remainingMs <= 0;
 
@@ -35,14 +36,19 @@ export default function PayStep() {
       <div className="space-y-4 text-center">
         <p className="eyebrow">Hold Expired</p>
         <h2 className="font-serif text-2xl font-semibold text-navy-50">Your room hold has expired</h2>
-        <p className="text-sm text-navy-400">Please choose your dates and room again.</p>
-        <button type="button" onClick={reset} className="btn-gold">Start Over</button>
+        <p className="text-sm text-navy-400">
+          Nothing was charged. Your dates and details are still here — just pick a room again.
+        </p>
+        <button type="button" onClick={releaseHold} className="btn-gold">Choose a room again</button>
       </div>
     );
   }
 
   const minutes = remainingMs !== null ? Math.floor(remainingMs / 60000) : null;
   const seconds = remainingMs !== null ? Math.floor((remainingMs % 60000) / 1000) : null;
+  const amount = hold.amount / 100;
+  // Simulated payments exist for development only; the API refuses them in production.
+  const canSimulate = hold.mock && process.env.NODE_ENV !== 'production';
 
   return (
     <div className="space-y-6">
@@ -51,25 +57,23 @@ export default function PayStep() {
         <h2 className="mt-1 font-serif text-2xl font-semibold text-navy-50">Payment</h2>
         {minutes !== null && (
           <p className="mt-1 text-sm text-navy-400">
-            Room held for {minutes}:{String(seconds).padStart(2, '0')}
+            Room held for <span className="font-semibold text-navy-50 [font-variant-numeric:tabular-nums]">{minutes}:{String(seconds).padStart(2, '0')}</span>
           </p>
         )}
       </div>
 
-      <div className="rounded-xl border border-navy-700 bg-navy-800 p-5">
-        {pick && <p className="text-sm text-navy-300">Room {pick.unit.unitNumber}</p>}
-        <p className="price mt-1 text-3xl">{inr(hold.amount / 100)}</p>
-        {pick?.quote?.taxDetails?.length > 0 && (
-          <p className="mt-1 text-xs text-navy-400">
-            Includes {pick.quote.taxDetails.map((t) => `GST ${t.rate}% ${inr(t.tax)}`).join(' + ')}
-          </p>
-        )}
-        <p className="mt-2 text-xs font-semibold text-gold-500">Best rate when you book direct</p>
-      </div>
+      {pick ? (
+        <StaySummary total={amount} />
+      ) : (
+        <div className="rounded-xl border border-navy-700 bg-navy-900 p-5">
+          <p className="text-sm text-navy-300">Total to pay</p>
+          <p className="price mt-1 text-3xl">{inr(amount)}</p>
+        </div>
+      )}
 
-      {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
+      {error && <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-      {hold.mock ? (
+      {canSimulate && (
         <div className="space-y-2">
           <p className="text-center text-xs text-navy-400">
             No live payment gateway is connected yet — simulate a successful payment to send this booking to the
@@ -82,14 +86,24 @@ export default function PayStep() {
             {status === 'paying' ? 'Confirming...' : 'Simulate Successful Payment'}
           </button>
         </div>
-      ) : (
+      )}
+      {hold.mock && !canSimulate && (
+        <p role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">
+          Online payment isn&apos;t available right now. Please contact the resort to complete this booking.
+        </p>
+      )}
+      {!hold.mock && (
         <button
           type="button" onClick={resumePayment} disabled={status === 'paying'}
           className="btn-gold w-full disabled:opacity-60"
         >
-          {status === 'paying' ? 'Waiting for payment...' : `Pay ${inr(hold.amount / 100)}`}
+          {status === 'paying' ? 'Waiting for payment...' : `Pay ${inr(amount)}`}
         </button>
       )}
+
+      <p className="text-center text-xs text-navy-400">
+        The resort confirms within 24 hours. If it can&apos;t, you are refunded in full automatically.
+      </p>
 
       <button type="button" onClick={reset} className="w-full text-center text-xs text-navy-400 hover:underline">
         Start over

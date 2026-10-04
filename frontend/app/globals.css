@@ -2,8 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
+/* Height of the sticky guest navbar. The hero slides under it and the sticky
+   filter / menu bars sit just below it. */
+:root {
+  --nav-h: 72px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -33,13 +41,13 @@ body {
 }
 
 .eyebrow {
-  @apply font-sans text-[0.75rem] font-medium uppercase tracking-[0.28em] text-gold-400;
+  @apply font-sans text-[0.75rem] font-medium uppercase tracking-[0.28em] text-gold-600;
 }
 
 /* Price figures — Inter with tabular lining numerals, not the serif's
    oldstyle numerals ("₹6,5oo"). Pair with a size utility at each usage. */
 .price {
-  @apply font-sans font-semibold text-gold-500 [font-variant-numeric:lining-nums_tabular-nums];
+  @apply font-sans font-semibold text-gold-600 [font-variant-numeric:lining-nums_tabular-nums];
 }
 
 .card {
@@ -48,7 +56,7 @@ body {
 
 /* Frosted panel — the floating booking bar, badges overlapping imagery, etc. */
 .glass {
-  @apply border border-white/10 bg-navy-950/60 shadow-glass backdrop-blur-xl;
+  @apply border border-navy-700 bg-navy-950/60 shadow-glass backdrop-blur-xl;
 }
 
 /* Hover-only image zoom. Gated to real pointer devices so it never fires on
