@@ -4,11 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import api, { TOKEN_KEYS, withAdminAuth } from '../../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
-import useCleaningSocket, { LiveBadge } from '../../../lib/useCleaningSocket';
+import useCleaningSocket, { LiveBadge, StaleNotice } from '../../../lib/useCleaningSocket';
 import { errMsg } from '../../../lib/bookingUi';
 import JobCard from './JobCard';
 import RoomStatusBoard from './RoomStatusBoard';
-import { PRIORITIES } from './shared';
+import { PRIORITIES, TASK_ROLES } from '../../housekeeping/shared';
 
 function MarkDirtyForm({ units, openUnitIds, onCreated, onError }) {
   const [form, setForm] = useState({ roomUnitId: '', priority: 'Normal', notes: '' });
@@ -53,6 +53,70 @@ function MarkDirtyForm({ units, openUnitIds, onCreated, onError }) {
   );
 }
 
+// After a busy checkout morning: give every task that has nobody on it to one
+// person per role, in one go, instead of three dropdowns on every card.
+function AssignAll({ jobs, staff, onDone, onError }) {
+  const [picks, setPicks] = useState({}); // role type -> staff id
+  const [busy, setBusy] = useState(false);
+
+  // Tasks still waiting for someone, by type.
+  const waiting = (type) => jobs.filter((j) => j.status !== 'Ready' && j.tasks?.[type] && !j.tasks[type].assigned_staff_id && j.tasks[type].status !== 'Completed');
+  const total = TASK_ROLES.reduce((n, r) => n + waiting(r.type).length, 0);
+  if (total === 0) return null;
+
+  const chosen = TASK_ROLES.filter((r) => picks[r.type] && waiting(r.type).length > 0);
+
+  const assign = async () => {
+    setBusy(true);
+    let done = 0;
+    try {
+      const jobIds = new Set(chosen.flatMap((r) => waiting(r.type).map((j) => j.id)));
+      for (const id of jobIds) {
+        const job = jobs.find((j) => j.id === id);
+        const body = Object.fromEntries(chosen.filter((r) => waiting(r.type).includes(job)).map((r) => [r.field, Number(picks[r.type])]));
+        // eslint-disable-next-line no-await-in-loop -- one room at a time keeps the board's live updates in order
+        await api.put(`/admin/cleaning/jobs/${id}/assign`, body, withAdminAuth());
+        done += 1;
+      }
+      onDone(`${done} room${done === 1 ? '' : 's'} assigned.`);
+      setPicks({});
+    } catch (err) {
+      onError(`${errMsg(err, 'Could not assign every room')} (${done} done before it stopped).`);
+      onDone('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card flex flex-wrap items-end gap-3 p-4">
+      <p className="w-full text-sm font-medium text-navy-100">Assign everything that has nobody on it ({total} task{total === 1 ? '' : 's'})</p>
+      {TASK_ROLES.map((r) => {
+        const n = waiting(r.type).length;
+        const people = staff.filter((s) => s.role === r.role && s.is_active);
+        return (
+          <div key={r.type} className="min-w-[9rem] flex-1">
+            <label className="label" htmlFor={`assign-all-${r.type}`}>{r.type} ({n})</label>
+            <select
+              id={`assign-all-${r.type}`}
+              className="input-field py-2"
+              disabled={n === 0 || people.length === 0}
+              value={picks[r.type] || ''}
+              onChange={(e) => setPicks((p) => ({ ...p, [r.type]: e.target.value }))}
+            >
+              <option value="">{people.length === 0 ? 'No one with this role' : 'Leave as they are'}</option>
+              {people.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        );
+      })}
+      <button type="button" disabled={busy || chosen.length === 0} onClick={assign} className="btn-gold px-5 py-2 text-sm disabled:opacity-50">
+        {busy ? 'Assigning…' : 'Assign'}
+      </button>
+    </div>
+  );
+}
+
 /**
  * The day's cleaning jobs: rooms at a glance, mark a room dirty, and one card
  * per job to set its priority and assign its tasks. Updates live.
@@ -85,16 +149,16 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
     setNightlyMenuOpen(false);
     const ok = await ask({
       title: 'Create missing cleaning jobs now?',
-      body: 'This is the run that happens automatically at 11 PM: every checkout without a cleaning job gets one. It never creates duplicates, but new jobs appear on every housekeeper’s screen straight away.',
-      confirmLabel: 'Run now',
+      body: 'Every checkout that has no cleaning job gets one. New jobs appear on the housekeepers’ screens straight away.',
+      confirmLabel: 'Create jobs',
     });
     if (!ok) return;
     try {
       const res = await api.post('/admin/cleaning/run-nightly', {}, withAdminAuth());
-      toast(`Nightly run for ${res.data.date}: ${res.data.created} new job(s).`);
+      toast(res.data.created ? `${res.data.created} cleaning job${res.data.created === 1 ? '' : 's'} created.` : 'Nothing was missing — every checkout already has a cleaning job.');
       load();
     } catch (err) {
-      fail(errMsg(err, 'Nightly run failed'));
+      fail(errMsg(err, 'Could not create the cleaning jobs'));
     }
   };
 
@@ -130,14 +194,14 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
             {nightlyMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setNightlyMenuOpen(false)} />
-                <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-navy-700 bg-navy-900 py-1 shadow-lg">
+                <div role="menu" className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-navy-700 bg-navy-900 py-1 shadow-lg">
                   <button
                     role="menuitem"
                     onClick={runNightly}
                     className="block w-full px-4 py-2 text-left text-sm text-navy-200 hover:bg-navy-800"
-                    title="Same as the automatic 11 PM run. Never creates duplicates."
                   >
-                    Run nightly now…
+                    Create missing cleaning jobs…
+                    <span className="mt-0.5 block text-xs text-navy-400">Done automatically at 11 PM; never makes duplicates.</span>
                   </button>
                 </div>
               </>
@@ -145,6 +209,8 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
           </div>
         </div>
       </div>
+
+      <StaleNotice live={live} onRefresh={load} />
 
       <RoomStatusBoard units={units} filter={filter} onFilterStatus={setFilter} />
 
@@ -154,6 +220,16 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
         onError={fail}
         onCreated={(unit) => {
           toast(`Room ${unit?.unit_number || ''} marked dirty — assign it below.`);
+          load();
+        }}
+      />
+
+      <AssignAll
+        jobs={jobs}
+        staff={staff}
+        onError={fail}
+        onDone={(message) => {
+          if (message) toast(message);
           load();
         }}
       />

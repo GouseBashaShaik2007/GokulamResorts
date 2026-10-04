@@ -109,25 +109,54 @@ export default function CounterBookingForm({ mode, onCreated }) {
               <input aria-label="Email (optional)" type="email" className="input-field py-2" value={guest.email} onChange={setG('email')} />
             </div>
           </div>
+          <div>
+            <label className="label" htmlFor="walkin-requests">Special requests (optional)</label>
+            <input id="walkin-requests" maxLength={1000} className="input-field py-2" value={guest.specialRequests} onChange={setG('specialRequests')} placeholder="Extra bed, late arrival, anniversary…" />
+          </div>
+          {/* The price as the guest will hear it: nightly rate, any offer, GST, total. */}
+          <dl className="space-y-1 rounded-xl border border-navy-700 p-3 text-sm">
+            <div className="flex justify-between text-navy-200">
+              <dt>{inr(pick.quote.nightlyRate)} × {pick.quote.nights} night{pick.quote.nights > 1 ? 's' : ''}</dt>
+              <dd>{inr(pick.quote.base)}</dd>
+            </div>
+            {pick.quote.promo > 0 && (
+              <div className="flex justify-between text-green-700">
+                <dt>{pick.quote.promoDetails?.[0]?.name || 'Offer'}</dt>
+                <dd>−{inr(pick.quote.promo)}</dd>
+              </div>
+            )}
+            {(pick.quote.taxDetails || []).map((t) => (
+              <div key={t.rate} className="flex justify-between text-navy-200">
+                <dt>GST {t.rate}%</dt>
+                <dd>{inr(t.tax)}</dd>
+              </div>
+            ))}
+            <div className="flex justify-between border-t border-navy-700 pt-1 font-semibold text-navy-50">
+              <dt>Total</dt>
+              <dd>{inr(pick.quote.total)}</dd>
+            </div>
+          </dl>
           <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3">
             <p className="mb-2 text-sm text-navy-100">
               Collect full payment: <span className="font-semibold text-gold-600">{inr(pick.quote.total)}</span>
             </p>
             <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-              <select className="input-field py-2" value={payment.paymentMethod} onChange={(e) => setPayment((p) => ({ ...p, paymentMethod: e.target.value }))}>
+              <select className="input-field py-2" aria-label="Payment method" value={payment.paymentMethod} onChange={(e) => setPayment((p) => ({ ...p, paymentMethod: e.target.value }))}>
                 <option value="cash">Cash</option>
                 <option value="upi">UPI</option>
                 <option value="card">Card</option>
               </select>
-              <input required minLength={2} className="input-field py-2" placeholder="Reference — receipt no. / UPI UTR / card slip no." value={payment.paymentReference} onChange={(e) => setPayment((p) => ({ ...p, paymentReference: e.target.value }))} />
+              <input required minLength={2} className="input-field py-2" aria-label="Payment reference" placeholder="Reference — receipt no. / UPI UTR / card slip no." value={payment.paymentReference} onChange={(e) => setPayment((p) => ({ ...p, paymentReference: e.target.value }))} />
             </div>
           </div>
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
           <button disabled={busy} className="btn-gold w-full disabled:opacity-60">{busy ? 'Saving…' : 'Confirm booking & payment'}</button>
-          <p className="text-center text-xs text-navy-400">Counter bookings are confirmed immediately. Record the guest's ID at check-in.</p>
+          <p className="text-center text-xs text-navy-400">
+            Confirmed straight away. The booking opens next, so you can add the guest&apos;s ID and check them in.
+          </p>
         </form>
       )}
-      {!pick && error && <p className="text-sm text-red-700">{error}</p>}
+      {!pick && error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     </div>
   );
 }

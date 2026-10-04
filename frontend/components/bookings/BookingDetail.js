@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { authFor } from '../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
+import { printRegistrationCard } from '../../lib/registrationCard';
+import { CONTACT } from '../../lib/site';
 import { StatusBadge, inr, fmtDate, fmtDateTime, nightsBetween, todayIST, errMsg } from '../../lib/bookingUi';
 import { Shell, btn } from './detail/parts';
 import { RejectCancelForm, DiscountForm, PaymentForm, ExtendForm, IdUploadForm } from './detail/forms';
@@ -23,6 +25,11 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // The resort's address as saved in Settings, for the printed registration card.
+  const [resortAddress, setResortAddress] = useState(CONTACT.address);
+  useEffect(() => {
+    api.get('/site-info').then((res) => res.data.info?.address && setResortAddress(res.data.info.address)).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -95,14 +102,19 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
   const hasPrimary = b.documents.some((d) => !d.purged_at && d.is_primary);
   const staying = ['confirmed', 'checked_in'].includes(b.status);
 
-  // Why check-in is not possible yet (shown on the disabled button).
-  const checkInBlock =
-    b.status !== 'confirmed' ? null
-    : today < b.check_in ? `Opens ${fmtDate(b.check_in)}`
-    : due > 0 ? `Collect ${inr(due)} first`
-    : !hasPrimary ? 'Add primary guest ID'
-    : b.room_status !== 'Ready' ? `Room ${b.room_status.toLowerCase()}`
-    : null;
+  // Everything a check-in needs, shown together so staff see every blocker at
+  // once instead of fixing them one at a time.
+  const checkInNeeds = b.status !== 'confirmed' ? [] : [
+    { ok: today >= b.check_in, label: today >= b.check_in ? 'Arrival day reached' : `Check-in opens ${fmtDate(b.check_in)}` },
+    { ok: due <= 0, label: due <= 0 ? 'Paid in full' : `Collect ${inr(due)}` },
+    { ok: hasPrimary, label: hasPrimary ? 'Primary guest ID on file' : 'Add the primary guest’s ID' },
+    { ok: b.room_status === 'Ready', label: b.room_status === 'Ready' ? 'Room ready' : `Room is ${String(b.room_status).toLowerCase()} — not ready yet` },
+  ];
+  const checkInBlocked = checkInNeeds.some((need) => !need.ok);
+
+  const printCard = () => {
+    if (!printRegistrationCard(b, resortAddress)) setError('The browser blocked the print window. Allow pop-ups for this site and try again.');
+  };
 
   const checkOut = async () => {
     const early = today < b.check_out;
@@ -151,6 +163,18 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
         {notice && <p role="status" className="mt-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-700">{notice}</p>}
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
 
+        {checkInNeeds.length > 0 && (
+          <ul className="mt-4 grid gap-1.5 rounded-xl border border-navy-700 p-3 text-sm sm:grid-cols-2" aria-label="Before check-in">
+            {checkInNeeds.map((need) => (
+              <li key={need.label} className={`flex items-center gap-2 ${need.ok ? 'text-green-700' : 'font-medium text-red-700'}`}>
+                <span aria-hidden="true">{need.ok ? '✓' : '✕'}</span>
+                <span className="sr-only">{need.ok ? 'Done:' : 'Still needed:'}</span>
+                {need.label}
+              </li>
+            ))}
+          </ul>
+        )}
+
         {/* ---------------- Actions ---------------- */}
         <div className="mt-4 flex flex-wrap gap-2">
           {isAdmin && b.status === 'paid' && (
@@ -162,13 +186,8 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             </>
           )}
           {b.status === 'confirmed' && (
-            <button
-              disabled={busy || !!checkInBlock}
-              onClick={() => run(() => post('/check-in'), 'Checked in')}
-              className={`${btn} bg-ocean-500 text-white`}
-              title={checkInBlock || ''}
-            >
-              Check in{checkInBlock ? ` · ${checkInBlock}` : ''}
+            <button disabled={busy || checkInBlocked} onClick={() => run(() => post('/check-in'), 'Checked in')} className={`${btn} bg-ocean-500 text-white`}>
+              Check in
             </button>
           )}
           {b.status === 'checked_in' && (
@@ -194,6 +213,11 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
           {b.status === 'confirmed' && today >= b.check_in && (
             <button disabled={busy} onClick={markNoShow} className={`${btn} border border-orange-400/50 text-orange-700`}>
               No-show
+            </button>
+          )}
+          {['confirmed', 'checked_in', 'checked_out'].includes(b.status) && (
+            <button type="button" onClick={printCard} className={`${btn} border border-navy-600 text-navy-100`}>
+              Print registration card
             </button>
           )}
           {isAdmin && ['paid', 'confirmed', 'checked_in'].includes(b.status) && (

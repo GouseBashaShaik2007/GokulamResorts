@@ -72,9 +72,9 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
     <>
       {/* Sticks just under the navbar while the list scrolls. */}
       <div className="sticky top-[var(--nav-h)] z-30 -mx-4 mb-8 border-b border-navy-700 bg-navy-950/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex items-center gap-x-6 gap-y-3 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
           {viewOptions.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto" role="group" aria-label="View">
+            <div className="flex flex-none items-center gap-2" role="group" aria-label="View">
               <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">View</span>
               <Chip active={view === 'all'} onClick={() => setView('all')}>Any</Chip>
               {viewOptions.map((v) => (
@@ -83,7 +83,7 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
             </div>
           )}
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex flex-none items-center gap-2 text-sm">
             <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Guests</span>
             <select
               value={guests}
@@ -97,7 +97,7 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-sm sm:ml-auto">
+          <label className="flex flex-none items-center gap-2 text-sm sm:ml-auto">
             <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Sort</span>
             <select
               value={sort}

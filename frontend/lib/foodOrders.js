@@ -54,3 +54,9 @@ export function allergenText(item) {
   const listed = item?.allergens || [];
   return ALLERGENS.filter((a) => listed.includes(a.value)).map((a) => a.label).join(', ');
 }
+
+// How a guest reads each status (staff see ORDER_STATUS_LABEL above), the
+// stages an order moves through, and the ones after which nothing changes.
+export const GUEST_ORDER_STATUS = { new: 'Received', preparing: 'Preparing', ready: 'Ready', served: 'Served', cancelled: 'Cancelled' };
+export const ORDER_STAGES = ['new', 'preparing', 'ready', 'served'];
+export const FINAL_ORDER_STATUSES = ['served', 'cancelled'];

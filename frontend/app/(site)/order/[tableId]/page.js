@@ -21,7 +21,7 @@ export default async function TableOrderPage({ params, searchParams }) {
   const accessKey = typeof searchParams.k === 'string' ? searchParams.k : '';
   if (!(await hasOrderAccess({ table, key: accessKey }))) return <ScanToOrder />;
 
-  const { categories, items } = await getMenu({ fresh: true });
+  const { categories, items } = await getMenu({ fresh: true, all: true });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -29,7 +29,8 @@ export default async function TableOrderPage({ params, searchParams }) {
         <p className="eyebrow">Table {table}</p>
         <h1 className="section-heading mt-2">Order Food to Your Table</h1>
         <p className="mx-auto mt-4 max-w-2xl text-navy-300">
-          Browse the menu, add what you like, and place your order — it goes straight to our kitchen.
+          Browse the menu, add what you like, and place your order — it goes straight to our kitchen. You pay at
+          your table; there is nothing to pay online.
         </p>
         <TableService table={table} accessKey={accessKey} className="mt-5" />
       </div>

@@ -11,10 +11,27 @@ const TILE_COLOR = {
 // A mark as well as a colour, so status doesn't depend on telling amber from green.
 const TILE_MARK = { Dirty: 'D', Cleaning: 'C', Inspection: 'I', Ready: '✓' };
 
+// Rooms as the building has them: one row per floor, rooms in number order.
+function byFloor(units) {
+  const floors = new Map();
+  for (const u of units) {
+    const key = u.floor || '';
+    if (!floors.has(key)) floors.set(key, []);
+    floors.get(key).push(u);
+  }
+  const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
+  return [...floors.entries()]
+    .sort(([a], [b]) => natural(a, b))
+    .map(([floor, rooms]) => ({ floor, rooms: rooms.sort((a, b) => natural(a.unit_number, b.unit_number)) }));
+}
+
+// "1" -> "Floor 1"; a named floor ("Garden") is shown as it is.
+const floorLabel = (floor) => (!floor ? 'No floor set' : /^\d+$/.test(floor) ? `Floor ${floor}` : floor);
+
 // One tile per physical room, colored by current housekeeping status — a
 // glanceable summary above the detailed job cards below.
 export default function RoomStatusBoard({ units, filter, onFilterStatus }) {
-  const active = units.filter((u) => u.is_active);
+  const floors = byFloor(units.filter((u) => u.is_active));
   return (
     <div className="card p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -28,8 +45,12 @@ export default function RoomStatusBoard({ units, filter, onFilterStatus }) {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
-        {active.map((u) => (
+      <div className="space-y-3">
+        {floors.map(({ floor, rooms }) => (
+          <div key={floor} className="grid gap-2 sm:grid-cols-[6rem_1fr] sm:items-start">
+            <p className="pt-3 text-xs font-medium text-navy-400">{floorLabel(floor)}</p>
+            <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
+        {rooms.map((u) => (
           <button
             key={u.id}
             onClick={() => onFilterStatus(u.status)}
@@ -44,6 +65,9 @@ export default function RoomStatusBoard({ units, filter, onFilterStatus }) {
             {u.unit_number}
             <span className="text-[9px] font-semibold opacity-90" aria-hidden="true">{TILE_MARK[u.status]}</span>
           </button>
+        ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>

@@ -49,6 +49,21 @@ function DiscountPreview({ roomTypeId, discountType, value, types }) {
   );
 }
 
+// Offers that are switched on, cover some of the same nights and the same
+// room type (or all of them) as the one being typed in. They don't stack —
+// the bigger saving applies — so the manager should know before saving.
+function overlapping(form, rows, editingId) {
+  if (!form.startDate || !form.endDate) return [];
+  return rows.filter(
+    (p) =>
+      p.is_active &&
+      p.id !== editingId &&
+      String(p.start_date).slice(0, 10) <= form.endDate &&
+      String(p.end_date).slice(0, 10) >= form.startDate &&
+      (!form.roomTypeId || !p.room_type_id || String(p.room_type_id) === String(form.roomTypeId))
+  );
+}
+
 const OFFER_STATE = {
   Live: 'bg-green-500/15 text-green-700',
   Scheduled: 'bg-blue-400/10 text-blue-700',
@@ -175,11 +190,11 @@ export default function PromotionsManager() {
           </select>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <select className="input-field py-2" value={form.discountType} onChange={set('discountType')}>
+          <select className="input-field py-2" aria-label="Discount type" value={form.discountType} onChange={set('discountType')}>
             <option value="percent">% off per night</option>
             <option value="fixed">₹ off per night</option>
           </select>
-          <input required type="number" min="1" step="0.01" max={form.discountType === 'percent' ? 100 : undefined} className="input-field py-2" placeholder="Value" value={form.value} onChange={set('value')} />
+          <input required type="number" min="1" step="0.01" max={form.discountType === 'percent' ? 100 : undefined} className="input-field py-2" aria-label="Discount value" placeholder="Value" value={form.value} onChange={set('value')} />
         </div>
 
         <DiscountPreview roomTypeId={form.roomTypeId} discountType={form.discountType} value={form.value} types={types} />
@@ -194,9 +209,22 @@ export default function PromotionsManager() {
             <input aria-label="Last night" required type="date" min={form.startDate} className="input-field py-2" value={form.endDate} onChange={set('endDate')} />
           </div>
         </div>
+        {overlapping(form, rows, editing?.id).length > 0 && (
+          <div role="status" className="rounded-lg border border-orange-400/40 bg-orange-400/10 px-4 py-3 text-sm text-orange-800">
+            <p className="font-semibold">Overlaps another offer</p>
+            <ul className="mt-1 space-y-0.5">
+              {overlapping(form, rows, editing?.id).map((p) => (
+                <li key={p.id}>
+                  {p.name} — {p.discount_type === 'percent' ? `${Number(p.value)}% off` : `${inr(p.value)} off`}, {p.room_type || 'all room types'}, {fmtDate(p.start_date)} – {fmtDate(p.end_date)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1">On nights both cover, a guest gets the bigger saving of the two, not both.</p>
+          </div>
+        )}
         <div>
           <label className="label">Reason (internal, required)</label>
-          <input aria-label="Reason (internal, required)" required minLength={3} className="input-field py-2" value={form.reason} onChange={set('reason')} />
+          <input aria-label="Reason (internal, required)" required minLength={3} className="input-field py-2" placeholder="e.g. Low season, owner approved" value={form.reason} onChange={set('reason')} />
         </div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <div className="flex gap-3">

@@ -18,8 +18,8 @@ export default async function RoomsPage() {
         <p className="eyebrow">Chirala Beach</p>
         <h1 className="display-heading mt-2 text-4xl md:text-5xl">Rooms &amp; Suites</h1>
         <p className="mt-4 text-navy-300">
-          Every room at Gokulam Resorts is designed to bring the ocean closer. Choose a room type, then pick
-          your exact room by number when you book.
+          Compare the room types by size, bed, view and price. Choose one, then pick your exact room by number
+          when you book.
         </p>
       </Reveal>
       <RecentlyViewed className="-mt-4 mb-8" />

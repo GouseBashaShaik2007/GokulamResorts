@@ -6,7 +6,7 @@ import RoomBookingBox from '@/components/site/RoomBookingBox';
 import RecentlyViewed, { TrackRoomView } from '@/components/site/RecentlyViewed';
 import { jsonLd } from '@/lib/jsonLd';
 import { realPhotos, roomPath, sqftToM2 } from '@/lib/rooms';
-import { getContact, getOffers, getRoomBySlug } from '@/lib/server-api';
+import { getContact, getOffers, getRoomBySlug, getRooms } from '@/lib/server-api';
 import { offersForRoom } from '@/lib/offers';
 import { SITE_URL } from '@/lib/site';
 
@@ -82,7 +82,8 @@ function structuredData(room, photos) {
 export default async function RoomPage({ params }) {
   const room = await getRoomBySlug(params.slug);
   if (!room) notFound();
-  const [offers, contact] = await Promise.all([getOffers(), getContact()]);
+  const [offers, contact, rooms] = await Promise.all([getOffers(), getContact(), getRooms()]);
+  const otherRooms = rooms.filter((r) => r.id !== room.id).map((r) => ({ id: r.id, name: r.name, slug: r.slug }));
 
   const m2 = sqftToM2(room.size_sqft);
   const photos = realPhotos(room);
@@ -110,7 +111,7 @@ export default async function RoomPage({ params }) {
         </Reveal>
 
         <aside className="lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
-          <RoomBookingBox room={room} offers={offersForRoom(offers, room)} />
+          <RoomBookingBox room={room} offers={offersForRoom(offers, room)} otherRooms={otherRooms} />
         </aside>
 
         <div className="lg:col-start-1">
@@ -144,7 +145,8 @@ export default async function RoomPage({ params }) {
             )}
             <li>
               {room.units_count} room{room.units_count === 1 ? '' : 's'} of this type — you choose the exact room by
-              number when you book.
+              number when you book. Each is listed with its floor and view, so you can take the one you prefer, or
+              rooms next to each other when you travel as a group.
             </li>
             <li>Bring a photo ID (Aadhaar, passport or driving licence) for every adult; the front desk checks it at check-in.</li>
             <li>You pay in full online. The resort confirms within 24 hours — if it can&apos;t, you are refunded in full automatically.</li>

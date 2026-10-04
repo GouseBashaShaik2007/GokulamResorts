@@ -11,7 +11,7 @@ export default async function KioskPage({ searchParams }) {
   const accessKey = typeof searchParams.k === 'string' ? searchParams.k : '';
   if (!(await hasOrderAccess({ key: accessKey }))) return <ScanToOrder />;
 
-  const { categories, items } = await getMenu({ fresh: true });
+  const { categories, items } = await getMenu({ fresh: true, all: true });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">

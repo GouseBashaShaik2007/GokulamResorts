@@ -1,24 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import api, { TOKEN_KEYS, withKitchenAuth } from '@/lib/api';
-import { clearSignedIn } from '../_lib/session';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import api, { withKitchenAuth } from '@/lib/api';
+import useStaffSession from '../_lib/useStaffSession';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
-import { PREVIOUS_ORDER_STATUS, splitOrderNotes } from '@/lib/foodOrders';
+import { VegMark } from '@/components/MenuItemCard';
+import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, PREVIOUS_ORDER_STATUS, splitOrderNotes } from '@/lib/foodOrders';
 
 // Kitchen wall display. Deliberately its own high-contrast dark look (not the
 // guest site theme): readable from across a hot, bright kitchen.
 
-const TOKEN_KEY = TOKEN_KEYS.kitchen;
-const STAFF_KEY = 'gokulam_kitchen_staff';
 const POLL_MS = 5000;
+// Ticket colours (amber, red) and the "late" count are worked out this often;
+// the mm:ss on each ticket runs on its own one-second clock (see Elapsed).
+const LEVEL_TICK_MS = 10000;
 const AMBER_MIN = 10;
 const RED_MIN = 20;
 
-const STATUS_FLOW = { new: 'preparing', preparing: 'ready', ready: 'served' };
-const STATUS_LABEL = { new: 'New', preparing: 'Preparing', ready: 'Ready', served: 'Served', cancelled: 'Cancelled' };
 const STATUS_ACTION_LABEL = { new: 'Start preparing', preparing: 'Mark ready', ready: 'Mark served' };
 // What a table asked for from its ordering page.
 const REQUEST_LABEL = { staff: 'is calling for staff', bill: 'wants the bill' };
@@ -92,6 +91,17 @@ function elapsed(fromIso, now) {
   return { mins, label };
 }
 
+// A running "4:07" that keeps its own clock, so only this small piece redraws
+// every second — not the whole board.
+function Elapsed({ since, className }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <span className={className}>{elapsed(since, now).label}</span>;
+}
+
 function KitchenSkeleton() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-950">
@@ -118,7 +128,7 @@ function StartShift({ onStart }) {
 }
 
 // Tables waiting for a person — above the orders, because someone has to walk over.
-function TableRequests({ requests, now, onDone }) {
+function TableRequests({ requests, onDone }) {
   if (requests.length === 0) return null;
   return (
     <section aria-label="Table requests" className="flex flex-wrap gap-3 border-b border-neutral-800 bg-amber-300/10 px-6 py-4">
@@ -126,7 +136,7 @@ function TableRequests({ requests, now, onDone }) {
         <div key={r.id} className="flex items-center gap-4 rounded-2xl border-2 border-amber-300 bg-neutral-900 px-4 py-3">
           <p className="text-xl font-bold text-white">
             Table {r.table_number} <span className="font-semibold text-amber-300">{REQUEST_LABEL[r.kind] || r.kind}</span>
-            <span className="ml-3 font-mono text-base font-normal tabular-nums text-neutral-400">{elapsed(r.created_at, now).label}</span>
+            <Elapsed since={r.created_at} className="ml-3 font-mono text-base font-normal tabular-nums text-neutral-400" />
           </p>
           <button onClick={() => onDone(r)} className="rounded-xl bg-white px-4 py-2 text-base font-bold text-neutral-950 active:scale-95">
             Done
@@ -137,9 +147,9 @@ function TableRequests({ requests, now, onDone }) {
   );
 }
 
-function OrderCard({ order, now, onAdvance, onCancel }) {
-  const t = elapsed(order.created_at, now);
-  const level = t.mins >= RED_MIN ? 'red' : t.mins >= AMBER_MIN ? 'amber' : 'ok';
+// `mins`: whole minutes this order has waited (drives the amber / red frame).
+const OrderCard = memo(function OrderCard({ order, mins, onAdvance, onCancel }) {
+  const level = mins >= RED_MIN ? 'red' : mins >= AMBER_MIN ? 'amber' : 'ok';
   const frame = {
     ok: 'border-neutral-600',
     amber: 'border-amber-400 ring-2 ring-amber-400/40',
@@ -165,13 +175,16 @@ function OrderCard({ order, now, onAdvance, onCancel }) {
           <p className="text-2xl font-bold leading-tight text-white">
             {order.table_number ? `Table ${order.table_number}` : order.customer_name || 'Walk-in'}
           </p>
-          <p className="mt-1 text-sm text-neutral-400">#{order.id} · {order.order_type === 'table' ? 'Dine-in' : 'Counter'}</p>
+          <p className="mt-1 text-sm text-neutral-400">
+            #{order.id} · {order.order_type === 'table' ? 'Dine-in' : 'Counter'}
+            {/* Up here, well away from the big button a thumb is aiming for. */}
+            <button onClick={() => onCancel(order)} className="ml-3 rounded px-1 text-sm text-red-300 underline underline-offset-2">
+              Cancel order
+            </button>
+          </p>
         </div>
-        <span
-          className={`rounded-xl px-3 py-1.5 font-mono text-2xl font-bold tabular-nums ${timer}`}
-          aria-label={`Waiting ${t.mins} minutes`}
-        >
-          {t.label}
+        <span className={`rounded-xl px-3 py-1.5 font-mono text-2xl font-bold tabular-nums ${timer}`} aria-label={`Waiting ${mins} minutes`}>
+          <Elapsed since={order.created_at} />
         </span>
       </header>
 
@@ -180,6 +193,8 @@ function OrderCard({ order, now, onAdvance, onCancel }) {
           <li key={idx} className="flex items-baseline gap-3 py-2">
             <span className="min-w-[2.5rem] text-2xl font-bold text-amber-300">{item.quantity}×</span>
             <span className="flex-1">
+              {/* Veg / non-veg as the dish is on the menu; nothing if it has since been removed. */}
+              {typeof item.is_veg === 'boolean' && <VegMark veg={item.is_veg} className="mr-2 align-middle" />}
               <span className="text-xl font-semibold text-white">{item.item_name}</span>
               {item.spice_level && (
                 <span className="ml-2 rounded bg-orange-500 px-1.5 py-0.5 align-middle text-xs font-bold uppercase text-white">{item.spice_level}</span>
@@ -194,26 +209,22 @@ function OrderCard({ order, now, onAdvance, onCancel }) {
         <p className="mt-3 rounded-lg bg-yellow-300 px-3 py-2 text-base font-semibold text-neutral-950">Note: {notes}</p>
       )}
 
-      <div className="mt-5 flex gap-3">
-        {STATUS_FLOW[order.status] && (
-          <button onClick={() => onAdvance(order)} className="flex-1 rounded-xl bg-white py-4 text-lg font-bold text-neutral-950 active:scale-[0.98]">
-            {STATUS_ACTION_LABEL[order.status]}
-          </button>
-        )}
-        <button onClick={() => onCancel(order)} className="rounded-xl border-2 border-red-500/70 px-4 text-sm font-semibold text-red-300">
-          Cancel
+      {NEXT_ORDER_STATUS[order.status] && (
+        <button onClick={() => onAdvance(order)} className="mt-5 w-full rounded-xl bg-white py-4 text-lg font-bold text-neutral-950 active:scale-[0.98]">
+          {STATUS_ACTION_LABEL[order.status]}
         </button>
-      </div>
+      )}
     </article>
   );
-}
+});
 
 export default function KitchenPage() {
-  const router = useRouter();
   const ask = useConfirm();
   const toast = useToast();
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [staffName, setStaffName] = useState('');
+  // middleware.js already sent anyone without the session cookie to the PIN
+  // screen; this covers a sign-in that has expired since.
+  const { ready: loggedIn, profile, signOut } = useStaffSession('kitchen');
+  const staffName = profile?.name || '';
   const [shiftStarted, setShiftStarted] = useState(false);
   const [orders, setOrders] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -224,32 +235,9 @@ export default function KitchenPage() {
   const soundOnRef = useRef(false);
   const wakeLock = useWakeLock(shiftStarted);
 
-  const signOut = useCallback(() => {
-    window.localStorage.removeItem(TOKEN_KEY);
-    window.localStorage.removeItem(STAFF_KEY);
-    clearSignedIn('kitchen');
-    router.replace('/kitchen/login');
-  }, [router]);
-
+  // For the amber / red frames and the late count; each ticket's mm:ss runs on its own clock.
   useEffect(() => {
-    // middleware.js already redirected here if the session cookie was
-    // missing; this covers a token that expired without a full navigation.
-    if (!window.localStorage.getItem(TOKEN_KEY)) {
-      signOut();
-      return;
-    }
-    try {
-      setStaffName(JSON.parse(window.localStorage.getItem(STAFF_KEY) || 'null')?.name || '');
-    } catch {
-      // ignore corrupt profile — cosmetic only
-    }
-    setLoggedIn(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Timers tick every second.
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(Date.now()), LEVEL_TICK_MS);
     return () => clearInterval(id);
   }, []);
 
@@ -322,7 +310,7 @@ export default function KitchenPage() {
       // slip of the thumb can be put back for a few seconds.
       if (undoable && PREVIOUS_ORDER_STATUS[status] === order.status) {
         const who = order.table_number ? `Table ${order.table_number}` : order.customer_name || `#${order.id}`;
-        toast(`${who}: ${STATUS_LABEL[status]}`, {
+        toast(`${who}: ${ORDER_STATUS_LABEL[status]}`, {
           tone: 'info',
           duration: 8000,
           action: { label: 'Undo', onClick: () => updateStatus(order, order.status, { undoable: false }) },
@@ -332,6 +320,22 @@ export default function KitchenPage() {
       setError(err?.response?.data?.message || 'Could not update that order.');
     }
   };
+
+  // Tickets are memoised, so the handlers they get must not change between
+  // renders; they reach the latest updateStatus through this ref.
+  const latest = useRef({});
+  latest.current = { updateStatus, ask };
+  const advance = useCallback((o) => latest.current.updateStatus(o, NEXT_ORDER_STATUS[o.status]), []);
+  const cancelOrder = useCallback(async (o) => {
+    const ok = await latest.current.ask({
+      title: `Cancel order #${o.id}?`,
+      body: 'It leaves the board and the guest sees it as cancelled.',
+      confirmLabel: 'Cancel order',
+      cancelLabel: 'Keep order',
+      danger: true,
+    });
+    if (ok) latest.current.updateStatus(o, 'cancelled');
+  }, []);
 
   if (!loggedIn) return <KitchenSkeleton />;
 
@@ -378,32 +382,17 @@ export default function KitchenPage() {
 
       {error && <p className="bg-red-600 px-6 py-2 text-center font-semibold">{error}</p>}
 
-      <TableRequests requests={requests} now={now} onDone={completeRequest} />
+      <TableRequests requests={requests} onDone={completeRequest} />
 
       <div className="grid gap-6 p-6 lg:grid-cols-3">
         {grouped.map(({ status, orders: list }) => (
           <section key={status}>
             <h2 className={`mb-4 text-lg font-bold uppercase tracking-wider ${COLUMN_ACCENT[status]}`}>
-              {STATUS_LABEL[status]} <span className="text-neutral-500">({list.length})</span>
+              {ORDER_STATUS_LABEL[status]} <span className="text-neutral-500">({list.length})</span>
             </h2>
             <div className="space-y-4">
               {list.map((order) => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  now={now}
-                  onAdvance={(o) => updateStatus(o, STATUS_FLOW[o.status])}
-                  onCancel={async (o) => {
-                    const ok = await ask({
-                      title: `Cancel order #${o.id}?`,
-                      body: 'It leaves the board and the guest sees it as cancelled.',
-                      confirmLabel: 'Cancel order',
-                      cancelLabel: 'Keep order',
-                      danger: true,
-                    });
-                    if (ok) updateStatus(o, 'cancelled');
-                  }}
-                />
+                <OrderCard key={order.id} order={order} mins={elapsed(order.created_at, now).mins} onAdvance={advance} onCancel={cancelOrder} />
               ))}
               {list.length === 0 && <p className="rounded-2xl border border-dashed border-neutral-800 p-6 text-center text-neutral-500">No orders</p>}
             </div>

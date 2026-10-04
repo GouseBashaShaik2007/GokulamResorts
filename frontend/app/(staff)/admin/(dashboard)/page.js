@@ -3,15 +3,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api, { withAdminAuth } from '@/lib/api';
+import { errMsg, fmtDateTime } from '@/lib/bookingUi';
 
 const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
-function StatCard({ label, value, hint, href }) {
+// `action`: this number is something waiting on the manager, so when it is
+// above zero the card is tinted and says so.
+function StatCard({ label, value, hint, href, action = false }) {
+  const waiting = action && Number(value) > 0;
   const body = (
-    <div className={`card h-full p-5 ${href ? 'transition-colors hover:border-ocean-400' : ''}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">{label}</p>
+    <div className={`card h-full p-5 ${waiting ? 'border-gold-500 bg-gold-500/10' : ''} ${href ? 'transition-colors hover:border-ocean-400' : ''}`}>
+      <p className={`text-xs font-semibold uppercase tracking-wide ${waiting ? 'text-gold-700' : 'text-navy-400'}`}>{label}</p>
       <p className="mt-2 font-serif text-3xl font-bold text-navy-50">{value}</p>
-      {hint && <p className="mt-1 text-xs text-navy-400">{hint}</p>}
+      {hint && <p className={`mt-1 text-xs ${waiting ? 'font-medium text-gold-700' : 'text-navy-400'}`}>{hint}</p>}
     </div>
   );
   return href ? <Link href={href}>{body}</Link> : body;
@@ -25,41 +29,19 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     let cancelled = false;
 
+    // One request: the API counts everything for today on the resort's own calendar.
     async function load() {
       try {
-        const [overviewRes, unitsRes, ordersRes, moneyRes] = await Promise.all([
-          api.get('/desk/overview', withAdminAuth()),
-          api.get('/admin/room-units', withAdminAuth()),
-          api.get('/admin/food-orders', withAdminAuth()),
-          // Summed on the server by the resort's own calendar day.
-          api.get('/admin/stats/today', withAdminAuth()).catch(() => ({ data: { stats: null } })),
-        ]);
+        const res = await api.get('/admin/stats/today', withAdminAuth());
         if (cancelled) return;
-
-        const { arrivals, inHouse, departures, awaitingApproval, pendingRefunds } = overviewRes.data;
-        const units = unitsRes.data.units.filter((u) => u.is_active);
-        const dirty = units.filter((u) => u.status !== 'Ready').length;
-        const occupancyPct = units.length > 0 ? Math.round((inHouse.length / units.length) * 100) : 0;
-
-        const openOrders = ordersRes.data.orders.filter((o) => ['new', 'preparing', 'ready'].includes(o.status));
-
-        const money = moneyRes.data.stats;
-
-        setStats({
-          arrivals: arrivals.length,
-          departures: departures.length,
-          inHouse: inHouse.length,
-          occupancyPct,
-          totalUnits: units.length,
-          dirty,
-          openOrders: openOrders.length,
-          awaitingApproval: awaitingApproval.length,
-          pendingRefunds: pendingRefunds.length,
-          paymentsToday: money ? money.paymentsToday : null,
-          refundsToday: money ? money.refundsToday : 0,
-        });
+        if (res.data.stats.arrivals === undefined) {
+          setError('The API server is running an older version. Restart it to see today’s numbers.');
+          return;
+        }
+        setStats(res.data.stats);
+        setError('');
       } catch (err) {
-        if (!cancelled) setError(err?.response?.data?.message || 'Could not load the overview.');
+        if (!cancelled) setError(errMsg(err, 'Could not load the overview.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -76,6 +58,8 @@ export default function AdminOverviewPage() {
     };
   }, []);
 
+  const occupancy = stats && stats.rooms > 0 ? Math.round((stats.inHouse / stats.rooms) * 100) : 0;
+
   return (
     <div>
       <div className="mb-8">
@@ -83,7 +67,7 @@ export default function AdminOverviewPage() {
         <h1 className="section-heading mt-1">Overview</h1>
       </div>
 
-      {error && <p className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {loading ? (
         <div className="grid animate-pulse gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -93,24 +77,26 @@ export default function AdminOverviewPage() {
         </div>
       ) : stats ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* What is waiting on a decision or an action comes first. */}
+          <StatCard
+            action
+            label="Awaiting Approval"
+            value={stats.awaitingApproval}
+            hint={stats.approvalDeadline ? `First one auto-cancels ${fmtDateTime(stats.approvalDeadline)}` : 'Bookings needing a decision'}
+            href="/admin/bookings"
+          />
+          <StatCard action label="Refunds to Pay Out" value={stats.pendingRefunds} hint={stats.pendingRefunds > 0 ? 'At the counter' : undefined} href="/admin/bookings" />
+          <StatCard label="Open Food Orders" value={stats.openFoodOrders} href="/admin/orders" />
+          <StatCard label="Rooms Needing Cleaning" value={stats.roomsNotReady} href="/admin/housekeeping" />
+
           <StatCard label="Arrivals Today" value={stats.arrivals} href="/admin/bookings" />
           <StatCard label="Departures Today" value={stats.departures} href="/admin/bookings" />
-          <StatCard label="Occupancy" value={`${stats.occupancyPct}%`} hint={`${stats.inHouse} of ${stats.totalUnits} rooms`} />
+          <StatCard label="Occupancy" value={`${occupancy}%`} hint={`${stats.inHouse} of ${stats.rooms} rooms`} />
           <StatCard
             label="Payments Today"
-            value={stats.paymentsToday === null ? '—' : rupees(stats.paymentsToday)}
-            hint={
-              stats.paymentsToday === null
-                ? 'Could not load'
-                : stats.refundsToday > 0
-                  ? `Online and counter · ${rupees(stats.refundsToday)} refunded`
-                  : 'Online and counter'
-            }
+            value={rupees(stats.paymentsToday)}
+            hint={stats.refundsToday > 0 ? `Online and counter · ${rupees(stats.refundsToday)} refunded` : 'Online and counter'}
           />
-          <StatCard label="Open Food Orders" value={stats.openOrders} href="/admin/orders" />
-          <StatCard label="Rooms Needing Cleaning" value={stats.dirty} href="/admin/housekeeping" />
-          <StatCard label="Awaiting Approval" value={stats.awaitingApproval} hint="Bookings needing a decision" href="/admin/bookings" />
-          <StatCard label="Refunds to Pay Out" value={stats.pendingRefunds} href="/admin/bookings" />
         </div>
       ) : null}
     </div>

@@ -45,3 +45,31 @@ export function LiveBadge({ live }) {
     </span>
   );
 }
+
+const STALE_AFTER_MS = 8000;
+
+/**
+ * A banner for when live updates have been down for more than a few seconds —
+ * the small "Offline" badge is easy to miss, and it means the screen may be
+ * showing old information. `onRefresh` reloads by hand until it reconnects.
+ */
+export function StaleNotice({ live, onRefresh }) {
+  const [stale, setStale] = useState(false);
+
+  useEffect(() => {
+    if (live) {
+      setStale(false);
+      return undefined;
+    }
+    const id = setTimeout(() => setStale(true), STALE_AFTER_MS);
+    return () => clearTimeout(id);
+  }, [live]);
+
+  if (!stale) return null;
+  return (
+    <p role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-orange-400/40 bg-orange-400/10 px-4 py-2.5 text-sm text-orange-800">
+      <span>Live updates are not reaching this screen, so it may be out of date. It will reconnect on its own.</span>
+      <button type="button" onClick={onRefresh} className="rounded-lg border border-orange-400/60 px-3 py-1 font-medium">Refresh now</button>
+    </p>
+  );
+}

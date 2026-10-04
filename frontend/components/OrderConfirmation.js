@@ -4,28 +4,13 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '../lib/api';
+import { FINAL_ORDER_STATUSES, GUEST_ORDER_STATUS, ORDER_STAGES } from '../lib/foodOrders';
 import TableService from './site/TableService';
 
 const rupees = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 
-const STATUS_LABEL = {
-  new: 'Order Received',
-  preparing: 'Preparing',
-  ready: 'Ready',
-  served: 'Served',
-  cancelled: 'Cancelled',
-};
-
-// Nothing changes after these, so the page stops asking.
-const FINAL_STATUSES = ['served', 'cancelled'];
-
-// The stages an order moves through, in order.
-const STEPS = [
-  { key: 'new', label: 'Received' },
-  { key: 'preparing', label: 'Preparing' },
-  { key: 'ready', label: 'Ready' },
-  { key: 'served', label: 'Served' },
-];
+// The page's heading for each status.
+const heading = (status) => (status === 'new' ? 'Order Received' : GUEST_ORDER_STATUS[status] || status);
 
 // What the guest should do (or expect) at each stage.
 function nextStep(order) {
@@ -47,17 +32,58 @@ function nextStep(order) {
 }
 
 function Steps({ status }) {
-  const at = STEPS.findIndex((s) => s.key === status);
+  const at = ORDER_STAGES.indexOf(status);
   if (at === -1) return null;
   return (
     <ol className="mt-6 grid grid-cols-4 gap-2" aria-label="Order progress">
-      {STEPS.map((s, i) => (
-        <li key={s.key} className="text-center" aria-current={i === at ? 'step' : undefined}>
+      {ORDER_STAGES.map((stage, i) => (
+        <li key={stage} className="text-center" aria-current={i === at ? 'step' : undefined}>
           <span className={`mx-auto block h-1.5 rounded-full ${i <= at ? 'bg-ocean-500' : 'bg-navy-700'}`} />
-          <span className={`mt-2 block text-xs ${i === at ? 'font-semibold text-navy-50' : 'text-navy-400'}`}>{s.label}</span>
+          <span className={`mt-2 block text-xs ${i === at ? 'font-semibold text-navy-50' : 'text-navy-400'}`}>{GUEST_ORDER_STATUS[stage]}</span>
         </li>
       ))}
     </ol>
+  );
+}
+
+// "Cancel this order", offered only while the kitchen hasn't started on it.
+// Two taps (ask, then confirm) so a slip of the thumb doesn't cancel dinner.
+function CancelOrder({ token, onCancelled }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const cancel = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await api.post(`/food-orders/${token}/cancel`);
+      onCancelled();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Could not cancel the order. Please ask our staff.');
+      setAsking(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 text-sm">
+      {asking ? (
+        <p className="flex flex-wrap items-center justify-center gap-3">
+          <span className="text-navy-200">Cancel the whole order?</span>
+          <button type="button" disabled={busy} onClick={cancel} className="rounded-full bg-red-700 px-4 py-1.5 font-semibold text-white disabled:opacity-60">
+            {busy ? 'Cancelling…' : 'Yes, cancel it'}
+          </button>
+          <button type="button" disabled={busy} onClick={() => setAsking(false)} className="font-semibold text-ocean-600 underline">Keep it</button>
+        </p>
+      ) : (
+        <button type="button" onClick={() => setAsking(true)} className="text-navy-300 underline underline-offset-2 hover:text-red-700">
+          Cancel this order
+        </button>
+      )}
+      {error && <p role="alert" className="mt-2 text-red-700">{error}</p>}
+    </div>
   );
 }
 
@@ -89,7 +115,7 @@ function ConfirmationContent({ browseHref, table, accessKey }) {
           lastStatus.current = next.status;
           setError('');
           setOrder(next);
-          if (FINAL_STATUSES.includes(next.status)) clearInterval(interval);
+          if (FINAL_ORDER_STATUSES.includes(next.status)) clearInterval(interval); // nothing changes after these
         })
         .catch((err) => {
           if (cancelled) return;
@@ -139,10 +165,10 @@ function ConfirmationContent({ browseHref, table, accessKey }) {
         {order.table_number ? ` · Table ${order.table_number}` : ''}
       </p>
       <div aria-live="polite">
-        <h1 className={`section-heading mt-2 ${cancelledOrder ? 'text-red-700' : ''}`}>{STATUS_LABEL[order.status] || order.status}</h1>
+        <h1 className={`section-heading mt-2 ${cancelledOrder ? 'text-red-700' : ''}`}>{heading(order.status)}</h1>
         <p className="mt-2 text-navy-300">{nextStep(order)}</p>
       </div>
-      {!FINAL_STATUSES.includes(order.status) && (
+      {!FINAL_ORDER_STATUSES.includes(order.status) && (
         <p className="mt-1 text-xs text-navy-400">This page updates on its own.</p>
       )}
 
@@ -164,6 +190,10 @@ function ConfirmationContent({ browseHref, table, accessKey }) {
       </dl>
 
       <Link href={browseHref} className="btn-gold mt-8 inline-flex">Order More</Link>
+      {order.status === 'new' && (
+        <CancelOrder token={orderId} onCancelled={() => setOrder((o) => ({ ...o, status: 'cancelled' }))} />
+      )}
+      {order.status === 'preparing' && <p className="mt-4 text-sm text-navy-400">Need to change it? Please ask our staff — the kitchen has started.</p>}
       {table && accessKey && !cancelledOrder && <TableService table={table} accessKey={accessKey} className="mt-4" />}
     </div>
   );

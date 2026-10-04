@@ -111,7 +111,7 @@ export default function TableQrCodes() {
           {saving ? 'Saving…' : 'Save'}
         </button>
         <p className="text-xs text-navy-400">
-          Production site address is set once for the whole resort — see{' '}
+          The website address is set once for the whole resort — see{' '}
           <Link href="/admin/settings" className="text-gold-600 underline">Admin → Settings</Link>.
         </p>
       </form>
@@ -120,7 +120,7 @@ export default function TableQrCodes() {
 
       {links && blocked && (
         <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">
-          ⚠️ Set a production site address in{' '}
+          Set the website address in{' '}
           <Link href="/admin/settings" className="underline">Settings</Link> before printing QR codes. Right now
           they would point at {siteUrl ? <code>{siteUrl}</code> : 'no address'} — every code would be broken
           for guests.
@@ -129,7 +129,7 @@ export default function TableQrCodes() {
 
       <div className="mt-6 flex items-center justify-between gap-4">
         <p className="text-sm text-navy-400">
-          {blocked ? 'Preview only — printing is disabled until a production address is set.' : `Printing for ${siteUrl}`}
+          {blocked ? 'Preview only — printing is off until the website address is set.' : `Printing for ${siteUrl}`}
           {countChanged && ' Save the new number of tables to update the codes below.'}
         </p>
         <button

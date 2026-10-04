@@ -71,6 +71,15 @@ export const GETTING_HERE = [
   { mode: 'By train', place: 'Chirala railway station', detail: 'On the Chennai–Howrah main line' },
 ];
 
+// Home page "Experiences" tiles. Stock photos until the resort's own arrive.
+// A tile with href: null is shown without a link (and without the hover zoom).
+export const EXPERIENCES = [
+  { title: 'Beach', text: 'Long, quiet stretches of sand on the Bay of Bengal.', href: '/gallery?c=beach', image: 'https://images.unsplash.com/photo-1473116763249-2faaef81ccda?auto=format&fit=crop&w=900&q=75' },
+  { title: 'Dining', text: 'Coastal Andhra cooking and the day’s catch.', href: '/dining', image: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=900&q=75' },
+  { title: 'Spa', text: 'Slow afternoons and traditional therapies.', href: null, image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=900&q=75' },
+  { title: 'Sunset', text: 'Evenings made for doing very little.', href: '/gallery?c=beach', image: 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?auto=format&fit=crop&w=900&q=75' },
+];
+
 // Airport / station transfer add-on. Hidden until a price is set.
 // Shape: { price: 2500, from: 'Vijayawada airport' }
 export const TRANSFER = null;

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import api, { withAdminAuth } from '../../../lib/api';
 import { errMsg } from '../../../lib/bookingUi';
 import { JOB_STATUS_STYLE, PRIORITY_STYLE, TASK_STATUS_STYLE } from '../../../lib/cleaningStyles';
-import { Badge, PRIORITIES, TASK_ROLES, fmtTime } from './shared';
+import { Badge, PRIORITIES, TASK_ROLES, fmtTime } from '../../housekeeping/shared';
 
 /** One room's cleaning job: its priority, and who does each of its three tasks. */
 export default function JobCard({ job, staff, onChanged, onError }) {
@@ -48,14 +48,18 @@ export default function JobCard({ job, staff, onChanged, onError }) {
           {finished ? (
             <Badge className={PRIORITY_STYLE[job.priority]}>{job.priority}</Badge>
           ) : (
-            <select
-              value={job.priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${PRIORITY_STYLE[job.priority]}`}
-              aria-label="Priority"
-            >
-              {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            // The caret says "this can be changed" — without it the control reads as a plain label.
+            <span className="relative inline-flex items-center">
+              <select
+                value={job.priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className={`appearance-none rounded-full border border-navy-600 py-0.5 pl-2.5 pr-6 text-xs font-medium ${PRIORITY_STYLE[job.priority]}`}
+                aria-label="Priority"
+              >
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <span className="pointer-events-none absolute right-2 text-[10px]" aria-hidden="true">▾</span>
+            </span>
           )}
           <Badge className={JOB_STATUS_STYLE[job.status]}>{job.status}</Badge>
         </div>

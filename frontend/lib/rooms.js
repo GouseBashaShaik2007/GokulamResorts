@@ -11,6 +11,20 @@ export const realPhotos = (room) => (room?.images || []).filter((url) => url && 
 
 export const sqftToM2 = (sqft) => (sqft ? Math.round(Number(sqft) * 0.092903) : null);
 
+// The amenities guests ask about first, in that order; anything else follows
+// in the order it was entered in admin.
+const AMENITY_PRIORITY = [/breakfast/i, /wi-?fi/i, /air.?con|\bac\b/i, /balcon/i, /pool/i, /sea|ocean|beach/i];
+
+/** Up to `count` amenities worth showing on a room card. */
+export function topAmenities(room, count = 3) {
+  const all = room?.amenities || [];
+  const rank = (name) => {
+    const i = AMENITY_PRIORITY.findIndex((pattern) => pattern.test(name));
+    return i === -1 ? AMENITY_PRIORITY.length : i;
+  };
+  return [...all].sort((a, b) => rank(a) - rank(b)).slice(0, count);
+}
+
 // "Sea View", "Corner Sea View", "Panoramic Sea View" -> "Sea"; "Garden View" -> "Garden".
 export const viewGroup = (label) => {
   const l = String(label || '').toLowerCase();

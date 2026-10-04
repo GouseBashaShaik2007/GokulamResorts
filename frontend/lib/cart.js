@@ -10,11 +10,17 @@ function storageKey(cartKey) {
 // different spice level or request is a separate line.
 const lineIdFor = (id, spiceLevel, notes) => `${id}|${spiceLevel || ''}|${(notes || '').trim().toLowerCase()}`;
 
+// A cart left behind is dropped after this long, so last week's half-chosen
+// dinner doesn't reappear the next time the same phone scans the table.
+const CART_KEEP_MS = 4 * 60 * 60 * 1000;
+
 function readCart(cartKey) {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(storageKey(cartKey));
-    const items = raw ? JSON.parse(raw) : [];
+    const saved = JSON.parse(window.localStorage.getItem(storageKey(cartKey)) || 'null');
+    // Saved as { savedAt, items }; carts from before that were a bare list with no age.
+    const items = Array.isArray(saved) ? saved : saved?.items || [];
+    if (!Array.isArray(saved) && saved?.savedAt && Date.now() - saved.savedAt > CART_KEEP_MS) return [];
     // Carts saved before per-line choices existed have no lineId.
     return items.map((i) => ({ ...i, lineId: i.lineId || lineIdFor(i.id, i.spiceLevel, i.notes) }));
   } catch {
@@ -34,7 +40,7 @@ export function useCart(cartKey) {
   const persist = useCallback(
     (next) => {
       try {
-        window.localStorage.setItem(storageKey(cartKey), JSON.stringify(next));
+        window.localStorage.setItem(storageKey(cartKey), JSON.stringify({ savedAt: Date.now(), items: next }));
       } catch {
         // ignore storage failures (private mode, quota, etc.)
       }

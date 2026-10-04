@@ -33,9 +33,13 @@ export async function getRoomById(id) {
   return (await getRooms()).find((room) => String(room.id) === String(id)) || null;
 }
 
-/** { categories, items } exactly as the API returns them. */
-export async function getMenu(options) {
-  const [c, i] = await Promise.all([getJson('/menu/categories', options), getJson('/menu/items', options)]);
+/**
+ * { categories, items } exactly as the API returns them. With { all: true }
+ * the items also include dishes marked sold out (is_available: false), for
+ * the ordering screens to show greyed out.
+ */
+export async function getMenu({ all = false, ...options } = {}) {
+  const [c, i] = await Promise.all([getJson('/menu/categories', options), getJson(`/menu/items${all ? '?all=1' : ''}`, options)]);
   return { categories: c?.categories || [], items: i?.items || [] };
 }
 

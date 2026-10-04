@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
-import { errMsg } from '../../lib/bookingUi';
+import { addDays, errMsg, todayIST } from '../../lib/bookingUi';
+import { VegMark } from '../MenuItemCard';
 import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, splitOrderNotes } from '../../lib/foodOrders';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
@@ -17,6 +18,14 @@ const STATUS_STYLE = {
 
 const NEXT_LABEL = { new: 'Start', preparing: 'Ready', ready: 'Served' };
 const REFRESH_MS = 10000;
+
+// Which days' orders to show, as resort-calendar dates for the API.
+const PERIODS = [
+  { key: 'today', label: 'Today', range: (today) => ({ from: today, to: today }) },
+  { key: 'yesterday', label: 'Yesterday', range: (today) => ({ from: addDays(today, -1), to: addDays(today, -1) }) },
+  { key: 'week', label: 'Last 7 days', range: (today) => ({ from: addDays(today, -6), to: today }) },
+  { key: 'all', label: 'All time', range: () => ({}) },
+];
 
 const FILTERS = [
   { key: '', label: 'All' },
@@ -48,7 +57,9 @@ function OrderItems({ order }) {
       <ul className="space-y-0.5">
         {order.items.map((i, idx) => (
           <li key={`${i.item_name}-${idx}`}>
-            <span className="font-medium">{i.quantity}×</span> {i.item_name}
+            <span className="font-medium">{i.quantity}×</span>{' '}
+            {typeof i.is_veg === 'boolean' && <VegMark veg={i.is_veg} className="mr-1 !h-3.5 !w-3.5 align-[-2px]" />}
+            {i.item_name}
             {i.spice_level && <span className="ml-1.5 text-xs uppercase text-orange-700">{i.spice_level}</span>}
             {i.notes && <span className="block text-xs italic text-navy-300">“{i.notes}”</span>}
           </li>
@@ -63,21 +74,26 @@ function OrderItems({ order }) {
 export default function FoodOrdersManager() {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState('');
+  const [period, setPeriod] = useState('today');
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const ask = useConfirm();
   const toast = useToast();
 
+  const newest = useRef(0); // number of the latest request; older answers are dropped
   const load = useCallback(() => {
-    const params = filter ? { status: filter } : {};
+    const params = { ...(filter ? { status: filter } : {}), ...PERIODS.find((p) => p.key === period).range(todayIST()) };
+    newest.current += 1;
+    const mine = newest.current;
     api
       .get('/admin/food-orders', { ...withAdminAuth(), params })
       .then((res) => {
+        if (mine !== newest.current) return;
         setOrders(res.data.orders);
         setError('');
       })
-      .catch((err) => setError(errMsg(err, 'Failed to load food orders')));
-  }, [filter]);
+      .catch((err) => mine === newest.current && setError(errMsg(err, 'Failed to load food orders')));
+  }, [filter, period]);
 
   // Orders arrive while this page is open, so it keeps itself current (and the
   // "x minutes ago" text with it) instead of waiting for a reload.
@@ -112,11 +128,28 @@ export default function FoodOrdersManager() {
     if (ok) setStatus(order, 'cancelled', 'Could not cancel that order.');
   };
 
+  // What the listed orders are worth; cancelled ones bring in nothing.
+  const kept = orders.filter((o) => o.status !== 'cancelled');
+  const revenue = kept.reduce((sum, o) => sum + Number(o.total_amount), 0);
+
   return (
     <div className="card overflow-x-auto p-6">
+      <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Period">
+        {PERIODS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => setPeriod(p.key)}
+            aria-pressed={period === p.key}
+            className={`rounded-lg px-3 py-1.5 text-sm ${period === p.key ? 'bg-navy-700 font-medium text-gold-600' : 'text-navy-300 hover:text-navy-100'}`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-navy-400" aria-live="polite">
-          {orders.length} order{orders.length === 1 ? '' : 's'} · updates every {REFRESH_MS / 1000} seconds
+          <span className="font-semibold text-navy-50">{orders.length} order{orders.length === 1 ? '' : 's'} · ₹{revenue.toLocaleString('en-IN')}</span>
+          {kept.length !== orders.length && ` (excluding ${orders.length - kept.length} cancelled)`} · updates every {REFRESH_MS / 1000} seconds
         </p>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
           {FILTERS.map((f) => (

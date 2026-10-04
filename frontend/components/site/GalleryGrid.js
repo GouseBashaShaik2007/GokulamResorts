@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Lightbox from './Lightbox';
-import { DEFAULT_RATIO, GALLERY, GALLERY_CATEGORIES, thumb } from '@/lib/gallery';
+import { GALLERY, GALLERY_CATEGORIES, thumb } from '@/lib/gallery';
 
 /** Filterable photo grid with a full-screen viewer. `roomPhotos`: the resort's real room photos. */
 export default function GalleryGrid({ roomPhotos = [] }) {
@@ -51,19 +51,18 @@ export default function GalleryGrid({ roomPhotos = [] }) {
         </div>
       )}
 
-      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
+      {/* A grid, not CSS columns: photos read left to right, in the order the viewer steps through them. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {shown.map((p, i) => (
           <button
             key={p.src}
             type="button"
             onClick={() => setOpen(i)}
-            // The tile takes its shape from the ratio, not from the photo, so
-            // nothing below it moves when the photo arrives.
-            className="media-zoom mb-4 block w-full break-inside-avoid overflow-hidden rounded-2xl bg-navy-800"
-            style={{ aspectRatio: p.ratio || DEFAULT_RATIO }}
+            // Every tile has its shape before its photo arrives, so nothing jumps.
+            className="media-zoom block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-navy-800"
             aria-label={`Open photo: ${p.alt}`}
           >
-            <img src={thumb(p.src, p.ratio)} alt={p.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" {...(p.placeholder ? { 'data-placeholder': 'true' } : {})} />
+            <img src={thumb(p.src)} alt={p.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" {...(p.placeholder ? { 'data-placeholder': 'true' } : {})} />
           </button>
         ))}
       </div>

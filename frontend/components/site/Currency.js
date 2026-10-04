@@ -79,6 +79,22 @@ export function Price({ inr, suffix, className = '', approxClassName = '' }) {
   );
 }
 
+/**
+ * "≈ US$78" for a rupee amount when the guest picked another currency; nothing
+ * otherwise. For rows of a price breakdown, so every line converts — not just
+ * the total.
+ */
+export function Approx({ inr, className = '' }) {
+  const { currency, rates } = useCurrency();
+  const meta = CURRENCIES.find((c) => c.code === currency);
+  if (currency === 'INR' || !rates?.rates?.[currency]) return null;
+  return (
+    <span className={`ml-1.5 whitespace-nowrap text-[0.85em] text-navy-400 ${className}`} title="Approximate — you are charged in Indian rupees">
+      ≈ {meta.symbol}{Math.round(Number(inr) * rates.rates[currency]).toLocaleString('en-US')}
+    </span>
+  );
+}
+
 export function CurrencySwitcher({ className = '' }) {
   const { currency, rates, setCurrency } = useCurrency();
   if (!rates) return null;

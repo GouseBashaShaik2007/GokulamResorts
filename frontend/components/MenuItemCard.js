@@ -41,12 +41,22 @@ function NoDishPhoto() {
   );
 }
 
-/** Menu dish. Tapping anywhere opens the item details; `inCart` shows a count badge. */
+/**
+ * Menu dish. Tapping anywhere opens the item details; `inCart` shows a count
+ * badge. A dish the kitchen has marked sold out stays on the menu, greyed and
+ * not orderable, so regulars can see it hasn't been taken off.
+ */
 export default function MenuItemCard({ item, inCart, onOpen }) {
   const price = Number(item.price).toLocaleString('en-IN');
+  const soldOut = item.is_available === false;
 
   return (
-    <button type="button" onClick={onOpen} className="card group flex w-full flex-col overflow-hidden text-left transition-shadow hover:shadow-xl">
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={soldOut}
+      className={`card group flex w-full flex-col overflow-hidden text-left transition-shadow ${soldOut ? 'cursor-not-allowed opacity-60' : 'hover:shadow-xl'}`}
+    >
       <div className="media-zoom relative h-40 w-full overflow-hidden">
         {item.image ? (
           <Photo src={item.image} alt="" sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" />
@@ -65,7 +75,11 @@ export default function MenuItemCard({ item, inCart, onOpen }) {
         <DishInfo item={item} className="mt-2" />
         <div className="mt-auto flex items-center justify-between pt-4">
           <span className="price text-lg">₹{price}</span>
-          <span className="rounded-full border border-ocean-500/60 px-4 py-1.5 text-sm font-semibold text-ocean-600 group-hover:bg-ocean-50">Add</span>
+          {soldOut ? (
+            <span className="rounded-full bg-navy-800 px-3 py-1.5 text-sm font-semibold text-navy-200">Sold out today</span>
+          ) : (
+            <span className="rounded-full border border-ocean-500/60 px-4 py-1.5 text-sm font-semibold text-ocean-600 group-hover:bg-ocean-50">Add</span>
+          )}
         </div>
       </div>
     </button>

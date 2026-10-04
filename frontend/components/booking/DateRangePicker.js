@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  addDaysToDate,
   addMonths,
   buildMonthGrid,
   fromISO,
@@ -15,7 +16,7 @@ import {
   WEEKDAY_LABELS,
 } from '../../lib/dateRange';
 
-function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, onPick, onHover }) {
+function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, tabStopISO, closedReason, onPick, onHover }) {
   const cells = useMemo(() => buildMonthGrid(monthStart), [monthStart]);
 
   const rangeEnd = checkOutDate || (checkInDate && hoverDate && isBefore(checkInDate, hoverDate) ? hoverDate : null);
@@ -30,7 +31,10 @@ function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, onPi
       </div>
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map(({ date, inMonth }, i) => {
-          const disabled = isBefore(date, minDate) && !isSameDay(date, minDate);
+          const closed = closedReason(date); // 'past', 'full' or null
+          const past = closed === 'past';
+          const full = closed === 'full';
+          const disabled = !!closed;
           const isStart = checkInDate && isSameDay(date, checkInDate);
           const isEnd = checkOutDate && isSameDay(date, checkOutDate);
           const inRange =
@@ -40,14 +44,20 @@ function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, onPi
             <button
               key={toISO(date)}
               type="button"
-              aria-label={date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              // Days outside the month are padding: no data-date, so arrow keys never land on them.
+              data-date={inMonth ? toISO(date) : undefined}
+              // One tab stop for the whole grid; arrow keys move between days.
+              tabIndex={inMonth && toISO(date) === tabStopISO ? 0 : -1}
+              aria-label={`${date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}${isStart ? ', check-in' : isEnd ? ', check-out' : ''}${full && !past ? ', fully booked' : ''}`}
+              title={full && !past ? 'Fully booked' : undefined}
               aria-pressed={!!(isStart || isEnd)}
               disabled={disabled || !inMonth}
               onClick={() => onPick(date)}
               onMouseEnter={() => onHover(date)}
+              onFocus={() => onHover(date)}
               className={`relative flex h-9 items-center justify-center text-sm transition-colors ${
                 !inMonth ? 'invisible' : ''
-              } ${disabled ? 'cursor-not-allowed text-navy-700' : 'text-navy-100 hover:bg-navy-800'} ${
+              } ${disabled ? `cursor-not-allowed text-navy-700 ${full && !past ? 'line-through' : ''}` : 'text-navy-100 hover:bg-navy-800'} ${
                 isStart || isEnd ? 'z-10 rounded-full bg-ocean-500 font-semibold text-white hover:bg-ocean-500' : ''
               } ${inRange ? 'bg-gold-500/15' : ''}`}
             >
@@ -66,8 +76,12 @@ function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, onPi
  * the popover closes with both set. Replaces two separate native date
  * inputs. `checkIn`/`checkOut` and `onChange` use YYYY-MM-DD strings, same
  * as the rest of the booking flow.
+ * `fullNights`: nights (YYYY-MM-DD) that are already fully booked — struck
+ * through, and a stay can neither start on one nor run across one.
+ * `align`: which edge of the trigger the calendar lines up with — 'right'
+ * where the picker sits near the right edge of the page.
  */
-export default function DateRangePicker({ checkIn, checkOut, onChange, minDateISO, dropDirection = 'down', className }) {
+export default function DateRangePicker({ checkIn, checkOut, onChange, minDateISO, dropDirection = 'down', className, fullNights, align = 'left' }) {
   const [open, setOpen] = useState(false);
   const [hoverDate, setHoverDate] = useState(null);
   const containerRef = useRef(null);
@@ -76,12 +90,86 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
   const checkInDate = fromISO(checkIn);
   const checkOutDate = fromISO(checkOut);
 
+  const fullSet = useMemo(() => new Set(fullNights || []), [fullNights]);
+  const isFull = (date) => fullSet.has(toISO(date));
+  // With a check-in chosen: the latest day the guest can leave — the first full night after it.
+  const lastCheckOut = useMemo(() => {
+    if (!checkIn || fullSet.size === 0) return null;
+    const next = [...fullSet].filter((night) => night > checkIn).sort()[0];
+    return next ? fromISO(next) : null;
+  }, [checkIn, fullSet]);
+
+  // Why a day can't be picked right now, or null when it can.
+  const closedReason = (date) => {
+    if (isBefore(date, minDate) && !isSameDay(date, minDate)) return 'past';
+    // While choosing a check-out: nothing past the first full night after check-in
+    // (leaving ON that day is fine). Otherwise: a full night can't be a check-in.
+    const choosingEnd = checkInDate && !checkOutDate && isBefore(checkInDate, date);
+    const full = choosingEnd ? !!lastCheckOut && isBefore(lastCheckOut, date) : isFull(date);
+    return full ? 'full' : null;
+  };
+
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(checkInDate || minDate));
+  // The day the keyboard is on (YYYY-MM-DD); also the grid's single tab stop.
+  const [cursorISO, setCursorISO] = useState(null);
+  const pendingFocus = useRef(false);
+  const gridRef = useRef(null);
+  // A phone shows one month, wider screens two (the second is hidden below 640px).
+  const [monthsShown, setMonthsShown] = useState(2);
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 640px)');
+    const update = () => setMonthsShown(wide.matches ? 2 : 1);
+    update();
+    wide.addEventListener('change', update);
+    return () => wide.removeEventListener('change', update);
+  }, []);
+
+  // The first day a guest could pick in the months on screen, for when the
+  // cursor is elsewhere (or sits on a day that is closed and can't take focus).
+  const firstPickable = (() => {
+    let date = isBefore(viewMonth, minDate) ? minDate : viewMonth;
+    for (let hops = 0; closedReason(date) && hops < 62; hops += 1) date = addDaysToDate(date, 1);
+    return date;
+  })();
+  const cursorVisible =
+    cursorISO && !isBefore(fromISO(cursorISO), viewMonth) && isBefore(fromISO(cursorISO), addMonths(viewMonth, monthsShown));
+  const tabStopISO = cursorVisible && !closedReason(fromISO(cursorISO)) ? cursorISO : toISO(firstPickable);
 
   useEffect(() => {
-    if (open) setViewMonth(startOfMonth(checkInDate || minDate));
+    if (!open) return;
+    const start = checkInDate || minDate;
+    setViewMonth(startOfMonth(start));
+    setCursorISO(toISO(start));
+    pendingFocus.current = true; // land in the grid, on the check-in date or today
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // After the cursor moves (or the popover opens), put focus on that day.
+  useEffect(() => {
+    if (!open || !pendingFocus.current) return;
+    pendingFocus.current = false;
+    gridRef.current?.querySelector(`[data-date="${tabStopISO}"]`)?.focus();
+  });
+
+  const moveCursor = (days) => {
+    const from = fromISO(document.activeElement?.dataset?.date || tabStopISO);
+    let to = addDaysToDate(from, days);
+    // A closed day can't take focus, so keep going the same way to the next open one.
+    for (let hops = 0; closedReason(to) === 'full' && hops < 62; hops += 1) to = addDaysToDate(to, Math.sign(days));
+    if (closedReason(to)) return;
+    // Keep the day on screen.
+    if (isBefore(to, viewMonth)) setViewMonth(startOfMonth(to));
+    else if (!isBefore(to, addMonths(viewMonth, monthsShown))) setViewMonth(addMonths(startOfMonth(to), 1 - monthsShown));
+    setCursorISO(toISO(to));
+    pendingFocus.current = true;
+  };
+
+  const onGridKeyDown = (e) => {
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+    if (!step || !e.target.dataset?.date) return;
+    e.preventDefault();
+    moveCursor(step);
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -141,9 +229,10 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: dropDirection === 'up' ? 8 : -8, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className={`glass absolute z-50 w-[19rem] rounded-2xl p-4 shadow-2xl sm:w-[38rem] ${
-              dropDirection === 'up' ? 'bottom-full left-0 mb-3' : 'top-full left-0 mt-3'
-            }`}
+            // Solid, not frosted: over a page of text a see-through calendar is hard to read.
+            className={`absolute z-50 w-[19rem] rounded-2xl border border-navy-700 bg-navy-950 p-4 shadow-2xl sm:w-[38rem] ${
+              dropDirection === 'up' ? 'bottom-full mb-3' : 'top-full mt-3'
+            } ${align === 'right' ? 'left-0 lg:left-auto lg:right-0' : 'left-0'}`}
           >
             <div className="mb-2 flex items-center justify-between px-1">
               <button
@@ -165,13 +254,16 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {/* Arrow keys move between the day buttons inside. */}
+            <div ref={gridRef} role="group" aria-label="Calendar" onKeyDown={onGridKeyDown} className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <Month
                 monthStart={viewMonth}
                 checkInDate={checkInDate}
                 checkOutDate={checkOutDate}
                 hoverDate={hoverDate}
                 minDate={minDate}
+                tabStopISO={tabStopISO}
+                closedReason={closedReason}
                 onPick={handlePick}
                 onHover={setHoverDate}
               />
@@ -182,11 +274,15 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
                   checkOutDate={checkOutDate}
                   hoverDate={hoverDate}
                   minDate={minDate}
+                  tabStopISO={tabStopISO}
+                  closedReason={closedReason}
                   onPick={handlePick}
                   onHover={setHoverDate}
                 />
               </div>
             </div>
+            <p className="sr-only">Use the arrow keys to move between days and Enter to choose.</p>
+            {fullSet.size > 0 && <p className="mt-3 text-xs text-navy-400"><span className="line-through">12</span> = fully booked for this room type</p>}
 
             {checkInDate && (
               <div className="mt-3 flex items-center justify-between border-t border-navy-700 pt-3">

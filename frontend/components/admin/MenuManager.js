@@ -35,6 +35,7 @@ export default function MenuManager() {
 
       <ItemList
         items={menu.items}
+        categories={menu.categories}
         onEdit={(item) => {
           setEditingItem(item);
           // The form is above the list; bring it into view.

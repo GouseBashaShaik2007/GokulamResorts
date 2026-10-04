@@ -13,13 +13,20 @@ export const splitPhone = (full = '') => {
 const formatLocal = (prefix, digits) =>
   prefix === '+91' && digits.length > 5 ? `${digits.slice(0, 5)} ${digits.slice(5, 10)}` : digits;
 
-export default function PhoneInput({ id, value, onChange, required }) {
+/** A full number is usable: 10 digits starting 6–9 for India, at least 6 digits elsewhere. */
+export function isValidPhone(full = '') {
+  const { prefix, local } = splitPhone(full);
+  const digits = local.replace(/\D/g, '');
+  return prefix === '+91' ? /^[6-9]\d{9}$/.test(digits) : digits.length >= 6;
+}
+
+export default function PhoneInput({ id, value, onChange, required, onBlur, invalid = false, describedBy }) {
   const { prefix, local } = splitPhone(value);
   const digits = local.replace(/\D/g, '');
   const max = prefix === '+91' ? 10 : 14;
 
   return (
-    <div className="flex overflow-hidden rounded-lg border border-navy-600 bg-navy-800 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
+    <div className={`flex overflow-hidden rounded-lg border bg-navy-800 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400 ${invalid ? 'border-red-600' : 'border-navy-600'}`}>
       <select
         aria-label="Country code"
         value={prefix}
@@ -34,6 +41,9 @@ export default function PhoneInput({ id, value, onChange, required }) {
         inputMode="numeric"
         autoComplete="tel-national"
         required={required}
+        onBlur={onBlur}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         placeholder={prefix === '+91' ? '98765 43210' : ''}
         value={formatLocal(prefix, digits)}
         onChange={(e) => onChange(prefix + e.target.value.replace(/\D/g, '').slice(0, max))}

@@ -113,6 +113,26 @@ body {
   background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(28, 42, 51, 0.04) 14px 15px);
 }
 
+/* Printing (a booking summary, mostly): the page itself, without the site
+   around it. The admin QR page has its own, stricter print rules. */
+@media print {
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .card {
+    box-shadow: none;
+  }
+  main {
+    padding-bottom: 0;
+  }
+}
+
 /* Reserved space so the floating booking bar never overlaps footer/page
    content — set dynamically by FloatingBookingBar, 0 when it's hidden. */
 main {

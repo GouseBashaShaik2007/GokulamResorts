@@ -116,17 +116,20 @@ function SiteAddressCard({ settings, onSaved }) {
 
   return (
     <form onSubmit={submit} className="card space-y-3 p-6">
-      <h2 className="font-serif text-xl font-bold text-navy-50">Production Site Address</h2>
+      <h2 className="font-serif text-xl font-bold text-navy-50">Website Address</h2>
       <p className="text-sm text-navy-400">
-        Used to build every printed table/kiosk QR code. Never guessed from your browser — leave it empty
-        (QR printing stays disabled) until you have a real domain.
+        The address guests type to reach the site, starting with https://. It goes into every printed QR code, so it
+        is never guessed from your browser — leave it empty (QR printing stays off) until the real address is live.
       </p>
       <input
-        aria-label="Production site address"
+        aria-label="Website address"
+        type="url"
+        pattern="https://.+"
+        title="A full web address starting with https://"
         className="input-field"
         placeholder="https://gokulamresorts.in"
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => setDraft(e.target.value.trim())}
       />
       {siteUrl && <p className="text-xs text-navy-400">Currently: <code>{siteUrl}</code></p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

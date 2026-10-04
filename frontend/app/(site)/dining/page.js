@@ -1,6 +1,6 @@
 import Reveal from '@/components/motion/Reveal';
 import Photo from '@/components/ui/Photo';
-import { DishInfo, VegMark } from '@/components/MenuItemCard';
+import DiningMenu from '@/components/site/DiningMenu';
 import { getContact, getMenuByCategory } from '@/lib/server-api';
 import { jsonLd, restaurantJsonLd } from '@/lib/jsonLd';
 
@@ -36,46 +36,29 @@ export default async function DiningPage() {
             <p className="max-w-xs text-sm text-navy-300">At the restaurant? Scan the QR code on your table to order from your phone.</p>
           </div>
         </Reveal>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="relative col-span-2 h-80 overflow-hidden rounded-2xl">
-            <Photo src={PHOTOS[0].src} alt={PHOTOS[0].alt} data-placeholder="true" sizes="(min-width: 1024px) 33vw, 66vw" priority />
+        {/* One wide photo on a phone; the tall second one joins it from tablet width up. */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="relative h-56 overflow-hidden rounded-2xl sm:col-span-2 sm:h-80">
+            <Photo src={PHOTOS[0].src} alt={PHOTOS[0].alt} data-placeholder="true" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 66vw, 100vw" priority />
           </div>
-          <div className="relative h-80 overflow-hidden rounded-2xl">
+          <div className="relative hidden h-80 overflow-hidden rounded-2xl sm:block">
             <Photo src={PHOTOS[1].src} alt={PHOTOS[1].alt} data-placeholder="true" sizes="(min-width: 1024px) 17vw, 33vw" />
           </div>
         </div>
       </section>
 
-      <section id="menu" className="bg-navy-900 py-16">
+      <section id="menu" className="scroll-mt-24 bg-navy-900 py-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <h2 className="section-heading">Menu</h2>
-          {menu.length === 0 && <p className="mt-6 text-navy-300">The menu isn&apos;t available right now. Please check back shortly.</p>}
-          <div className="mt-8 grid gap-12 md:grid-cols-2">
-            {menu.map((cat) => (
-              <div key={cat.id}>
-                <h3 className="border-b border-navy-700 pb-2 font-serif text-2xl font-semibold text-navy-50">{cat.name}</h3>
-                <ul className="mt-4 space-y-4">
-                  {cat.items.map((item) => (
-                    <li key={item.id} className="flex gap-3">
-                      <VegMark veg={item.is_veg} className="mt-1" />
-                      <div className="flex-1">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="font-medium text-navy-50">{item.name}</span>
-                          <span className="price whitespace-nowrap">₹{Number(item.price).toLocaleString('en-IN')}</span>
-                        </div>
-                        {item.description && <p className="text-sm text-navy-300">{item.description}</p>}
-                        <DishInfo item={item} className="mt-1" />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          {menu.length > 0 && (
-            <p className="mt-10 text-sm text-navy-400">
-              Not every ingredient is listed. If you have an allergy, please tell our staff before you order.
-            </p>
+          {menu.length === 0 ? (
+            <p className="mt-6 text-navy-300">The menu isn&apos;t available right now. Please check back shortly.</p>
+          ) : (
+            <>
+              <DiningMenu menu={menu} />
+              <p className="mt-10 text-sm text-navy-400">
+                Not every ingredient is listed. If you have an allergy, please tell our staff before you order.
+              </p>
+            </>
           )}
         </div>
       </section>

@@ -1,17 +1,39 @@
 'use client';
 
+import { useState } from 'react';
 import { useBooking } from '../BookingContext';
 import { inr } from '../../../lib/bookingUi';
-import PhoneInput from '../../site/PhoneInput';
+import PhoneInput, { isValidPhone } from '../../site/PhoneInput';
 import StaySummary from '../StaySummary';
+
+// What is wrong with each field, or '' when it is fine. Checked when the guest
+// leaves a field and again on submit, so a slip is shown under the field it
+// belongs to instead of as one sentence from the server after "Pay".
+const CHECKS = {
+  name: (v) => (v.trim().length < 2 || !/\p{L}/u.test(v) ? 'Enter the name of the guest who will check in.' : ''),
+  phone: (v) => (isValidPhone(v) ? '' : 'Enter a mobile number we can reach you on — 10 digits for India.'),
+  email: (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) ? '' : 'Enter an email address, like name@example.com.'),
+};
+const FIELD_ID = { name: 'guestName', phone: 'guestPhone', email: 'guestEmail' };
 
 export default function GuestStep() {
   const { pick, guest, setGuest, goTo, submitAndPay, status, error } = useBooking();
+  const [problems, setProblems] = useState({});
 
   const setField = (k) => (e) => setGuest({ [k]: e.target.value });
+  const check = (k) => setProblems((p) => ({ ...p, [k]: CHECKS[k](guest[k] || '') }));
+  // Once a field has been flagged, clear the message as soon as it is put right.
+  const recheck = (k, value) => problems[k] && setProblems((p) => ({ ...p, [k]: CHECKS[k](value) }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const found = Object.fromEntries(Object.keys(CHECKS).map((k) => [k, CHECKS[k](guest[k] || '')]));
+    setProblems(found);
+    const first = Object.keys(found).find((k) => found[k]);
+    if (first) {
+      document.getElementById(FIELD_ID[first])?.focus();
+      return;
+    }
     submitAndPay();
   };
 
@@ -25,9 +47,12 @@ export default function GuestStep() {
   }
 
   const isSubmitting = status === 'booking' || status === 'paying';
+  const problem = (k) => problems[k] && <p id={`${FIELD_ID[k]}Problem`} role="alert" className="mt-1 text-sm text-red-700">{problems[k]}</p>;
+  const invalidProps = (k) => (problems[k] ? { 'aria-invalid': true, 'aria-describedby': `${FIELD_ID[k]}Problem` } : {});
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    // noValidate: the messages below replace the browser's own bubbles.
+    <form onSubmit={handleSubmit} noValidate className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="eyebrow">Step 3 of 4</p>
@@ -43,19 +68,44 @@ export default function GuestStep() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="label" htmlFor="guestName">Full name</label>
-          <input id="guestName" required className="input-field" value={guest.name} onChange={setField('name')} placeholder="Priya Sharma" />
+          <input
+            id="guestName" required autoComplete="name" maxLength={150}
+            className={`input-field ${problems.name ? 'border-red-600' : ''}`}
+            value={guest.name}
+            onChange={(e) => { setField('name')(e); recheck('name', e.target.value); }}
+            onBlur={() => check('name')}
+            placeholder="Priya Sharma"
+            {...invalidProps('name')}
+          />
+          {problem('name')}
         </div>
         <div>
           <label className="label" htmlFor="guestPhone">Mobile (SMS / WhatsApp updates)</label>
-          <PhoneInput id="guestPhone" required value={guest.phone} onChange={(phone) => setGuest({ phone })} />
+          <PhoneInput
+            id="guestPhone" required value={guest.phone}
+            onChange={(phone) => { setGuest({ phone }); recheck('phone', phone); }}
+            onBlur={() => check('phone')}
+            invalid={!!problems.phone}
+            describedBy={problems.phone ? 'guestPhoneProblem' : undefined}
+          />
+          {problem('phone')}
         </div>
         <div>
           <label className="label" htmlFor="guestEmail">Email</label>
-          <input id="guestEmail" type="email" required className="input-field" value={guest.email} onChange={setField('email')} placeholder="priya@example.com" />
+          <input
+            id="guestEmail" type="email" required autoComplete="email"
+            className={`input-field ${problems.email ? 'border-red-600' : ''}`}
+            value={guest.email}
+            onChange={(e) => { setField('email')(e); recheck('email', e.target.value); }}
+            onBlur={() => check('email')}
+            placeholder="priya@example.com"
+            {...invalidProps('email')}
+          />
+          {problem('email')}
         </div>
         <div className="sm:col-span-2">
           <label className="label" htmlFor="guestRequests">Special requests (optional)</label>
-          <textarea id="guestRequests" rows={2} className="input-field" value={guest.specialRequests} onChange={setField('specialRequests')} placeholder="Early check-in, anniversary setup, dietary needs..." aria-describedby="guestRequestsHint" />
+          <textarea id="guestRequests" rows={2} maxLength={1000} className="input-field" value={guest.specialRequests} onChange={setField('specialRequests')} placeholder="Early check-in, anniversary setup, dietary needs..." aria-describedby="guestRequestsHint" />
           <p id="guestRequestsHint" className="mt-1 text-xs text-navy-400">We&apos;ll do our best. Requests depend on what&apos;s available on the day.</p>
         </div>
       </div>

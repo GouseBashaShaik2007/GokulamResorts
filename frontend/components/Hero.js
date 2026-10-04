@@ -10,8 +10,15 @@ const HERO_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e
  * Full-bleed photo with a soft gradient, headline at the bottom left, and the
  * booking form sitting across the photo's bottom edge. The navbar floats
  * transparently over it (see Navbar's `overHero`), hence the negative margin.
+ * `fromPrice`: the lowest nightly rate, for the first of the three reasons to book.
  */
-export default function Hero() {
+export default function Hero({ fromPrice }) {
+  const reasons = [
+    fromPrice ? `From ₹${Math.round(fromPrice).toLocaleString('en-IN')} a night + GST` : null,
+    'Choose your exact room by number',
+    'Full refund if we can’t confirm within 24 hours',
+  ].filter(Boolean);
+
   return (
     <section className="relative -mt-[var(--nav-h)]">
       <div className="relative h-[88vh] min-h-[560px] supports-[height:1svh]:h-[88svh] w-full overflow-hidden">
@@ -32,7 +39,15 @@ export default function Hero() {
           <h1 className="mt-3 max-w-3xl font-serif text-5xl font-medium leading-[1.02] text-white sm:text-6xl lg:text-7xl">
             Where the Bay of Bengal <span className="italic">slows you down</span>
           </h1>
-          <ReviewBadge tone="dark" className="mt-5" />
+          <ul className="mt-5 flex flex-wrap gap-x-6 gap-y-1.5 text-sm font-medium text-white">
+            {reasons.map((reason) => (
+              <li key={reason} className="flex items-center gap-2">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none text-gold-300" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                {reason}
+              </li>
+            ))}
+          </ul>
+          <ReviewBadge tone="dark" className="mt-4" />
         </div>
       </div>
 
