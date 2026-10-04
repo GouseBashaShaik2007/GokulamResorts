@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import Reveal from '@/components/motion/Reveal';
 import Photo from '@/components/ui/Photo';
-import { VegMark } from '@/components/MenuItemCard';
-import { getMenuByCategory } from '@/lib/server-api';
+import { DishInfo, VegMark } from '@/components/MenuItemCard';
+import { getContact, getMenuByCategory } from '@/lib/server-api';
+import { jsonLd, restaurantJsonLd } from '@/lib/jsonLd';
 
 export const metadata = {
   title: 'Dining',
@@ -17,7 +17,7 @@ const PHOTOS = [
 ];
 
 export default async function DiningPage() {
-  const menu = await getMenuByCategory();
+  const [menu, contact] = await Promise.all([getMenuByCategory(), getContact()]);
 
   return (
     <div>
@@ -30,9 +30,10 @@ export default async function DiningPage() {
             Our kitchen cooks the food of the Andhra coast — fresh catch from the Bay of Bengal, slow curries and
             the vegetarian classics of the region — alongside familiar favourites for younger guests.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/dine" className="btn-gold">Order from the menu</Link>
-            <a href="#menu" className="btn-outline">See the full menu</a>
+          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+            <a href="#menu" className="btn-gold">See the full menu</a>
+            {/* Ordering opens from the QR codes at the restaurant, not from this page. */}
+            <p className="max-w-xs text-sm text-navy-300">At the restaurant? Scan the QR code on your table to order from your phone.</p>
           </div>
         </Reveal>
         <div className="grid grid-cols-3 gap-3">
@@ -63,6 +64,7 @@ export default async function DiningPage() {
                           <span className="price whitespace-nowrap">₹{Number(item.price).toLocaleString('en-IN')}</span>
                         </div>
                         {item.description && <p className="text-sm text-navy-300">{item.description}</p>}
+                        <DishInfo item={item} className="mt-1" />
                       </div>
                     </li>
                   ))}
@@ -70,8 +72,16 @@ export default async function DiningPage() {
               </div>
             ))}
           </div>
+          {menu.length > 0 && (
+            <p className="mt-10 text-sm text-navy-400">
+              Not every ingredient is listed. If you have an allergy, please tell our staff before you order.
+            </p>
+          )}
         </div>
       </section>
+
+      {/* The restaurant and its menu in the format search engines read. */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(restaurantJsonLd(contact, menu)) }} />
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { useCart } from '../lib/cart';
 import { errMsg } from '../lib/bookingUi';
 import useModal from '../lib/useModal';
 import { composeOrderNotes } from '../lib/foodOrders';
-import MenuItemCard, { VegMark } from './MenuItemCard';
+import MenuItemCard, { DishInfo, VegMark } from './MenuItemCard';
 import Photo from './ui/Photo';
 import { useToast } from './ui/Toast';
 import PhoneInput from './site/PhoneInput';
@@ -71,6 +71,7 @@ function ItemDetails({ item, onAdd, onClose }) {
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-navy-300 hover:bg-navy-800">✕</button>
         </div>
         {item.description && <p className="text-navy-300">{item.description}</p>}
+        <DishInfo item={item} className="text-sm" />
         <p className="price text-xl">{inr(item.price)}</p>
 
         {item.spice_adjustable && (
@@ -118,17 +119,23 @@ export default function MenuBrowser({ categories, items, orderContext }) {
   const toast = useToast();
 
   const [vegOnly, setVegOnly] = useState(false);
+  const [jainOnly, setJainOnly] = useState(false);
   const [search, setSearch] = useState('');
+  // The Jain filter is only offered once the kitchen has marked some dishes.
+  const hasJain = items.some((i) => i.is_jain);
 
   const sections = useMemo(() => {
     const words = search.trim().toLowerCase();
     const shown = items.filter(
-      (i) => (!vegOnly || i.is_veg) && (!words || `${i.name} ${i.description || ''}`.toLowerCase().includes(words))
+      (i) =>
+        (!vegOnly || i.is_veg) &&
+        (!jainOnly || i.is_jain) &&
+        (!words || `${i.name} ${i.description || ''}`.toLowerCase().includes(words))
     );
     return categories
       .map((c) => ({ ...c, items: shown.filter((i) => String(i.category_id) === String(c.id)) }))
       .filter((c) => c.items.length > 0);
-  }, [categories, items, vegOnly, search]);
+  }, [categories, items, vegOnly, jainOnly, search]);
 
   const [active, setActive] = useState(sections[0]?.id);
   const [detail, setDetail] = useState(null);
@@ -180,6 +187,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
       setStatus('placing');
       const res = await api.post('/food-orders', {
         orderType: orderContext.type,
+        accessKey: orderContext.accessKey, // from the QR code that opened this page
         ...(isTable ? { tableNumber: String(orderContext.tableId) } : {}),
         customerName: form.customerName || undefined,
         // The phone field always carries a country code; only send a real number.
@@ -188,7 +196,9 @@ export default function MenuBrowser({ categories, items, orderContext }) {
         items: cart.items.map((i) => ({ menuItemId: i.id, quantity: i.quantity, spiceLevel: i.spiceLevel || undefined, notes: i.notes || undefined })),
       });
       cart.clear();
-      router.push(isTable ? `/order/${orderContext.tableId}/confirmation?orderId=${res.data.orderId}` : `/dine/confirmation?orderId=${res.data.orderId}`);
+      // The order's private token, plus the QR key so "Order more" works from there.
+      const query = new URLSearchParams({ order: res.data.token, k: orderContext.accessKey || '' });
+      router.push(`${isTable ? `/order/${orderContext.tableId}` : '/dine'}/confirmation?${query}`);
     } catch (err) {
       setStatus('error');
       setError(errMsg(err, 'Could not place your order. Please try again.'));
@@ -225,12 +235,24 @@ export default function MenuBrowser({ categories, items, orderContext }) {
           <VegMark veg />
           Veg only
         </button>
+        {hasJain && (
+          <button
+            type="button"
+            aria-pressed={jainOnly}
+            onClick={() => setJainOnly((v) => !v)}
+            className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+              jainOnly ? 'border-green-700 bg-green-700 text-white' : 'border-navy-700 text-navy-200 hover:border-green-700'
+            }`}
+          >
+            Jain only
+          </button>
+        )}
       </div>
 
       {sections.length === 0 && (
         <div className="card p-8 text-center text-navy-300">
           No dishes match.{' '}
-          <button type="button" onClick={() => { setSearch(''); setVegOnly(false); }} className="font-semibold text-ocean-600 underline">
+          <button type="button" onClick={() => { setSearch(''); setVegOnly(false); setJainOnly(false); }} className="font-semibold text-ocean-600 underline">
             Show the whole menu
           </button>
         </div>
@@ -356,6 +378,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
                     {/* Its own field so the kitchen sees it as a warning, not as an ordinary note. */}
                     <label className="label" htmlFor="orderAllergy">Allergies (optional)</label>
                     <input id="orderAllergy" className="input-field" maxLength={200} value={form.allergy} onChange={(e) => setForm((f) => ({ ...f, allergy: e.target.value }))} placeholder="e.g. peanuts, shellfish" />
+                    <p className="mt-1 text-xs text-navy-400">Not every ingredient is listed on the menu. Tell us about any allergy here — the kitchen sees it at the top of your order.</p>
                   </div>
                   <div>
                     <label className="label" htmlFor="orderNotes">Note for the kitchen (optional)</label>

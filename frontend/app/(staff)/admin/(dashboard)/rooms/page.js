@@ -1,4 +1,4 @@
-import RoomsManager from '@/components/admin/RoomsManager';
+import RoomsAdmin from '@/components/admin/RoomsAdmin';
 
 export default function AdminRoomsPage() {
   return (
@@ -7,7 +7,7 @@ export default function AdminRoomsPage() {
         <p className="eyebrow">Resort Admin</p>
         <h1 className="section-heading mt-1">Rooms</h1>
       </div>
-      <RoomsManager />
+      <RoomsAdmin />
     </div>
   );
 }

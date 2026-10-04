@@ -20,6 +20,8 @@ const RED_MIN = 20;
 const STATUS_FLOW = { new: 'preparing', preparing: 'ready', ready: 'served' };
 const STATUS_LABEL = { new: 'New', preparing: 'Preparing', ready: 'Ready', served: 'Served', cancelled: 'Cancelled' };
 const STATUS_ACTION_LABEL = { new: 'Start preparing', preparing: 'Mark ready', ready: 'Mark served' };
+// What a table asked for from its ordering page.
+const REQUEST_LABEL = { staff: 'is calling for staff', bill: 'wants the bill' };
 const COLUMN_ACCENT = { new: 'text-sky-300', preparing: 'text-violet-300', ready: 'text-emerald-300' };
 
 let audioCtx = null;
@@ -115,6 +117,26 @@ function StartShift({ onStart }) {
   );
 }
 
+// Tables waiting for a person — above the orders, because someone has to walk over.
+function TableRequests({ requests, now, onDone }) {
+  if (requests.length === 0) return null;
+  return (
+    <section aria-label="Table requests" className="flex flex-wrap gap-3 border-b border-neutral-800 bg-amber-300/10 px-6 py-4">
+      {requests.map((r) => (
+        <div key={r.id} className="flex items-center gap-4 rounded-2xl border-2 border-amber-300 bg-neutral-900 px-4 py-3">
+          <p className="text-xl font-bold text-white">
+            Table {r.table_number} <span className="font-semibold text-amber-300">{REQUEST_LABEL[r.kind] || r.kind}</span>
+            <span className="ml-3 font-mono text-base font-normal tabular-nums text-neutral-400">{elapsed(r.created_at, now).label}</span>
+          </p>
+          <button onClick={() => onDone(r)} className="rounded-xl bg-white px-4 py-2 text-base font-bold text-neutral-950 active:scale-95">
+            Done
+          </button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function OrderCard({ order, now, onAdvance, onCancel }) {
   const t = elapsed(order.created_at, now);
   const level = t.mins >= RED_MIN ? 'red' : t.mins >= AMBER_MIN ? 'amber' : 'ok';
@@ -194,9 +216,11 @@ export default function KitchenPage() {
   const [staffName, setStaffName] = useState('');
   const [shiftStarted, setShiftStarted] = useState(false);
   const [orders, setOrders] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState('');
   const lastMaxOrderId = useRef(0);
+  const lastMaxRequestId = useRef(0);
   const soundOnRef = useRef(false);
   const wakeLock = useWakeLock(shiftStarted);
 
@@ -247,12 +271,42 @@ export default function KitchenPage() {
     }
   }, [signOut]);
 
+  // Chimes like a new order does. A failure here never takes the board down:
+  // orders matter more, and loadOrders reports a lost connection.
+  const loadRequests = useCallback(async () => {
+    try {
+      const res = await api.get('/kitchen/requests', withKitchenAuth());
+      const fetched = res.data.requests;
+      const maxId = fetched.reduce((max, r) => Math.max(max, r.id), 0);
+      if (maxId > lastMaxRequestId.current && soundOnRef.current) playChime();
+      lastMaxRequestId.current = Math.max(lastMaxRequestId.current, maxId);
+      setRequests(fetched);
+    } catch {
+      // keep showing what we had
+    }
+  }, []);
+
   useEffect(() => {
     if (!loggedIn) return undefined;
-    loadOrders();
-    const interval = setInterval(loadOrders, POLL_MS);
+    const load = () => {
+      loadOrders();
+      loadRequests();
+    };
+    load();
+    const interval = setInterval(load, POLL_MS);
     return () => clearInterval(interval);
-  }, [loggedIn, loadOrders]);
+  }, [loggedIn, loadOrders, loadRequests]);
+
+  const completeRequest = async (request) => {
+    setRequests((list) => list.filter((r) => r.id !== request.id));
+    try {
+      await api.patch(`/kitchen/requests/${request.id}/done`, {}, withKitchenAuth());
+    } catch (err) {
+      // 404 = someone else already marked it done, which is fine.
+      if (err?.response?.status !== 404) setError(err?.response?.data?.message || 'Could not update that request.');
+      loadRequests();
+    }
+  };
 
   const startShift = () => {
     playChime(); // unlocks audio inside the click, and confirms the speaker works
@@ -323,6 +377,8 @@ export default function KitchenPage() {
       </header>
 
       {error && <p className="bg-red-600 px-6 py-2 text-center font-semibold">{error}</p>}
+
+      <TableRequests requests={requests} now={now} onDone={completeRequest} />
 
       <div className="grid gap-6 p-6 lg:grid-cols-3">
         {grouped.map(({ status, orders: list }) => (

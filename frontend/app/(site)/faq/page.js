@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { jsonLd } from '@/lib/jsonLd';
+import { getContact } from '@/lib/server-api';
 
 export const metadata = {
   title: 'FAQ & Policies',
@@ -7,9 +8,10 @@ export const metadata = {
     'Answers about booking, payment, GST, check-in ID, extending a stay, cancellations and refunds at Gokulam Resorts, Chirala Beach.',
 };
 
-// Only answers the owner has confirmed. TODO(owner): add check-in / check-out
-// times, pets, children and any other policies — they are left out, not guessed.
-const FAQS = [
+// Only answers the owner has confirmed. TODO(owner): add pets, children and
+// any other policies — they are left out, not guessed. Check-in and check-out
+// times are added below from Admin → Settings once they are set there.
+const BASE_FAQS = [
   {
     group: 'Booking',
     items: [
@@ -72,19 +74,36 @@ const FAQS = [
 // "What if I need to cancel?" -> "what-if-i-need-to-cancel"
 const anchor = (question) => question.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-const FAQ_JSON_LD = {
+// The questions to show: the fixed ones, plus the times saved in Admin → Settings.
+function faqsWith(contact) {
+  const times = [
+    contact.checkInTime && `Check-in is from ${contact.checkInTime}`,
+    contact.checkOutTime && `check-out is by ${contact.checkOutTime}`,
+  ].filter(Boolean);
+  if (times.length === 0) return BASE_FAQS;
+
+  const answer = `${times.join(' and ')}.`;
+  return BASE_FAQS.map((section) =>
+    section.group === 'Check-in and your stay'
+      ? { ...section, items: [{ q: 'What time is check-in and check-out?', a: answer }, ...section.items] }
+      : section
+  );
+}
+
+const faqJsonLd = (faqs) => ({
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
-  mainEntity: FAQS.flatMap((section) =>
+  mainEntity: faqs.flatMap((section) =>
     section.items.map((f) => ({
       '@type': 'Question',
       name: f.q,
       acceptedAnswer: { '@type': 'Answer', text: f.text || f.a },
     }))
   ),
-};
+});
 
-export default function FaqPage() {
+export default async function FaqPage() {
+  const FAQS = faqsWith(await getContact());
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
       <p className="eyebrow">FAQ &amp; policies</p>
@@ -112,7 +131,7 @@ export default function FaqPage() {
       </p>
 
       {/* The same questions and answers, in the format search engines read. */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(FAQ_JSON_LD) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd(FAQS)) }} />
     </div>
   );
 }

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
 import { errMsg } from '../../lib/bookingUi';
-import { NEXT_ORDER_STATUS, splitOrderNotes } from '../../lib/foodOrders';
+import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, splitOrderNotes } from '../../lib/foodOrders';
 import { useConfirm } from '@/components/ui/Confirm';
+import { useToast } from '@/components/ui/Toast';
 
 const STATUS_STYLE = {
   new: 'bg-gold-500/10 text-gold-600',
@@ -65,6 +66,7 @@ export default function FoodOrdersManager() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const ask = useConfirm();
+  const toast = useToast();
 
   const load = useCallback(() => {
     const params = filter ? { status: filter } : {};
@@ -89,12 +91,12 @@ export default function FoodOrdersManager() {
 
   const setStatus = async (order, status, fallback) => {
     setBusyId(order.id);
-    setError('');
     try {
       await api.patch(`/admin/food-orders/${order.id}/status`, { status }, withAdminAuth());
+      toast(`Order #${order.id}: ${ORDER_STATUS_LABEL[status] || status}`, { tone: 'info' });
       load();
     } catch (err) {
-      setError(errMsg(err, fallback));
+      toast(errMsg(err, fallback), { tone: 'error' });
     } finally {
       setBusyId(null);
     }

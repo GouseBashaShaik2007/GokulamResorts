@@ -1,5 +1,7 @@
 import ContactForm from '@/components/site/ContactForm';
-import { CONTACT, directionsUrl, mapEmbedUrl, telHref, whatsappUrl } from '@/lib/site';
+import { hotelJsonLd, jsonLd } from '@/lib/jsonLd';
+import { getContact } from '@/lib/server-api';
+import { directionsUrl, mapEmbedUrl, telHref, whatsappUrl } from '@/lib/site';
 
 export const metadata = {
   title: 'Contact',
@@ -29,14 +31,15 @@ function QuickButton({ href, icon, label, external }) {
   );
 }
 
-export default function ContactPage() {
-  const wa = whatsappUrl('Hello Gokulam Resorts, ');
-  const tel = telHref();
+export default async function ContactPage() {
+  const contact = await getContact(); // as saved in Admin → Settings
+  const wa = whatsappUrl('Hello Gokulam Resorts, ', contact);
+  const tel = telHref(contact);
   const quick = [
     tel && { href: tel, icon: 'call', label: 'Call' },
     wa && { href: wa, icon: 'whatsapp', label: 'WhatsApp', external: true },
-    { href: `mailto:${CONTACT.email}`, icon: 'email', label: 'Email' },
-    { href: directionsUrl(), icon: 'directions', label: 'Directions', external: true },
+    { href: `mailto:${contact.email}`, icon: 'email', label: 'Email' },
+    { href: directionsUrl(contact), icon: 'directions', label: 'Directions', external: true },
   ].filter(Boolean);
 
   return (
@@ -56,19 +59,27 @@ export default function ContactPage() {
               <div>
                 <dt className="font-semibold uppercase tracking-wide text-navy-400">Address</dt>
                 <dd className="mt-1 text-navy-100">
-                  <a href={directionsUrl()} target="_blank" rel="noopener noreferrer" className="hover:text-ocean-600">{CONTACT.address}</a>
+                  <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="hover:text-ocean-600">{contact.address}</a>
                 </dd>
               </div>
               {tel && (
                 <div>
                   <dt className="font-semibold uppercase tracking-wide text-navy-400">Phone</dt>
-                  <dd className="mt-1 text-navy-100"><a href={tel} className="hover:text-ocean-600">{CONTACT.phone}</a></dd>
+                  <dd className="mt-1 text-navy-100"><a href={tel} className="hover:text-ocean-600">{contact.phone}</a></dd>
                 </div>
               )}
               <div>
                 <dt className="font-semibold uppercase tracking-wide text-navy-400">Email</dt>
-                <dd className="mt-1 text-navy-100"><a href={`mailto:${CONTACT.email}`} className="hover:text-ocean-600">{CONTACT.email}</a></dd>
+                <dd className="mt-1 text-navy-100"><a href={`mailto:${contact.email}`} className="hover:text-ocean-600">{contact.email}</a></dd>
               </div>
+              {(contact.checkInTime || contact.checkOutTime) && (
+                <div>
+                  <dt className="font-semibold uppercase tracking-wide text-navy-400">Check-in / check-out</dt>
+                  <dd className="mt-1 text-navy-100">
+                    {[contact.checkInTime && `Check-in from ${contact.checkInTime}`, contact.checkOutTime && `check-out by ${contact.checkOutTime}`].filter(Boolean).join(' · ')}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt className="font-semibold uppercase tracking-wide text-navy-400">Front desk</dt>
                 <dd className="mt-1 text-navy-100">Open 24 hours, every day</dd>
@@ -87,11 +98,14 @@ export default function ContactPage() {
 
       <iframe
         title="Map of Chirala"
-        src={mapEmbedUrl()}
+        src={mapEmbedUrl(contact)}
         className="h-96 w-full border-0"
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
       />
+
+      {/* Name, address and phone in the format search engines read. */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(hotelJsonLd(contact)) }} />
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { CONTACT, directionsUrl, telHref, whatsappUrl } from '@/lib/site';
+import { directionsUrl, telHref, whatsappUrl } from '@/lib/site';
 
-export default function Footer() {
-  const wa = whatsappUrl();
-  const tel = telHref();
+/** `contact` = the resort's details as saved in Admin → Settings (see the site layout). */
+export default function Footer({ contact }) {
+  const wa = whatsappUrl('', contact);
+  const tel = telHref(contact);
   return (
     <footer className="border-t border-night-800 bg-night text-white/70">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-4 lg:px-8">
@@ -20,15 +21,15 @@ export default function Footer() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">Contact</h2>
           <ul className="space-y-2 text-sm">
             <li>
-              <a href={directionsUrl()} target="_blank" rel="noopener noreferrer" className="hover:text-gold-300">
-                {CONTACT.address}
+              <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="hover:text-gold-300">
+                {contact.address}
               </a>
             </li>
             {tel && (
-              <li><a href={tel} className="hover:text-gold-300">{CONTACT.phone}</a></li>
+              <li><a href={tel} className="hover:text-gold-300">{contact.phone}</a></li>
             )}
             {wa && <li><a href={wa} target="_blank" rel="noopener noreferrer" className="hover:text-gold-300">WhatsApp us</a></li>}
-            <li><a href={`mailto:${CONTACT.email}`} className="hover:text-gold-300">{CONTACT.email}</a></li>
+            <li><a href={`mailto:${contact.email}`} className="hover:text-gold-300">{contact.email}</a></li>
           </ul>
         </div>
 
@@ -37,7 +38,6 @@ export default function Footer() {
           <ul className="space-y-2 text-sm">
             <li><Link href="/rooms" className="hover:text-gold-300">Rooms &amp; Suites</Link></li>
             <li><Link href="/dining" className="hover:text-gold-300">Dining</Link></li>
-            <li><Link href="/dine" className="hover:text-gold-300">Dine With Us — order</Link></li>
             <li><Link href="/gallery" className="hover:text-gold-300">Gallery</Link></li>
             <li><Link href="/chirala-guide" className="hover:text-gold-300">Chirala Guide</Link></li>
             <li><Link href="/faq" className="hover:text-gold-300">FAQ &amp; Policies</Link></li>

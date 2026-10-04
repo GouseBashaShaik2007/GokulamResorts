@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Lightbox from './Lightbox';
-import { GALLERY, GALLERY_CATEGORIES, thumb } from '@/lib/gallery';
+import { DEFAULT_RATIO, GALLERY, GALLERY_CATEGORIES, thumb } from '@/lib/gallery';
 
 /** Filterable photo grid with a full-screen viewer. `roomPhotos`: the resort's real room photos. */
 export default function GalleryGrid({ roomPhotos = [] }) {
@@ -57,10 +57,13 @@ export default function GalleryGrid({ roomPhotos = [] }) {
             key={p.src}
             type="button"
             onClick={() => setOpen(i)}
-            className="media-zoom mb-4 block w-full overflow-hidden rounded-2xl"
+            // The tile takes its shape from the ratio, not from the photo, so
+            // nothing below it moves when the photo arrives.
+            className="media-zoom mb-4 block w-full break-inside-avoid overflow-hidden rounded-2xl bg-navy-800"
+            style={{ aspectRatio: p.ratio || DEFAULT_RATIO }}
             aria-label={`Open photo: ${p.alt}`}
           >
-            <img src={thumb(p.src)} alt={p.alt} loading="lazy" decoding="async" className="w-full" {...(p.placeholder ? { 'data-placeholder': 'true' } : {})} />
+            <img src={thumb(p.src, p.ratio)} alt={p.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" {...(p.placeholder ? { 'data-placeholder': 'true' } : {})} />
           </button>
         ))}
       </div>

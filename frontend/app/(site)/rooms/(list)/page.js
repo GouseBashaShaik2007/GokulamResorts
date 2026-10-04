@@ -1,7 +1,7 @@
 import Reveal from '@/components/motion/Reveal';
 import RoomsExplorer from '@/components/site/RoomsExplorer';
 import RecentlyViewed from '@/components/site/RecentlyViewed';
-import { getRooms } from '@/lib/server-api';
+import { getOffers, getRooms } from '@/lib/server-api';
 
 export const metadata = {
   title: 'Rooms & Suites',
@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 export default async function RoomsPage() {
-  const rooms = await getRooms();
+  const [rooms, offers] = await Promise.all([getRooms(), getOffers()]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -25,7 +25,7 @@ export default async function RoomsPage() {
       <RecentlyViewed className="-mt-4 mb-8" />
 
       {rooms.length > 0 ? (
-        <RoomsExplorer rooms={rooms} />
+        <RoomsExplorer rooms={rooms} offers={offers} />
       ) : (
         <div className="card p-8 text-center text-navy-300">
           Rooms are not available to view right now. Please try again shortly.

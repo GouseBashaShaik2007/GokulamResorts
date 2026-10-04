@@ -1,4 +1,5 @@
 import Photo from './ui/Photo';
+import { SPICE_RATING_LABEL, allergenText } from '../lib/foodOrders';
 
 export function VegMark({ veg, className = '' }) {
   return (
@@ -10,6 +11,20 @@ export function VegMark({ veg, className = '' }) {
     >
       <span className={`h-2 w-2 rounded-full ${veg ? 'bg-green-600' : 'bg-red-600'}`} />
     </span>
+  );
+}
+
+/** Jain / heat / allergens for a dish. Nothing is shown for what the kitchen hasn't filled in. */
+export function DishInfo({ item, className = '' }) {
+  const allergens = allergenText(item);
+  const heat = SPICE_RATING_LABEL[item.spice_rating] || '';
+  if (!item.is_jain && !heat && !allergens) return null;
+  return (
+    <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-navy-300 ${className}`}>
+      {item.is_jain && <span className="rounded-full border border-green-700/50 px-2 py-0.5 font-semibold text-green-800">Jain</span>}
+      {heat && <span className="rounded-full border border-red-700/40 px-2 py-0.5 font-semibold text-red-800">Spice: {heat}</span>}
+      {allergens && <span>Contains {allergens.toLowerCase()}</span>}
+    </p>
   );
 }
 
@@ -47,6 +62,7 @@ export default function MenuItemCard({ item, inCart, onOpen }) {
       <div className="flex flex-1 flex-col p-5">
         <h3 className="font-serif text-lg font-semibold text-navy-50">{item.name}</h3>
         {item.description && <p className="mt-1 line-clamp-2 text-sm text-navy-300">{item.description}</p>}
+        <DishInfo item={item} className="mt-2" />
         <div className="mt-auto flex items-center justify-between pt-4">
           <span className="price text-lg">₹{price}</span>
           <span className="rounded-full border border-ocean-500/60 px-4 py-1.5 text-sm font-semibold text-ocean-600 group-hover:bg-ocean-50">Add</span>

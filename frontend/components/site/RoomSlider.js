@@ -2,9 +2,10 @@
 
 import { useRef } from 'react';
 import RoomCard from '../RoomCard';
+import { offersForRoom } from '@/lib/offers';
 
-/** Horizontal, swipeable row of room cards with arrow buttons on desktop. */
-export default function RoomSlider({ rooms }) {
+/** Horizontal, swipeable row of room cards with arrow buttons on desktop. `offers`: live offers. */
+export default function RoomSlider({ rooms, offers = [] }) {
   const track = useRef(null);
   const scroll = (dir) => {
     const el = track.current;
@@ -24,7 +25,7 @@ export default function RoomSlider({ rooms }) {
       >
         {rooms.map((room) => (
           <div key={room.id} className="w-[85%] flex-none snap-start sm:w-[46%] lg:w-[31.5%]">
-            <RoomCard room={room} size="slide" />
+            <RoomCard room={room} size="slide" offer={offersForRoom(offers, room)[0]} />
           </div>
         ))}
       </div>

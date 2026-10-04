@@ -8,7 +8,9 @@ import RecentlyViewed from '@/components/site/RecentlyViewed';
 import { Price } from '@/components/site/Currency';
 import OpenBookingButton from '@/components/booking/OpenBookingButton';
 import { REVIEWS, GETTING_HERE, PACKAGES, mapEmbedUrl, directionsUrl } from '@/lib/site';
-import { getRooms } from '@/lib/server-api';
+import { getContact, getOffers, getRooms } from '@/lib/server-api';
+import { hotelJsonLd, jsonLd } from '@/lib/jsonLd';
+import { offerDates, offerSaving } from '@/lib/offers';
 
 // Stock photos until the resort's own arrive (data-placeholder="true").
 const EXPERIENCES = [
@@ -36,7 +38,7 @@ function SectionHead({ eyebrow, title, action }) {
 }
 
 export default async function HomePage() {
-  const rooms = await getRooms();
+  const [rooms, offers, contact] = await Promise.all([getRooms(), getOffers(), getContact()]);
 
   return (
     <div>
@@ -61,7 +63,7 @@ export default async function HomePage() {
           action={<Link href="/rooms" className="btn-outline">All rooms</Link>}
         />
         {rooms.length > 0 ? (
-          <RoomSlider rooms={rooms} />
+          <RoomSlider rooms={rooms} offers={offers} />
         ) : (
           <p className="card p-8 text-center text-navy-300">
             Rooms are not available to view right now. Please try again shortly, or{' '}
@@ -69,6 +71,26 @@ export default async function HomePage() {
           </p>
         )}
       </section>
+
+      {/* Offers running now or coming up — the ones switched on in Admin → Offers */}
+      {offers.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+          <SectionHead eyebrow="Offers" title="Book direct and save" />
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {offers.map((offer) => (
+              <div key={offer.id} className="card flex flex-col p-6">
+                <p className="text-sm font-semibold text-green-800">{offerSaving(offer)} per night</p>
+                <h3 className="mt-1 font-serif text-2xl font-semibold text-navy-50">{offer.name}</h3>
+                <p className="mt-2 flex-1 text-sm text-navy-300">
+                  {offer.room_type || 'Every room type'} · stays {offerDates(offer)}. Taken off the price automatically
+                  when you book those nights.
+                </p>
+                <OpenBookingButton roomTypeId={offer.room_type_id} className="btn-gold mt-5">Check availability</OpenBookingButton>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Experiences */}
       <section className="bg-navy-900 py-20">
@@ -132,13 +154,13 @@ export default async function HomePage() {
               ))}
             </ul>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href={directionsUrl()} target="_blank" rel="noopener noreferrer" className="btn-gold">Get directions</a>
+              <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-gold">Get directions</a>
               <Link href="/chirala-guide" className="btn-outline">Chirala guide</Link>
             </div>
           </div>
           <iframe
             title="Map of Chirala"
-            src={mapEmbedUrl()}
+            src={mapEmbedUrl(contact)}
             className="h-80 w-full border-0 lg:h-full"
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
@@ -146,11 +168,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Offers — shown once packages are defined */}
+      {/* Packages — shown once they are defined in lib/site.js */}
       {PACKAGES.length > 0 && (
         <section className="bg-navy-900 py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <SectionHead eyebrow="Offers" title="Packages" />
+            <SectionHead eyebrow="Packages" title="Stay packages" />
             <div className="grid gap-6 md:grid-cols-3">
               {PACKAGES.map((p) => (
                 <div key={p.slug} className="card flex flex-col p-6">
@@ -167,6 +189,9 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {/* The resort in the format search engines read. */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(hotelJsonLd(contact)) }} />
     </div>
   );
 }

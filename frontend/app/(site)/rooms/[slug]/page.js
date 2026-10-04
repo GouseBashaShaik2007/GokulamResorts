@@ -6,7 +6,8 @@ import RoomBookingBox from '@/components/site/RoomBookingBox';
 import RecentlyViewed, { TrackRoomView } from '@/components/site/RecentlyViewed';
 import { jsonLd } from '@/lib/jsonLd';
 import { realPhotos, roomPath, sqftToM2 } from '@/lib/rooms';
-import { getRoomBySlug } from '@/lib/server-api';
+import { getContact, getOffers, getRoomBySlug } from '@/lib/server-api';
+import { offersForRoom } from '@/lib/offers';
 import { SITE_URL } from '@/lib/site';
 
 export async function generateMetadata({ params }) {
@@ -81,6 +82,7 @@ function structuredData(room, photos) {
 export default async function RoomPage({ params }) {
   const room = await getRoomBySlug(params.slug);
   if (!room) notFound();
+  const [offers, contact] = await Promise.all([getOffers(), getContact()]);
 
   const m2 = sqftToM2(room.size_sqft);
   const photos = realPhotos(room);
@@ -98,13 +100,21 @@ export default async function RoomPage({ params }) {
 
       <RoomGallery name={room.name} photos={photos} />
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_24rem]">
-        <Reveal as="div">
+      {/* On a phone: name, then price and dates, then the details. On large
+          screens the booking box sits beside both and follows the scroll. */}
+      <div className="mt-10 grid gap-x-10 gap-y-8 lg:grid-cols-[1fr_24rem]">
+        <Reveal as="div" className="lg:col-start-1">
           <p className="eyebrow">Chirala Beach</p>
           <h1 className="display-heading mt-2 text-4xl md:text-5xl">{room.name}</h1>
           <p className="mt-6 max-w-2xl leading-relaxed text-navy-300">{room.description}</p>
+        </Reveal>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        <aside className="lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
+          <RoomBookingBox room={room} offers={offersForRoom(offers, room)} />
+        </aside>
+
+        <div className="lg:col-start-1">
+          <div className="grid gap-3 sm:grid-cols-2">
             {m2 && <Feature icon="size" label="Room size" value={`${room.size_sqft} sq ft (${m2} m²)`} />}
             {room.bed_type && <Feature icon="bed" label="Bed" value={room.bed_type} />}
             {room.views?.length > 0 && <Feature icon="view" label="View" value={room.views.join(' · ')} />}
@@ -125,18 +135,27 @@ export default async function RoomPage({ params }) {
             </>
           )}
 
-          <p className="mt-10 text-sm text-navy-400">
-            {room.units_count} room{room.units_count === 1 ? '' : 's'} of this type — you choose the exact room by
-            number when you book. Please bring a photo ID for every adult at check-in.
+          <h2 className="mt-10 font-serif text-2xl font-semibold text-navy-50">Good to know</h2>
+          <ul className="mt-4 space-y-2 text-sm text-navy-200">
+            {(contact.checkInTime || contact.checkOutTime) && (
+              <li>
+                {[contact.checkInTime && `Check-in from ${contact.checkInTime}`, contact.checkOutTime && `check-out by ${contact.checkOutTime}`].filter(Boolean).join(', ')}.
+              </li>
+            )}
+            <li>
+              {room.units_count} room{room.units_count === 1 ? '' : 's'} of this type — you choose the exact room by
+              number when you book.
+            </li>
+            <li>Bring a photo ID (Aadhaar, passport or driving licence) for every adult; the front desk checks it at check-in.</li>
+            <li>You pay in full online. The resort confirms within 24 hours — if it can&apos;t, you are refunded in full automatically.</li>
+            <li>Bookings cancelled before check-in are refunded. If you don&apos;t arrive, the payment is not refunded.</li>
+          </ul>
+          <p className="mt-3 text-sm">
+            <Link href="/faq" className="font-semibold text-ocean-600 underline">All questions and policies</Link>
           </p>
 
           <RecentlyViewed excludeId={room.id} className="mt-8" />
-        </Reveal>
-
-        {/* Follows the scroll on large screens. */}
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <RoomBookingBox room={room} />
-        </aside>
+        </div>
       </div>
 
       {structuredData(room, photos).map((data) => (

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { withAdminAuth } from '../../lib/api';
 import { inr, fmtDate, todayIST, errMsg } from '../../lib/bookingUi';
+import { useConfirm } from '../ui/Confirm';
+import { useToast } from '../ui/Toast';
 
 const PREVIEW_NIGHTS = 3;
 
@@ -65,9 +67,12 @@ function offerState(offer, today) {
 export default function PromotionsManager() {
   const today = todayIST();
   const empty = { name: '', roomTypeId: '', discountType: 'percent', value: '', startDate: today, endDate: today, reason: '' };
+  const ask = useConfirm();
+  const toast = useToast();
   const [rows, setRows] = useState([]);
   const [types, setTypes] = useState([]);
   const [form, setForm] = useState(empty);
+  const [editing, setEditing] = useState(null); // the offer being edited, or null when adding
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
@@ -80,39 +85,83 @@ export default function PromotionsManager() {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const stopEditing = () => {
+    setEditing(null);
+    setForm(empty);
+    setError('');
+  };
+
+  const startEditing = (p) => {
+    setEditing(p);
+    setError('');
+    setForm({
+      name: p.name,
+      roomTypeId: p.room_type_id ? String(p.room_type_id) : '',
+      discountType: p.discount_type,
+      value: String(Number(p.value)),
+      startDate: String(p.start_date).slice(0, 10),
+      endDate: String(p.end_date).slice(0, 10),
+      reason: p.reason,
+    });
+    document.getElementById('offer-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    const payload = { ...form, roomTypeId: form.roomTypeId ? Number(form.roomTypeId) : null, value: Number(form.value) };
     try {
-      await api.post(
-        '/admin/rate-discounts',
-        { ...form, roomTypeId: form.roomTypeId ? Number(form.roomTypeId) : null, value: Number(form.value) },
-        withAdminAuth()
-      );
-      setForm(empty);
+      if (editing) {
+        await api.put(`/admin/rate-discounts/${editing.id}`, payload, withAdminAuth());
+        toast(`“${form.name}” updated.`);
+      } else {
+        await api.post('/admin/rate-discounts', payload, withAdminAuth());
+        toast(`“${form.name}” added.`);
+      }
+      stopEditing();
       load();
     } catch (err) {
-      setError(errMsg(err, 'Could not save promotion'));
+      // Stays beside the form: it is usually about one of its fields.
+      setError(errMsg(err, 'Could not save the offer'));
     }
   };
 
   const toggle = async (p) => {
-    setError('');
     try {
       await api.put(`/admin/rate-discounts/${p.id}`, { isActive: !p.is_active }, withAdminAuth());
+      toast(`“${p.name}” turned ${p.is_active ? 'off' : 'on'}.`);
     } catch (err) {
-      setError(errMsg(err, `Could not turn "${p.name}" ${p.is_active ? 'off' : 'on'}`));
+      toast(errMsg(err, `Could not turn “${p.name}” ${p.is_active ? 'off' : 'on'}`), { tone: 'error' });
+    }
+    load();
+  };
+
+  const remove = async (p) => {
+    const ok = await ask({
+      title: `Delete “${p.name}”?`,
+      body: 'It is removed for good. Bookings already made keep the price they were given. To pause an offer instead, turn it off.',
+      confirmLabel: 'Delete offer',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/admin/rate-discounts/${p.id}`, withAdminAuth());
+      toast(`“${p.name}” deleted.`);
+      if (editing?.id === p.id) stopEditing();
+    } catch (err) {
+      toast(errMsg(err, `Could not delete “${p.name}”`), { tone: 'error' });
     }
     load();
   };
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr]">
-      <form onSubmit={submit} className="card space-y-3 p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">New offer</h2>
+      <form id="offer-form" onSubmit={submit} className="card scroll-mt-24 space-y-3 self-start p-6">
+        <h2 className="font-serif text-xl font-bold text-navy-50">{editing ? `Edit offer: ${editing.name}` : 'New offer'}</h2>
         <p className="text-xs text-navy-400">
           Applies per night to new bookings and extensions. When two offers cover the same night, the bigger
-          discount wins (they don&apos;t stack). Existing bookings keep their price.
+          discount wins (they don&apos;t stack). Existing bookings keep their price. Guests see live offers on
+          the home page, the room cards and each room&apos;s page.
         </p>
         <div>
           <label className="label">Name (shown to guests)</label>
@@ -149,8 +198,11 @@ export default function PromotionsManager() {
           <label className="label">Reason (internal, required)</label>
           <input aria-label="Reason (internal, required)" required minLength={3} className="input-field py-2" value={form.reason} onChange={set('reason')} />
         </div>
-        {error && <p className="text-sm text-red-700">{error}</p>}
-        <button className="btn-gold w-full">Add offer</button>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <div className="flex gap-3">
+          <button className="btn-gold flex-1">{editing ? 'Save changes' : 'Add offer'}</button>
+          {editing && <button type="button" onClick={stopEditing} className="btn-outline">Cancel</button>}
+        </div>
       </form>
 
       <div className="card p-6">
@@ -167,9 +219,17 @@ export default function PromotionsManager() {
                   {p.room_type || 'All room types'} · {fmtDate(p.start_date)} – {fmtDate(p.end_date)} · {p.reason}
                 </p>
               </div>
-              <button onClick={() => toggle(p)} className="rounded-lg border border-navy-600 px-3 py-1 text-xs text-navy-200 hover:bg-navy-700">
-                {p.is_active ? 'Turn off' : 'Turn on'}
-              </button>
+              <div className="flex gap-2">
+                <button onClick={() => startEditing(p)} className="rounded-lg border border-gold-500/50 px-3 py-1 text-xs text-gold-600 hover:bg-gold-500/10">
+                  Edit
+                </button>
+                <button onClick={() => toggle(p)} className="rounded-lg border border-navy-600 px-3 py-1 text-xs text-navy-200 hover:bg-navy-700">
+                  {p.is_active ? 'Turn off' : 'Turn on'}
+                </button>
+                <button onClick={() => remove(p)} className="rounded-lg border border-red-500/50 px-3 py-1 text-xs text-red-700 hover:bg-red-500/10">
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
           {rows.length === 0 && <p className="text-sm text-navy-400">No offers yet.</p>}

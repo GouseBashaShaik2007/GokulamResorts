@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import api from '../lib/api';
 import { inr, fmtDate, fmtDateTime, errMsg, todayIST, nightsBetween } from '../lib/bookingUi';
-import { CONTACT, directionsUrl, telHref, whatsappUrl } from '../lib/site';
+import { directionsUrl, telHref, whatsappUrl } from '../lib/site';
+import { useContact } from './site/ContactContext';
 import { realPhotos } from '../lib/rooms';
 import PhoneInput from './site/PhoneInput';
 import RoomPhoto from './site/RoomPhoto';
@@ -75,7 +76,58 @@ function CopyButton({ text }) {
   );
 }
 
-function Summary({ b }) {
+// Right after paying: say plainly that the money arrived, and what happens now.
+function PaymentReceived({ b }) {
+  const steps = [
+    { done: true, title: 'Payment received', text: `We have your payment of ${inr(b.paid || b.total)}.` },
+    {
+      title: 'The resort confirms your booking',
+      text: `Within 24 hours${b.holdExpiresAt ? ` — by ${fmtDateTime(b.holdExpiresAt)}` : ''}. Your room is held for you meanwhile.`,
+    },
+    {
+      title: 'You get an SMS / WhatsApp',
+      text: 'As soon as it is confirmed. If the resort cannot confirm in that time, your payment is refunded in full automatically.',
+    },
+  ];
+  return (
+    <div className="card border-green-700/30 p-6 sm:p-8">
+      <div className="flex items-start gap-4">
+        <span className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-green-700 text-white" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </span>
+        <div>
+          <h1 className="font-serif text-3xl font-semibold text-navy-50">Payment received — thank you</h1>
+          <p className="mt-1 text-navy-300">Your booking reference. Keep it: with your mobile number, it is how you look this booking up.</p>
+          <p className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="font-mono text-3xl font-semibold tracking-wide text-navy-50">{b.reference}</span>
+            <CopyButton text={b.reference} />
+          </p>
+        </div>
+      </div>
+
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-navy-400">What happens next</h2>
+      <ol className="mt-3 space-y-4">
+        {steps.map((step, i) => (
+          <li key={step.title} className="flex gap-4">
+            <span
+              className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-sm font-semibold ${step.done ? 'bg-green-700 text-white' : 'border border-navy-600 text-navy-200'}`}
+              aria-hidden="true"
+            >
+              {step.done ? '✓' : i + 1}
+            </span>
+            <span>
+              <span className="block font-medium text-navy-50">{step.title}</span>
+              <span className="text-sm text-navy-300">{step.text}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function Summary({ b, justBooked }) {
+  const contact = useContact();
   const [photo, setPhoto] = useState(undefined);
   useEffect(() => {
     if (!b.room.typeId) return setPhoto(null);
@@ -87,9 +139,15 @@ function Summary({ b }) {
   const refunded = b.refunds.reduce((sum, r) => sum + (r.status !== 'failed' ? r.amount : 0), 0);
   const nights = nightsBetween(b.checkIn, b.checkOut);
   const upcoming = ['paid', 'confirmed'].includes(b.status);
-  const wa = whatsappUrl(`Hello, this is about booking ${b.reference}.`);
+  const wa = whatsappUrl(`Hello, this is about booking ${b.reference}.`, contact);
+  const tel = telHref(contact);
+  // The dedicated "payment received" card above already carries the heading and reference.
+  const celebrated = justBooked && b.status === 'paid';
+  const Title = celebrated ? 'h2' : 'h1';
 
   return (
+    <>
+    {celebrated && <PaymentReceived b={b} />}
     <div className="card overflow-hidden">
       <div className="relative h-48 sm:h-56">
         {photo === undefined ? <div className="h-full w-full animate-pulse bg-navy-800" /> : <RoomPhoto src={photo} alt={b.room.type} />}
@@ -101,8 +159,8 @@ function Summary({ b }) {
             <span className="font-mono text-sm font-semibold normal-case tracking-normal text-navy-50">{b.reference}</span>
             <CopyButton text={b.reference} />
           </p>
-          <h1 className="mt-1 font-serif text-3xl font-semibold text-navy-50" aria-live="polite">{s.title}</h1>
-          {s.text && <p className="mt-2 text-navy-300">{s.text}</p>}
+          <Title className="mt-1 font-serif text-3xl font-semibold text-navy-50" aria-live="polite">{celebrated ? 'Your stay' : s.title}</Title>
+          {s.text && !celebrated && <p className="mt-2 text-navy-300">{s.text}</p>}
           {b.closeReason && b.status === 'cancelled' && <p className="mt-2 text-navy-300">{b.closeReason}.</p>}
         </div>
 
@@ -134,28 +192,43 @@ function Summary({ b }) {
             </div>
           )}
         </dl>
-        {b.status === 'paid' && b.holdExpiresAt && <p className="text-xs text-navy-400">Confirmation due by {fmtDateTime(b.holdExpiresAt)}.</p>}
+        {b.status === 'paid' && b.holdExpiresAt && !celebrated && (
+          <p className="text-xs text-navy-400">
+            Confirmation due by {fmtDateTime(b.holdExpiresAt)}. If the resort has not confirmed by then, the booking is
+            cancelled and the full amount is refunded automatically.
+          </p>
+        )}
 
         {upcoming && (
           <div className="rounded-xl bg-navy-900 p-4 text-sm text-navy-200">
             <p className="font-semibold text-navy-50">Before you arrive</p>
-            <p className="mt-1">Bring a photo ID (Aadhaar, passport or driving licence) for every adult — the front desk checks them at check-in.</p>
+            <ul className="mt-2 space-y-1.5">
+              <li>Bring a photo ID (Aadhaar, passport or driving licence) for every adult — the front desk checks them at check-in.</li>
+              {contact.checkInTime && <li>Check-in is from {contact.checkInTime} on {fmtDate(b.checkIn)}{contact.checkOutTime ? `; check-out is by ${contact.checkOutTime}` : ''}.</li>}
+              <li>
+                Find us at{' '}
+                <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="text-ocean-600 underline">{contact.address}</a>.
+              </li>
+              {tel && <li>Front desk: <a href={tel} className="text-ocean-600 underline">{contact.phone}</a> — call if your plans or arrival time change.</li>}
+            </ul>
           </div>
         )}
 
         <div className="flex flex-wrap gap-3">
-          <a href={directionsUrl()} target="_blank" rel="noopener noreferrer" className="btn-outline">Directions</a>
+          <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-outline">Directions</a>
           {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="btn-outline">WhatsApp the front desk</a>}
           <Link href="/" className="btn-gold">Back to home</Link>
         </div>
       </div>
     </div>
+    </>
   );
 }
 
 function Help() {
-  const wa = whatsappUrl();
-  const tel = telHref();
+  const contact = useContact();
+  const wa = whatsappUrl('', contact);
+  const tel = telHref(contact);
   return (
     <aside className="space-y-4">
       <h2 className="font-serif text-2xl font-semibold text-navy-50">What you can do here</h2>
@@ -167,7 +240,7 @@ function Help() {
       </ul>
       <p className="text-sm text-navy-400">
         To change dates or cancel, contact the resort{wa ? ' on WhatsApp' : ''} at{' '}
-        {tel ? <a className="text-ocean-600 underline" href={tel}>{CONTACT.phone}</a> : <a className="text-ocean-600 underline" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>}.
+        {tel ? <a className="text-ocean-600 underline" href={tel}>{contact.phone}</a> : <a className="text-ocean-600 underline" href={`mailto:${contact.email}`}>{contact.email}</a>}.
         Your reference is in the SMS / WhatsApp we sent after booking.
       </p>
     </aside>
@@ -177,8 +250,11 @@ function Help() {
 /**
  * Looks up a booking by reference + phone. If both are known up front (right
  * after paying, same tab) it loads straight away; otherwise it asks for them.
+ * `justBooked`: this is the page a guest lands on after paying, so a booking
+ * that is still awaiting the resort's confirmation gets the "payment received,
+ * here is what happens next" card on top.
  */
-export default function GuestBookingStatus({ initialRef = '', initialPhone = '', intro = '' }) {
+export default function GuestBookingStatus({ initialRef = '', initialPhone = '', intro = '', justBooked = false }) {
   const [form, setForm] = useState({ ref: initialRef, phone: initialPhone });
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState('');
@@ -225,7 +301,7 @@ export default function GuestBookingStatus({ initialRef = '', initialPhone = '',
   if (booking) {
     return (
       <div className="space-y-4">
-        <Summary b={booking} />
+        <Summary b={booking} justBooked={justBooked} />
         <button type="button" onClick={() => setBooking(null)} className="text-sm text-navy-400 underline">Look up another booking</button>
       </div>
     );

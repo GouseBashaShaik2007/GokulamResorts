@@ -1,5 +1,6 @@
-// Server-side reads for the guest pages (rooms and menu). Import from Server
-// Components only; client components use lib/api.js.
+// Server-side reads for the guest pages (rooms, menu, offers, resort details).
+// Import from Server Components only; client components use lib/api.js.
+import { resolveContact } from './site';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -44,4 +45,26 @@ export async function getMenuByCategory(options) {
   return categories
     .map((category) => ({ ...category, items: items.filter((item) => item.category_id === category.id) }))
     .filter((category) => category.items.length > 0);
+}
+
+/**
+ * Whether `key` is the one printed on a QR code: pass { table, key } for a
+ * table's code, or just { key } for the restaurant counter's. Ordering is only
+ * offered to people who scanned a code, so anything else — no key, a guessed
+ * one, or the API being unreachable — is a "no".
+ */
+export async function hasOrderAccess({ table, key }) {
+  if (!key) return false;
+  const query = new URLSearchParams(table ? { type: 'table', table: String(table), k: key } : { type: 'counter', k: key });
+  return (await getJson(`/order-access?${query}`, { fresh: true }))?.valid === true;
+}
+
+/** Phone, address, check-in times… as set in Admin → Settings (see lib/site.js). */
+export async function getContact() {
+  return resolveContact((await getJson('/site-info'))?.info);
+}
+
+/** Offers that are switched on and not yet over — the same rules the price uses. */
+export async function getOffers() {
+  return (await getJson('/offers'))?.offers || [];
 }

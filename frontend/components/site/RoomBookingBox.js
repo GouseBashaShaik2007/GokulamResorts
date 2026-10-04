@@ -7,13 +7,15 @@ import { useBooking } from '../booking/BookingContext';
 import DateRangePicker from '../booking/DateRangePicker';
 import { Price, useCurrency } from './Currency';
 import ReviewBadge from './ReviewBadge';
+import { offerDates, offerSaving } from '@/lib/offers';
 
 /**
  * Booking box on a room page: dates → live total including GST → Reserve.
  * Shares dates/guests with the booking panel, so Reserve continues right
  * where the guest is (picking a room number of this type).
+ * `offers`: live offers covering this room type, best first.
  */
-export default function RoomBookingBox({ room }) {
+export default function RoomBookingBox({ room, offers = [] }) {
   const { stay, setStay, datesValid, openBooking, adults, children: kids, guests, setPageRoomTypeId } = useBooking();
   const { currency } = useCurrency();
   const tooMany = guests > room.capacity;
@@ -48,6 +50,14 @@ export default function RoomBookingBox({ room }) {
         </p>
         <ReviewBadge />
       </div>
+
+      {offers.slice(0, 2).map((offer) => (
+        <p key={offer.id} className="rounded-xl border border-green-700/30 bg-green-50 px-4 py-3 text-sm text-green-900">
+          <span className="font-semibold">{offer.name}: {offerSaving(offer)} per night</span> for stays {offerDates(offer)}.
+          Taken off automatically when your dates qualify.
+        </p>
+      ))}
+      {offers.length > 1 && <p className="-mt-2 text-xs text-navy-400">Offers don&apos;t combine: each night gets the bigger saving.</p>}
 
       <div className="space-y-3">
         <div className="rounded-xl border border-navy-700 px-4 py-3">

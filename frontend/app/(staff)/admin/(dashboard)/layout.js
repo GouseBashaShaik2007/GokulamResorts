@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/menu', label: 'Menu' },
   { href: '/admin/orders', label: 'Food Orders' },
   { href: '/admin/housekeeping', label: 'Housekeeping' },
+  { href: '/admin/staff', label: 'Staff' },
   { href: '/admin/offers', label: 'Offers' },
   { href: '/admin/qr-codes', label: 'QR Codes' },
   { href: '/admin/settings', label: 'Settings' },

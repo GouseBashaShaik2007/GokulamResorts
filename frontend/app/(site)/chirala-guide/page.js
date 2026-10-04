@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import OpenBookingButton from '@/components/booking/OpenBookingButton';
+import { getContact } from '@/lib/server-api';
 import { GETTING_HERE, directionsUrl } from '@/lib/site';
 
 export const metadata = {
@@ -29,7 +30,8 @@ const PLACES = [
   },
 ];
 
-export default function ChiralaGuidePage() {
+export default async function ChiralaGuidePage() {
+  const contact = await getContact(); // for the directions link
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
       <p className="eyebrow">Chirala guide</p>
@@ -59,7 +61,7 @@ export default function ChiralaGuidePage() {
           ))}
         </ul>
         <div className="mt-6 flex flex-wrap gap-3">
-          <a href={directionsUrl()} target="_blank" rel="noopener noreferrer" className="btn-gold">Get directions</a>
+          <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-gold">Get directions</a>
           <Link href="/contact" className="btn-outline">Ask us about transfers</Link>
         </div>
       </section>

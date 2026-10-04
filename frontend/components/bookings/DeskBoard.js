@@ -6,6 +6,7 @@ import useCleaningSocket, { LiveBadge } from '../../lib/useCleaningSocket';
 import { StatusBadge, inr, fmtDate, fmtDateTime, errMsg, STATUS_LABEL } from '../../lib/bookingUi';
 import BookingDetail from './BookingDetail';
 import CounterBookingForm from './CounterBookingForm';
+import RoomBoard from './RoomBoard';
 
 function BookingRow({ b, onOpen, hint }) {
   const due = Number(b.balance_due);
@@ -176,6 +177,7 @@ export default function DeskBoard({ mode }) {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {tab('today', 'Today')}
+          {tab('rooms', 'Rooms')}
           {tab('new', '+ Walk-in booking')}
           {tab('search', 'Find booking')}
         </div>
@@ -240,6 +242,8 @@ export default function DeskBoard({ mode }) {
           }}
         />
       )}
+
+      {view === 'rooms' && <RoomBoard auth={auth} onOpen={setOpenId} refreshKey={refreshKey} />}
 
       {view === 'search' && <SearchPanel auth={auth} onOpen={setOpenId} refreshKey={refreshKey} />}
 

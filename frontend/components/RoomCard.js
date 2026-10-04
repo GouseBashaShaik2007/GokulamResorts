@@ -2,6 +2,7 @@ import Link from 'next/link';
 import RoomPhoto from './site/RoomPhoto';
 import { Price } from './site/Currency';
 import { realPhotos, roomPath } from '@/lib/rooms';
+import { offerDates, offerSaving } from '@/lib/offers';
 
 /**
  * Room-type card. `size`: 'large' (rooms page, 2-up), 'wide' (full-width
@@ -10,8 +11,9 @@ import { realPhotos, roomPath } from '@/lib/rooms';
  * `stay`: what this room type costs for the guest's chosen dates —
  * { quote, free } when available, { soldOut: true } or { tooSmall: true }
  * when not. Without it the card shows the nightly "from" rate.
+ * `offer`: the best live offer covering this room type (see lib/offers.js).
  */
-export default function RoomCard({ room, size = 'large', heading: Heading = 'h3', stay }) {
+export default function RoomCard({ room, size = 'large', heading: Heading = 'h3', stay, offer }) {
   const photo = realPhotos(room)[0];
   const wide = size === 'wide';
   const imageHeight = { large: 'h-64 sm:h-72', wide: 'h-64 lg:h-full lg:min-h-[22rem]', slide: 'h-56' }[size];
@@ -31,6 +33,7 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
       <div className={`media-zoom relative w-full overflow-hidden ${imageHeight}`}>
         <RoomPhoto src={photo} alt={room.name} />
         {room.bed_type && photo && <span className="photo-badge absolute left-4 top-4">{room.bed_type}</span>}
+        {offer && <span className="absolute right-4 top-4 rounded-full bg-green-700 px-3 py-1 text-xs font-semibold text-white shadow">{offerSaving(offer)}</span>}
       </div>
 
       <div className="flex flex-1 flex-col p-6">
@@ -45,6 +48,12 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
             </li>
           ))}
         </ul>
+
+        {offer && (
+          <p className="mt-4 text-sm font-medium text-green-800">
+            {offer.name}: {offerSaving(offer)} per night for stays {offerDates(offer)}
+          </p>
+        )}
 
         <div className="min-h-6 flex-1" aria-hidden="true" />
         <div className="flex items-end justify-between gap-3 border-t border-navy-700 pt-5">

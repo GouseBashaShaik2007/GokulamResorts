@@ -9,7 +9,7 @@ import { CurrencySwitcher } from './site/Currency';
 const publicLinks = [
   { href: '/', label: 'Home' },
   { href: '/rooms', label: 'Rooms' },
-  { href: '/dine', label: 'Dine With Us' },
+  { href: '/dining', label: 'Dining' },
   { href: '/booking/status', label: 'My Booking' },
   { href: '/contact', label: 'Contact' },
 ];

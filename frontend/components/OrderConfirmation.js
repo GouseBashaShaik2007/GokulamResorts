@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '../lib/api';
+import TableService from './site/TableService';
 
 const rupees = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 
@@ -60,9 +61,10 @@ function Steps({ status }) {
   );
 }
 
-function ConfirmationContent({ browseHref }) {
+function ConfirmationContent({ browseHref, table, accessKey }) {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId');
+  // The order's private token (not its number — those run 1, 2, 3 and could be guessed).
+  const orderId = searchParams.get('order');
   const [order, setOrder] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -85,11 +87,19 @@ function ConfirmationContent({ browseHref }) {
           // A short buzz when the food becomes ready (phones that support it).
           if (lastStatus.current && lastStatus.current !== 'ready' && next.status === 'ready') navigator.vibrate?.(300);
           lastStatus.current = next.status;
+          setError('');
           setOrder(next);
           if (FINAL_STATUSES.includes(next.status)) clearInterval(interval);
         })
-        .catch(() => {
-          if (!cancelled) setError('We could not find that order.');
+        .catch((err) => {
+          if (cancelled) return;
+          // Only "no such order" ends the page; a dropped connection just waits for the next try.
+          if (err?.response) {
+            setError('We could not find that order.');
+            clearInterval(interval);
+          } else if (!lastStatus.current) {
+            setError('We could not reach the restaurant. Please check your connection.');
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -111,7 +121,7 @@ function ConfirmationContent({ browseHref }) {
     return <div className="card mx-auto h-80 max-w-lg animate-pulse" role="status" aria-label="Loading your order" />;
   }
 
-  if (error || !order) {
+  if (!order) {
     return (
       <div className="card mx-auto max-w-lg p-8 text-center">
         <p role="alert" className="text-red-700">{error || 'Order not found.'}</p>
@@ -154,15 +164,20 @@ function ConfirmationContent({ browseHref }) {
       </dl>
 
       <Link href={browseHref} className="btn-gold mt-8 inline-flex">Order More</Link>
+      {table && accessKey && !cancelledOrder && <TableService table={table} accessKey={accessKey} className="mt-4" />}
     </div>
   );
 }
 
-export default function OrderConfirmation({ browseHref }) {
+/**
+ * Live status of one food order. `browseHref` leads back to the menu; pass
+ * `table` and `accessKey` (table orders) to offer "Call staff" / "Request the bill".
+ */
+export default function OrderConfirmation({ browseHref, table, accessKey }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
       <Suspense fallback={<div className="card mx-auto h-80 max-w-lg animate-pulse" role="status" aria-label="Loading your order" />}>
-        <ConfirmationContent browseHref={browseHref} />
+        <ConfirmationContent browseHref={browseHref} table={table} accessKey={accessKey} />
       </Suspense>
     </div>
   );

@@ -6,6 +6,7 @@ import { useBooking } from '../booking/BookingContext';
 import { formatRange } from '@/lib/dateRange';
 import useAvailability from '@/lib/useAvailability';
 import { viewGroupsOf } from '@/lib/rooms';
+import { offersForRoom } from '@/lib/offers';
 
 const SORTS = {
   priceAsc: { label: 'Price: low to high', fn: (a, b) => a.price_per_night - b.price_per_night },
@@ -39,7 +40,8 @@ function Chip({ active, onClick, children }) {
   );
 }
 
-export default function RoomsExplorer({ rooms }) {
+/** `offers`: live offers (lib/offers.js), shown on the cards they cover. */
+export default function RoomsExplorer({ rooms, offers = [] }) {
   const [view, setView] = useState('all');
   const [guests, setGuests] = useState(0);
   const [sort, setSort] = useState('priceAsc');
@@ -137,7 +139,7 @@ export default function RoomsExplorer({ rooms }) {
             const lastAlone = oddCount && i === shown.length - 1 && shown.length > 1;
             return (
               <div key={room.id} className={lastAlone ? 'md:col-span-2' : ''}>
-                <RoomCard room={room} size={lastAlone ? 'wide' : 'large'} heading="h2" stay={stayFor(room)} />
+                <RoomCard room={room} size={lastAlone ? 'wide' : 'large'} heading="h2" stay={stayFor(room)} offer={offersForRoom(offers, room)[0]} />
               </div>
             );
           })}

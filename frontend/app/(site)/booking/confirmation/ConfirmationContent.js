@@ -21,6 +21,7 @@ export default function ConfirmationContent({ reference }) {
     <GuestBookingStatus
       initialRef={reference}
       initialPhone={phone}
+      justBooked
       // No phone saved in this tab (new tab, private window): say why we're asking.
       intro={reference && !phone ? 'Enter the mobile number you booked with to see your confirmation.' : ''}
     />
