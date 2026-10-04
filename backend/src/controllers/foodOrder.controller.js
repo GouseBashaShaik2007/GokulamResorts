@@ -4,6 +4,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
 const access = require('../utils/orderAccess');
 const { logAction } = require('../utils/auditLog');
+const { emitFoodUpdate } = require('../realtime');
 
 const SCAN_FIRST = 'Please scan the QR code on your table, or at the restaurant counter, to order.';
 
@@ -31,7 +32,7 @@ const createOrder = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'tableNumber is required for table orders');
   }
   if (orderType === 'kiosk' && !customerName) {
-    throw new ApiError(400, 'customerName is required for kiosk orders');
+    throw new ApiError(400, 'Please enter a name so we can call out your order.');
   }
   await assertOrderAccess(orderType, tableNumber, accessKey);
 
@@ -94,6 +95,8 @@ const createOrder = asyncHandler(async (req, res) => {
     return { ...createdOrder, items: lineItems };
   });
 
+  emitFoodUpdate('order_created', { orderId: order.id });
+
   res.status(201).json({
     success: true,
     message: 'Order placed. The kitchen has received it.',
@@ -119,7 +122,7 @@ const getOrderByToken = asyncHandler(async (req, res) => {
   }
 
   const { rows: items } = await query(
-    `SELECT item_name, quantity, line_total FROM food_order_items WHERE order_id = $1 ORDER BY id`,
+    `SELECT id, item_name, quantity, line_total FROM food_order_items WHERE order_id = $1 ORDER BY id`,
     [rows[0].id]
   );
 
@@ -141,6 +144,7 @@ const cancelOwnOrder = asyncHandler(async (req, res) => {
     throw new ApiError(409, 'The kitchen has already started this order. Please ask our staff to change it.');
   }
   logAction({ actorType: 'guest', action: 'food_order_cancelled_by_guest', details: { orderId: rows[0].id } });
+  emitFoodUpdate('order_status', { orderId: rows[0].id, status: 'cancelled' });
   res.json({ success: true, order: rows[0] });
 });
 
@@ -163,6 +167,7 @@ const createTableRequest = asyncHandler(async (req, res) => {
   );
   if (open.length === 0) {
     await query(`INSERT INTO table_requests (table_number, kind) VALUES ($1, $2)`, [String(tableNumber), kind]);
+    emitFoodUpdate('table_request', { table: String(tableNumber), kind });
   }
   res.status(201).json({ success: true });
 });

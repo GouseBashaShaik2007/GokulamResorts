@@ -114,9 +114,13 @@ router.post(
 
 router.get('/documents/:id/url', [param('id').isInt({ min: 1 })], validate, mgr.documentUrl);
 
-router.get('/rate-discounts', mgr.listRateDiscounts);
+// Offers. /rate-discounts is the older name for the same routes, still answered.
+const OFFERS = ['/offers', '/rate-discounts'];
+const ONE_OFFER = ['/offers/:id', '/rate-discounts/:id'];
+
+router.get(OFFERS, mgr.listRateDiscounts);
 router.post(
-  '/rate-discounts',
+  OFFERS,
   [
     body('name').trim().notEmpty().isLength({ max: 100 }),
     body('roomTypeId').optional({ values: 'null' }).isInt({ min: 1 }).toInt(),
@@ -133,9 +137,9 @@ router.post(
   validate,
   mgr.addRateDiscount
 );
-// Send only { isActive } to switch a promotion on or off, or any of the other fields to edit it.
+// Send only { isActive } to switch an offer on or off, or any of the other fields to edit it.
 router.put(
-  '/rate-discounts/:id',
+  ONE_OFFER,
   [
     param('id').isInt({ min: 1 }),
     body('isActive').optional().isBoolean().toBoolean(),
@@ -150,7 +154,7 @@ router.put(
   validate,
   mgr.updateRateDiscount
 );
-router.delete('/rate-discounts/:id', [param('id').isInt({ min: 1 })], validate, mgr.deleteRateDiscount);
+router.delete(ONE_OFFER, [param('id').isInt({ min: 1 })], validate, mgr.deleteRateDiscount);
 
 router.get('/menu/categories', listAllCategories);
 
@@ -210,7 +214,11 @@ router.get(
 
 router.patch(
   '/food-orders/:id/status',
-  [param('id').isInt({ min: 1 }), body('status').isIn(['new', 'preparing', 'ready', 'served', 'cancelled'])],
+  [
+    param('id').isInt({ min: 1 }),
+    body('status').isIn(['new', 'preparing', 'ready', 'served', 'cancelled']),
+    body('reason').optional({ values: 'falsy' }).isString().trim().isLength({ min: 3, max: 300 }).withMessage('Give a short reason (3 to 300 characters)'),
+  ],
   validate,
   updateFoodOrderStatus
 );

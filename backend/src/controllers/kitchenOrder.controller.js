@@ -1,6 +1,7 @@
 const { query } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
+const { emitFoodUpdate } = require('../realtime');
 
 const ACTIVE_STATUSES = ['new', 'preparing', 'ready'];
 const ALL_STATUSES = ['new', 'preparing', 'ready', 'served', 'cancelled'];
@@ -23,7 +24,7 @@ const listActiveOrders = asyncHandler(async (req, res) => {
   const orderIds = orders.map((o) => o.id);
   const { rows: items } = await query(
     // is_veg comes from the dish as it is on the menu now (null if the dish was since removed).
-    `SELECT foi.order_id, foi.item_name, foi.quantity, foi.spice_level, foi.notes, mi.is_veg
+    `SELECT foi.id, foi.order_id, foi.item_name, foi.quantity, foi.spice_level, foi.notes, mi.is_veg
      FROM food_order_items foi LEFT JOIN menu_items mi ON mi.id = foi.menu_item_id
      WHERE foi.order_id = ANY($1) ORDER BY foi.id`,
     [orderIds]
@@ -59,6 +60,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Order not found');
   }
 
+  emitFoodUpdate('order_status', { orderId: rows[0].id, status: rows[0].status });
   res.json({ success: true, order: rows[0] });
 });
 
@@ -79,6 +81,7 @@ const completeRequest = asyncHandler(async (req, res) => {
   if (rows.length === 0) {
     throw new ApiError(404, 'Request not found');
   }
+  emitFoodUpdate('table_request_done', { requestId: rows[0].id });
   res.json({ success: true });
 });
 

@@ -7,6 +7,7 @@ const publicImage = require('../services/publicImage.service');
 const { logAction } = require('../utils/auditLog');
 const { TIMEZONE } = require('../utils/dates');
 const orderAccess = require('../utils/orderAccess');
+const { emitFoodUpdate } = require('../realtime');
 
 // POST /api/admin/login
 const login = asyncHandler(async (req, res) => {
@@ -376,7 +377,7 @@ const listFoodOrders = asyncHandler(async (req, res) => {
 
   const orderIds = orders.map((o) => o.id);
   const { rows: items } = await query(
-`SELECT foi.order_id, foi.item_name, foi.unit_price, foi.quantity, foi.line_total, foi.spice_level, foi.notes, mi.is_veg
+`SELECT foi.id, foi.order_id, foi.item_name, foi.unit_price, foi.quantity, foi.line_total, foi.spice_level, foi.notes, mi.is_veg
      FROM food_order_items foi LEFT JOIN menu_items mi ON mi.id = foi.menu_item_id
      WHERE foi.order_id = ANY($1)
      ORDER BY foi.id`,
@@ -402,10 +403,14 @@ const FOOD_ORDER_STATUSES = ['new', 'preparing', 'ready', 'served', 'cancelled']
 // kitchen's own PATCH /api/kitchen/orders/:id/status.
 const updateFoodOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, reason } = req.body;
 
   if (!FOOD_ORDER_STATUSES.includes(status)) {
     throw new ApiError(400, `status must be one of: ${FOOD_ORDER_STATUSES.join(', ')}`);
+  }
+  // Cancelling takes food off a guest's table: the log should say why.
+  if (status === 'cancelled' && !String(reason || '').trim()) {
+    throw new ApiError(400, 'A reason is required to cancel an order');
   }
 
   const { rows } = await query(
@@ -417,7 +422,13 @@ const updateFoodOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Order not found');
   }
 
-  logAction({ actorType: 'admin', actorId: req.admin?.sub, action: 'food_order_status_change', details: { orderId: rows[0].id, status } });
+  logAction({
+    actorType: 'admin',
+    actorId: req.admin?.sub,
+    action: 'food_order_status_change',
+    details: { orderId: rows[0].id, status, ...(status === 'cancelled' ? { reason: String(reason).trim() } : {}) },
+  });
+  emitFoodUpdate('order_status', { orderId: rows[0].id, status });
 
   res.json({ success: true, order: rows[0] });
 });
@@ -538,8 +549,17 @@ const todayStats = asyncHandler(async (req, res) => {
      SELECT
        (SELECT COALESCE(SUM(amount), 0) FROM payments, day
          WHERE status = 'captured' AND (COALESCE(captured_at, created_at) AT TIME ZONE $1)::date = day.today) AS payments,
+       (SELECT COALESCE(SUM(amount), 0) FROM payments, day
+         WHERE status = 'captured' AND (COALESCE(captured_at, created_at) AT TIME ZONE $1)::date = day.today - 1) AS payments_yesterday,
        (SELECT COALESCE(SUM(amount), 0) FROM refunds, day
          WHERE status = 'processed' AND (COALESCE(processed_at, updated_at) AT TIME ZONE $1)::date = day.today) AS refunds,
+       -- Rooms that were occupied last night, for "yesterday" beside today's occupancy.
+       (SELECT count(*)::int FROM bookings, day
+         WHERE status IN ('checked_in', 'checked_out') AND check_in < day.today AND check_out >= day.today) AS in_house_yesterday,
+       -- Arrivals over the coming week, a day at a time.
+       (SELECT COALESCE(json_agg(json_build_object('date', d.day::date, 'arrivals',
+                 (SELECT count(*)::int FROM bookings b WHERE b.status IN ('paid', 'confirmed') AND b.check_in = d.day::date)) ORDER BY d.day), '[]')
+          FROM day, generate_series(day.today + 1, day.today + 7, interval '1 day') AS d(day)) AS coming_week,
        (SELECT count(*)::int FROM bookings, day WHERE status = 'confirmed' AND check_in <= day.today) AS arrivals,
        (SELECT count(*)::int FROM bookings, day WHERE status = 'checked_in' AND check_out <= day.today) AS departures,
        (SELECT count(*)::int FROM bookings WHERE status = 'checked_in') AS in_house,
@@ -556,7 +576,10 @@ const todayStats = asyncHandler(async (req, res) => {
     success: true,
     stats: {
       paymentsToday: Number(r.payments),
+      paymentsYesterday: Number(r.payments_yesterday),
       refundsToday: Number(r.refunds),
+      inHouseYesterday: r.in_house_yesterday,
+      comingWeek: r.coming_week, // [{ date, arrivals }] for the next seven days
       arrivals: r.arrivals,
       departures: r.departures,
       inHouse: r.in_house,

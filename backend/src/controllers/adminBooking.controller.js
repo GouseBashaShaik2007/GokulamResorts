@@ -44,7 +44,8 @@ const listRateDiscounts = asyncHandler(async (req, res) => {
     `SELECT rd.*, r.name AS room_type FROM rate_discounts rd LEFT JOIN rooms r ON r.id = rd.room_type_id
      ORDER BY rd.is_active DESC, rd.start_date DESC`
   );
-  res.json({ success: true, discounts: rows });
+  // `discounts` is the older name for the same list.
+  res.json({ success: true, offers: rows, discounts: rows });
 });
 
 // POST /api/admin/rate-discounts

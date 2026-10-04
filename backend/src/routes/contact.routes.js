@@ -27,7 +27,11 @@ router.post(
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('A valid email is required').normalizeEmail(),
     body('message').trim().isLength({ min: 5, max: 2000 }).withMessage('Message is required'),
-    body('reason').optional().isIn(['Stay', 'Event', 'Wedding', 'Other']),
+    body('reason').optional().isIn(['Stay', 'Dining', 'Event', 'Wedding', 'Other']),
+    // How many people: a table for six, a wedding for four hundred.
+    body('guests').optional({ checkFalsy: true }).isInt({ min: 1, max: 5000 }).toInt(),
+    // For events and weddings, in the guest's own words ("around ₹5 lakh").
+    body('budget').optional({ checkFalsy: true }).isString().trim().isLength({ max: 100 }),
     body('phone').optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
     body('checkIn').optional({ checkFalsy: true }).isISO8601(),
     body('checkOut').optional({ checkFalsy: true }).isISO8601(),
@@ -39,9 +43,10 @@ router.post(
     if (req.body.website) return res.json({ success: true, message: THANKS });
 
     // Phase 2 saves these to an admin inbox and emails them; until then they are only logged.
-    const { name, email, message, reason = 'Other', phone, checkIn, checkOut } = req.body;
+    const { name, email, message, reason = 'Other', phone, checkIn, checkOut, guests, budget } = req.body;
     const dates = checkIn ? ` ${checkIn}${checkOut ? ` → ${checkOut}` : ''}` : '';
-    console.log(`[contact:${reason}]${dates} ${name} <${email}>${phone ? ` ${phone}` : ''}: ${message}`);
+    const party = `${guests ? ` (${guests} people)` : ''}${budget ? ` (budget: ${budget})` : ''}`;
+    console.log(`[contact:${reason}]${dates}${party} ${name} <${email}>${phone ? ` ${phone}` : ''}: ${message}`);
     return res.json({ success: true, message: THANKS });
   })
 );

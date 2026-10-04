@@ -842,12 +842,20 @@ async function lookupForGuest(reference, phone) {
     `SELECT amount, method, status, created_at FROM refunds WHERE booking_id = $1 ORDER BY id`,
     [b.id]
   );
+  const { rows: typeRows } = await query(`SELECT images FROM rooms WHERE id = $1`, [b.room_type_id]);
   return {
     id: b.id,
     reference: b.reference,
     status: b.status,
     guestName: b.guest_name,
-    room: { unitNumber: b.unit_number, type: b.room_type, typeId: b.room_type_id, view: b.view_label, floor: b.floor },
+    room: {
+      unitNumber: b.unit_number,
+      type: b.room_type,
+      typeId: b.room_type_id,
+      view: b.view_label,
+      floor: b.floor,
+      images: typeRows[0]?.images || [], // the room type's photos, cover first
+    },
     checkIn: b.check_in,
     checkOut: b.check_out,
     adults: b.adults,

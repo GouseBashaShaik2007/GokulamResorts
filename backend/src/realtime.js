@@ -5,6 +5,7 @@
  *   admins       — every manager dashboard
  *   frontdesk    — every front desk screen
  *   staff:<id>   — one staff member's devices (housekeeping tasks)
+ *   kitchen      — every kitchen display
  * Events carry just enough to tell the client what changed; clients refetch.
  */
 const { Server } = require('socket.io');
@@ -18,7 +19,7 @@ function initRealtime(httpServer, allowedOrigins) {
   io.use((socket, next) => {
     try {
       const payload = jwt.verify(socket.handshake.auth?.token || '', process.env.JWT_SECRET);
-      if (payload.role !== 'admin' && payload.role !== 'staff') return next(new Error('Forbidden'));
+      if (!['admin', 'staff', 'kitchen'].includes(payload.role)) return next(new Error('Forbidden'));
       socket.data.user = payload;
       next();
     } catch {
@@ -30,6 +31,8 @@ function initRealtime(httpServer, allowedOrigins) {
     const user = socket.data.user;
     if (user.role === 'admin') {
       socket.join('admins');
+    } else if (user.role === 'kitchen') {
+      socket.join('kitchen');
     } else {
       socket.join(`staff:${user.sub}`);
       if (user.staffRole === 'FrontDesk') socket.join('frontdesk');
@@ -66,4 +69,14 @@ function emitBookingUpdate(bookingId, event) {
   io.to('admins').to('frontdesk').emit('booking:update', { bookingId, event, at: new Date().toISOString() });
 }
 
-module.exports = { initRealtime, emitJobUpdate, emitBookingUpdate };
+/**
+ * A food order or a table request changed — kitchen displays and managers
+ * refresh. `event`: 'order_created', 'order_status', 'table_request' …
+ * Best-effort: the screens also poll, so a missed event only costs seconds.
+ */
+function emitFoodUpdate(event, details = {}) {
+  if (!io) return;
+  io.to('kitchen').to('admins').emit('food:update', { event, ...details, at: new Date().toISOString() });
+}
+
+module.exports = { initRealtime, emitJobUpdate, emitBookingUpdate, emitFoodUpdate };
