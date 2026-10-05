@@ -11,6 +11,8 @@ export const TASK_STATUS_STYLE = {
   Paused: 'bg-orange-400/10 text-orange-700',
   Completed: 'bg-green-500/10 text-green-700',
   Failed: 'bg-red-500/10 text-red-700',
+  // A stayover task nobody did: the room was closed for the day without it.
+  Skipped: 'bg-sand-300 text-ink-500',
 };
 export const PRIORITY_STYLE = {
   VIP: 'bg-gold-600 text-white',

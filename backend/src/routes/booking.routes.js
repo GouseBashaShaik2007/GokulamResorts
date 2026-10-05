@@ -42,9 +42,8 @@ router.get(
   getAvailability
 );
 
-// Shared by online and counter bookings.
-const guestFields = [
-  body('roomUnitId').isInt({ min: 1 }).toInt().withMessage('Choose a room'),
+// Shared by online and counter bookings: the stay and who it is for.
+const stayFields = [
   body('checkIn').isISO8601().withMessage('checkIn must be a date (YYYY-MM-DD)'),
   body('checkOut').isISO8601().withMessage('checkOut must be a date (YYYY-MM-DD)'),
   body('adults').isInt({ min: 1, max: 20 }).toInt().withMessage('At least one adult is required'),
@@ -57,10 +56,20 @@ const guestFields = [
   body('specialRequests').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 1000 }),
 ];
 
+// A counter booking names the room; the front desk chooses it.
+const guestFields = [body('roomUnitId').isInt({ min: 1 }).toInt().withMessage('Choose a room'), ...stayFields];
+
 router.post(
   '/book-room',
   holdLimiter,
-  [...guestFields, body('email').isEmail().withMessage('A valid email is required').normalizeEmail()],
+  [
+    // A guest books a room type. (roomUnitId: what a page opened before room
+    // numbers were hidden still sends; its type is used.)
+    body('roomTypeId').optional().isInt({ min: 1 }).toInt(),
+    body('roomUnitId').optional().isInt({ min: 1 }).toInt(),
+    ...stayFields,
+    body('email').isEmail().withMessage('A valid email is required').normalizeEmail(),
+  ],
   validate,
   createBooking
 );

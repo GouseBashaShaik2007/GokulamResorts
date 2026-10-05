@@ -1,28 +1,37 @@
 /**
- * Guest messages over SMS (primary), WhatsApp and email (backup).
+ * Guest messages: about a booking, and about a food order.
+ *
+ * SMS comes first. WhatsApp and email can be added per message by listing
+ * them in NOTIFY_CHANNELS (e.g. "sms,email"); the default is SMS alone.
  *
  * Messages are written to the `notifications` outbox inside the same
- * transaction as the booking change, then delivered after commit by flush()
- * (also retried every minute by the scheduler). A booking change can therefore
+ * transaction as the change they are about, then delivered after commit by
+ * flush() (also retried every minute by the scheduler). A change can therefore
  * never be lost because a provider was down, and nothing is sent for a change
  * that rolled back.
  *
  * Delivery: NOTIFY_DRIVER=log (default) records messages as 'logged' and prints
  * them; no provider is wired yet. To go live, add a driver below — e.g. MSG91 or
- * Gupshup for SMS (Indian SMS needs DLT-registered templates) and the WhatsApp
- * Business API (pre-approved templates) — and set NOTIFY_DRIVER to its name.
+ * Gupshup for SMS (Indian SMS needs DLT-registered templates, and the text sent
+ * must match the registered wording) — and set NOTIFY_DRIVER to its name.
  */
 const { query } = require('../db/pool');
 
 const SITE = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim();
 const inr = (n) => `Rs ${Number(n).toLocaleString('en-IN')}`;
 
-// Plain text, short enough for one SMS where possible.
+const ALL_CHANNELS = ['sms', 'whatsapp', 'email'];
+const CHANNELS = (process.env.NOTIFY_CHANNELS || 'sms')
+  .split(',')
+  .map((c) => c.trim().toLowerCase())
+  .filter((c) => ALL_CHANNELS.includes(c));
+
+// Plain text, short enough for one SMS where possible. A guest is not told a
+// room number before they arrive: the front desk gives the room at check-in.
 const TEMPLATES = {
-  booking_received: (b) =>
-    `Gokulam Resorts: payment of ${inr(b.amount_paid)} received for booking ${b.reference} (Room ${b.unit_number}, ${b.check_in} to ${b.check_out}). Our manager will confirm within 24 hours. Status: ${SITE}/booking/status?ref=${b.reference}`,
-  booking_confirmed: (b) =>
-    `Gokulam Resorts: booking ${b.reference} is CONFIRMED. Room ${b.unit_number}, ${b.check_in} to ${b.check_out}. Please carry a photo ID for every adult guest.`,
+  // `x.paid`: the booking was just paid for online.
+  booking_confirmed: (b, x = {}) =>
+    `Gokulam Resorts: ${x.paid ? `payment of ${inr(b.amount_paid)} received. ` : ''}Booking ${b.reference} is CONFIRMED: ${b.room_type}, ${b.check_in} to ${b.check_out}. Please carry a photo ID for every adult guest.${x.paid ? ` Details: ${SITE}/booking/status?ref=${b.reference}` : ''}`,
   booking_rejected: (b, x) =>
     `Gokulam Resorts: sorry, we could not confirm booking ${b.reference}. ${refundLine(x)}`,
   booking_cancelled: (b, x) =>
@@ -44,24 +53,86 @@ function refundLine(x = {}) {
     : `A full refund of ${inr(x.refund)} has been initiated to your original payment method (5-7 working days).`;
 }
 
+// Where a food order is going, as the guest would say it.
+function orderPlace(o) {
+  if (o.room_number) return `Room ${o.room_number}`;
+  if (o.table_number) return `Table ${o.table_number}`;
+  return 'the counter';
+}
+
+// `o`: a food_orders row (id, total_amount, public_token, table_number, room_number, paid_at).
+const ORDER_TEMPLATES = {
+  order_placed: (o) =>
+    `Gokulam Resorts: order #${o.id} received${o.paid_at ? `, ${inr(o.total_amount)} paid` : ''}. Follow it here: ${SITE}/order/track/${o.public_token}`,
+  order_ready: (o) =>
+    o.room_number
+      ? `Gokulam Resorts: order #${o.id} is on its way to Room ${o.room_number}.`
+      : o.table_number
+        ? `Gokulam Resorts: order #${o.id} is ready and is being brought to Table ${o.table_number}.`
+        : `Gokulam Resorts: order #${o.id} is ready. Please collect it at ${orderPlace(o)}.`,
+  // `x.refund`: the amount going back, when the order had been paid online.
+  // `x.refundFailed`: it was paid online and the refund could not be started.
+  order_cancelled: (o, x = {}) =>
+    `Gokulam Resorts: order #${o.id} has been cancelled.${
+      x.refund
+        ? ` ${inr(x.refund)} is being refunded to the way you paid.`
+        : x.refundFailed
+          ? ' Please speak to our staff about your payment: it will be returned to you.'
+          : ''
+    }`,
+};
+
+async function queue(client, { bookingId = null, foodOrderId = null }, targets, template, body) {
+  for (const [channel, recipient] of targets) {
+    if (!recipient || !CHANNELS.includes(channel)) continue;
+    await client.query(
+      `INSERT INTO notifications (booking_id, food_order_id, channel, recipient, template, body) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [bookingId, foodOrderId, channel, recipient, template, body]
+    );
+  }
+}
+
 /**
- * Queue a message on every channel we have an address for.
- * `booking` needs id, guest_name, guest_phone, guest_email, unit_number, dates, amount_paid.
+ * Queue a message about a booking on every channel in use that we have an
+ * address for. `booking` needs id, reference, guest_name, guest_phone,
+ * guest_email, room_type, unit_number, dates, amount_paid.
  */
 async function enqueue(client, booking, template, extra = {}) {
   const body = TEMPLATES[template](booking, extra);
-  const targets = [
-    ['sms', booking.guest_phone],
-    ['whatsapp', booking.guest_phone],
-    ['email', booking.guest_email],
-  ].filter(([, to]) => to);
+  await queue(
+    client,
+    { bookingId: booking.id },
+    [
+      ['sms', booking.guest_phone],
+      ['whatsapp', booking.guest_phone],
+      ['email', booking.guest_email],
+    ],
+    template,
+    body
+  );
+}
 
-  for (const [channel, recipient] of targets) {
-    await client.query(
-      `INSERT INTO notifications (booking_id, channel, recipient, template, body) VALUES ($1, $2, $3, $4, $5)`,
-      [booking.id, channel, recipient, template, body]
-    );
-  }
+/**
+ * Queue a message about a food order, if the guest left a phone number
+ * (nothing happens otherwise). `client`: a transaction client, or anything
+ * with query(). `order`: the food_orders row — id, customer_phone,
+ * total_amount, public_token, table_number, room_number, paid_at.
+ * `template`: 'order_placed' | 'order_ready' | 'order_cancelled'.
+ * Call flush() once the change is committed.
+ */
+async function enqueueOrder(client, order, template, extra = {}) {
+  if (!order?.customer_phone) return;
+  const body = ORDER_TEMPLATES[template](order, extra);
+  await queue(
+    client,
+    { foodOrderId: order.id },
+    [
+      ['sms', order.customer_phone],
+      ['whatsapp', order.customer_phone],
+    ],
+    template,
+    body
+  );
 }
 
 const DRIVERS = {
@@ -98,4 +169,4 @@ async function flush() {
   }
 }
 
-module.exports = { enqueue, flush, TEMPLATES };
+module.exports = { enqueue, enqueueOrder, flush, TEMPLATES, ORDER_TEMPLATES, CHANNELS };

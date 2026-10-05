@@ -17,7 +17,7 @@ function Line({ label, value, className = 'text-ink-500' }) {
 
 /**
  * What the guest is about to pay for, shown on the details and payment steps:
- * the room, dates and guests, then every line of the price. `total` overrides
+ * the room type, dates and guests, then every line of the price. `total` overrides
  * the quoted total once an order exists (it is then the amount actually charged).
  */
 export default function StaySummary({ total }) {
@@ -30,9 +30,7 @@ export default function StaySummary({ total }) {
 
   return (
     <section aria-label="Your stay" className="rounded-xl border border-sand-300 bg-sand-100 p-5 text-sm">
-      <p className="font-medium text-ink-900">
-        {pick.roomType?.name ? `${pick.roomType.name} · ` : ''}Room {pick.unit.unitNumber}
-      </p>
+      <p className="font-medium text-ink-900">{pick.roomType?.name || 'Your room'}</p>
       <p className="mt-1 text-ink-500">
         {hasDates ? `${formatRange(stay.checkIn, stay.checkOut)} · ` : ''}
         {plural(q.nights, 'night')} · {plural(adults, 'adult')}

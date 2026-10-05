@@ -17,8 +17,8 @@ const HERO_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e
 export default function Hero({ fromPrice }) {
   const reasons = [
     fromPrice ? `From ${inr(Math.round(fromPrice))} a night + GST` : null,
-    'Choose your exact room by number',
-    'Full refund if we can’t confirm within 24 hours',
+    'Confirmed the moment you pay',
+    'Full refund if you cancel before check-in',
   ].filter(Boolean);
 
   return (

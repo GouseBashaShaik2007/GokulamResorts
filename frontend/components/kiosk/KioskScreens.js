@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { inr } from '@/lib/bookingUi';
+import { serviceNextStep } from '@/lib/kiosk';
 
-const STEPS = ['Choose your dishes', 'Pay on this screen', 'Collect when your number is called'];
+const STEPS = ['Choose your dishes', 'Dine-in, pickup or to your room', 'Pay on this screen'];
 
 function Spinner({ className = '' }) {
   return <span className={`inline-block h-12 w-12 animate-spin rounded-full border-4 border-current border-r-transparent ${className}`} aria-hidden="true" />;
@@ -87,8 +88,15 @@ export function KioskConnecting({ checking }) {
   );
 }
 
-/** The order is paid and with the kitchen: the number to wait for, as large as the screen allows. */
+/**
+ * The order is paid and with the kitchen: its number, as large as the screen
+ * allows, and what happens next — it is brought to the table or the room the
+ * customer chose, or the number is called at the counter.
+ * `order`: { orderNumber, total, service } (`service`: see lib/kiosk.js).
+ */
 export function KioskDone({ order, seconds, onDone }) {
+  // Someone waiting at the counter has to remember the number; at a table or in a room it is only for reference.
+  const waitsAtCounter = !order.service || order.service.mode === 'pickup';
   return (
     <div className="flex h-full flex-col items-center justify-center overflow-y-auto bg-sand-50 px-10 py-8 text-center">
       <div role="status">
@@ -97,8 +105,9 @@ export function KioskDone({ order, seconds, onDone }) {
         <p data-order-number className="mt-2 font-sans text-[clamp(7rem,24vh,15rem)] font-bold leading-none text-ocean-500 [font-variant-numeric:lining-nums]">
           {order.orderNumber}
         </p>
-        <p className="mx-auto mt-4 max-w-2xl text-2xl leading-snug text-ink-700">
-          Please remember it and wait nearby. We will call out your number when your order is ready.
+        <p data-next-step className="mx-auto mt-4 max-w-2xl font-serif text-4xl font-semibold leading-snug text-ink-900">{serviceNextStep(order.service)}</p>
+        <p className="mx-auto mt-2 max-w-2xl text-xl leading-snug text-ink-500">
+          {waitsAtCounter ? 'Please remember your number and wait nearby.' : 'Please keep your number in case we ask for it.'}
         </p>
       </div>
       <button type="button" onClick={onDone} className="btn-primary mt-8 h-20 min-w-[16rem] text-3xl">Done</button>

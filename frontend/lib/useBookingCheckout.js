@@ -30,10 +30,10 @@ export function useBookingCheckout() {
   const router = useRouter();
 
   return useMemo(() => {
-    // STEP 1 + 2 — hold the room, then create the Razorpay order for it.
-    async function createHoldAndOrder({ roomUnitId, checkIn, checkOut, adults, children, guest }) {
+    // STEP 1 + 2 — hold a room of the chosen type, then create the Razorpay order for it.
+    async function createHoldAndOrder({ roomTypeId, checkIn, checkOut, adults, children, guest }) {
       const bookingRes = await api.post('/book-room', {
-        roomUnitId,
+        roomTypeId,
         checkIn,
         checkOut,
         adults: Number(adults),
@@ -62,7 +62,7 @@ export function useBookingCheckout() {
         theme: { color: '#0E4F5C' },
         handler: async (response) => {
           try {
-            // STEP 4 — server verifies the signature; booking becomes "paid, awaiting approval"
+            // STEP 4 — server verifies the signature; that confirms the booking
             await api.post('/verify-payment', {
               bookingId: order.bookingId,
               razorpay_order_id: response.razorpay_order_id,

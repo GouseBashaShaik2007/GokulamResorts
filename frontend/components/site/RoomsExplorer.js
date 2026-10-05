@@ -23,7 +23,7 @@ function useStayPrices() {
   const { stay, datesValid, guests } = useStay();
   const { types } = useAvailability({ checkIn: stay.checkIn, checkOut: stay.checkOut, guests, enabled: datesValid });
   return useMemo(
-    () => (types ? new Map(types.map((type) => [type.roomType.id, { quote: type.quote, free: type.units.length }])) : null),
+    () => (types ? new Map(types.map((type) => [type.roomType.id, { quote: type.quote, free: type.free }])) : null),
     [types]
   );
 }

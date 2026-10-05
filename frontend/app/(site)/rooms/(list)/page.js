@@ -12,7 +12,7 @@ export function generateMetadata({ searchParams }) {
   return {
     title: 'Rooms & Suites',
     description:
-      'Room types at Gokulam Resorts, Chirala Beach. Compare size, beds, views and nightly rates, then pick your exact room number when you book.',
+      'Room types at Gokulam Resorts, Chirala Beach. Compare size, beds, views and nightly rates, and book online.',
     alternates: { canonical: '/rooms' },
     ...(filtered ? { robots: { index: false, follow: true } } : {}),
   };
@@ -27,8 +27,8 @@ export default async function RoomsPage() {
         <Reveal className="max-w-2xl">
           <PageHeader eyebrow="Chirala Beach" title="Rooms &amp; Suites">
             <p className="mt-4 text-ink-500">
-              Compare the room types by size, bed, view and price. Choose one, then pick your exact room by number
-              when you book.
+              Compare the room types by size, bed, view and price. Choose one and book it online; your room is
+              ready for you at check-in.
             </p>
           </PageHeader>
         </Reveal>

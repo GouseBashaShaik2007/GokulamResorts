@@ -6,6 +6,8 @@
 //   { type: 'table', tableId, accessKey }   a table's
 //   { type: 'room', roomId, accessKey }     a hotel room's — the food is brought to the room
 //   { type: 'counter', accessKey }          the one at the restaurant counter
+// A table's and a room's order is paid online when it is placed; the counter's
+// is paid at the counter afterwards.
 // The fourth kind of order, 'kiosk', never comes from these screens: the
 // restaurant's kiosk tablet has its own (see lib/kiosk.js).
 
@@ -17,21 +19,61 @@ export const roomNumber = (raw) => (/^[A-Za-z0-9-]{1,20}$/.test(String(raw ?? ''
 
 export const ORDER_TYPE_FOR_API = { table: 'table', counter: 'counter', room: 'room' };
 
-/** How staff read an order's type, from the API's value. */
+// ---------- how staff read an order ----------
+
+/** An order's type, from the API's value. */
 export const ORDER_TYPE_LABEL = { table: 'Table', room: 'Room', counter: 'Counter', kiosk: 'Kiosk' };
 
+/** What a kiosk customer asked for (the API's service_mode), as a short label. */
+export const SERVICE_MODE_LABEL = { dine_in: 'Dine-in', pickup: 'Pickup', room: 'Room drop' };
+
 /**
- * Who an order is for, as staff say it: "Table 7", "Room 101", the name a
- * counter order was placed under, or — for the kiosk, which takes no names —
- * "Order 47", the number the customer is waiting to hear.
+ * What a kiosk customer asked for: 'dine_in' | 'pickup' | 'room', or null for
+ * a kiosk order from before the kiosk asked. (A list that does not carry
+ * service_mode can still tell a table from a room.)
+ */
+export const kioskService = (order) => order.service_mode || (order.room_number ? 'room' : order.table_number ? 'dine_in' : null);
+
+/**
+ * What an order is and where it goes, as staff read it. The kitchen display,
+ * the manager's Food Orders and the front desk's food list all take their
+ * wording from here:
+ *
+ *   Table 4                     from the QR code on a table
+ *   Room 101                    from the QR code in a hotel room
+ *   Counter                     from the QR code at the counter
+ *   Kiosk · Dine-in · Table 4   paid on the kiosk, to be brought to a table
+ *   Kiosk · Pickup              paid on the kiosk, collected when its number is called
+ *   Kiosk · Room 101            paid on the kiosk, to be brought to a hotel room
+ *
+ * Show the order's number (#47) beside it: see orderWithNumber.
  */
 export const orderTitle = (order) => {
-  if (order.table_number) return `Table ${order.table_number}`;
-  if (order.room_number) return `Room ${order.room_number}`;
-  return order.customer_name || `Order ${order.id}`;
+  const place = order.room_number ? `Room ${order.room_number}` : order.table_number ? `Table ${order.table_number}` : '';
+  if (order.order_type !== 'kiosk') return place || ORDER_TYPE_LABEL[order.order_type] || order.order_type || 'Order';
+  const service = kioskService(order);
+  if (service === 'room' && place) return `Kiosk · ${place}`;
+  if (service === 'dine_in' && place) return `Kiosk · Dine-in · ${place}`;
+  return service ? `Kiosk · ${SERVICE_MODE_LABEL[service]}` : 'Kiosk';
 };
 
-/** Paid through the payment gateway (on the kiosk, or a room's "pay now"), as opposed to in person. */
+/** The same with the order's number in front, for a line of text: "#47 · Kiosk · Pickup". */
+export const orderWithNumber = (order) => `#${order.id} · ${orderTitle(order)}`;
+
+/**
+ * What whoever carries a ready order does with it: "Take to Table 4",
+ * "Take to Room 101", or — where the customer comes to the counter — whom to
+ * call: the name a counter order was placed under, or the order's number.
+ */
+export const readyInstruction = (order) => {
+  if (order.room_number) return `Take to Room ${order.room_number}`;
+  if (order.table_number) return `Take to Table ${order.table_number}`;
+  // The kiosk takes no names: its customer is listening for the number.
+  if (order.order_type === 'kiosk' || !order.customer_name) return `Call out number ${order.id}`;
+  return `Call out ${order.customer_name} (number ${order.id})`;
+};
+
+/** Paid through the payment gateway (on the kiosk, or on the guest's phone at a table or in a room), as opposed to in person. */
 export const paidOnline = (order) => order.payment_method === 'online';
 
 /** The ordering screen for a context: /order/7?k=…, /order/room/101?k=… or /order?k=… */
@@ -102,7 +144,12 @@ export function allergenText(item) {
 // How a guest reads each status (staff see ORDER_STATUS_LABEL above), the
 // stages an order moves through, and the ones after which nothing changes.
 export const GUEST_ORDER_STATUS = { new: 'Received', preparing: 'Preparing', ready: 'Ready', served: 'Served', cancelled: 'Cancelled' };
-/** One stage of an order in the guest's words. A room's order is brought to the door, so its last two stages read differently. */
+/**
+ * One stage of an order in the guest's words. An order for a room — from the
+ * room's QR code or the kiosk's "room drop" — is brought to the door, so its
+ * last two stages read differently. (A kiosk order for a table reads like any
+ * table's.)
+ */
 export const guestStatusLabel = (order, stage = order.status) =>
   order.room_number && stage === 'ready' ? 'On its way' : order.room_number && stage === 'served' ? 'Delivered' : GUEST_ORDER_STATUS[stage] || stage;
 export const ORDER_STAGES = ['new', 'preparing', 'ready', 'served'];

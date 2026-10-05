@@ -2,7 +2,7 @@
  * Booking state machine + money. The booking row is the source of truth;
  * payments, refunds, documents, cleaning jobs and messages hang off it.
  *
- *   online:  pending_payment --(Razorpay)--> paid --(manager)--> confirmed
+ *   online:  pending_payment --(Razorpay)--> confirmed   (paying confirms it; nobody approves)
  *   counter: confirmed (paid in full at the desk)
  *   stay:    confirmed --(ID + full payment)--> checked_in --> checked_out -> cleaning job
  *   exits:   cancelled / rejected (full refund of what was paid), no_show (no refund)
@@ -15,16 +15,16 @@
 const crypto = require('crypto');
 const { query, withTransaction } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
-const { localToday, addDays } = require('../utils/dates');
+const { localToday, localHour, addDays } = require('../utils/dates');
 const { quoteNights, priceStay, nightsOfBooking, round2 } = require('./pricing.service');
 const gateway = require('./gateway.service');
 const notify = require('./notify.service');
 const storage = require('./storage.service');
+const roomBlocks = require('./roomBlocks.service');
 const { audit, SYSTEM } = require('./audit');
 
 const BLOCKING = ['pending_payment', 'paid', 'confirmed', 'checked_in'];
 const PAYMENT_WINDOW_MIN = Number(process.env.BOOKING_HOLD_MINUTES || 15);
-const APPROVAL_HOURS = Number(process.env.BOOKING_APPROVAL_HOURS || 24);
 const MAX_NIGHTS = 30;
 const RETENTION_DAYS = Math.min(180, Math.max(1, Number(process.env.DOC_RETENTION_DAYS || 90)));
 
@@ -168,6 +168,7 @@ async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, 
      WHERE ru.is_active AND r.is_active AND r.capacity >= $3
        AND ($4::int IS NULL OR r.id = $4)
        AND NOT ($6::boolean AND $1::date = $7::date AND ru.status <> 'Ready')
+       AND NOT ${roomBlocks.blockedSql('ru.id', '$1', '$2')}
        AND NOT EXISTS (
          SELECT 1 FROM bookings b
          WHERE b.room_unit_id = ru.id AND b.status = ANY($5)
@@ -230,6 +231,16 @@ async function createBooking(input, { source, actor, payment = null }) {
     // is not sold online for tonight. The front desk still can (a walk-in may wait).
     if (online && String(checkIn).slice(0, 10) === today && unit.status !== 'Ready') {
       throw new ApiError(409, `Room ${unit.unit_number} is still being prepared for today. Please choose another room.`);
+    }
+    // Out of order on any of the nights. A guest is not told why.
+    const block = await roomBlocks.findBlock(client, unit.id, checkIn, checkOut);
+    if (block) {
+      throw new ApiError(
+        409,
+        online
+          ? `Room ${unit.unit_number} is not available for those dates. Please choose another room.`
+          : `${roomBlocks.outOfOrderMessage(unit, block)} Choose another room.`
+      );
     }
     await releaseExpiredPaymentHolds(client, unit.id);
 
@@ -294,6 +305,35 @@ async function createBooking(input, { source, actor, payment = null }) {
     after(() => realtime().emitBookingUpdate(booking.id, 'booking_created'));
     return reload(client, booking.id);
   });
+}
+
+/**
+ * An online booking is for a room TYPE. The guest is not shown room numbers:
+ * a free room of that type is held for the booking in the background, so the
+ * number of rooms on sale is always right, and the front desk gives the actual
+ * room at check-in (and may change the one held until then).
+ */
+async function createOnlineBooking(input, context) {
+  let { roomTypeId } = input;
+  if (!roomTypeId && input.roomUnitId) {
+    // A page opened before room numbers were hidden still sends the room it showed.
+    const { rows } = await query(`SELECT room_type_id FROM room_units WHERE id = $1`, [input.roomUnitId]);
+    roomTypeId = rows[0]?.room_type_id;
+  }
+  if (!roomTypeId) throw new ApiError(400, 'Choose a room type');
+
+  const { checkIn, checkOut, adults, children = 0 } = input;
+  const types = await availability({ roomTypeId, checkIn, checkOut, guests: adults + children, liveOnly: true });
+  // Two guests can go for the last rooms at the same moment: if the first
+  // room has just been taken, the next free one is tried.
+  for (const unit of types[0]?.units || []) {
+    try {
+      return await createBooking({ ...input, roomUnitId: unit.id }, context);
+    } catch (err) {
+      if (err.statusCode !== 409) throw err;
+    }
+  }
+  throw new ApiError(409, 'No room of this type is free for those dates any more. Please choose other dates or another room type.');
 }
 
 async function insertCounterPayment(client, bookingId, amount, payment, actor) {
@@ -388,12 +428,14 @@ async function markOnlinePaid({ orderId, paymentId, signature = null, via }) {
     });
 
     if (b.status === 'pending_payment') {
+      // Paying is what confirms a booking: nobody has to approve it.
       await client.query(
-        `UPDATE bookings SET status = 'paid', paid_at = now(),
-                hold_expires_at = now() + make_interval(hours => $1::int), updated_at = now() WHERE id = $2`,
-        [APPROVAL_HOURS, b.id]
+        `UPDATE bookings SET status = 'confirmed', paid_at = now(), confirmed_at = now(),
+                hold_expires_at = NULL, updated_at = now() WHERE id = $1`,
+        [b.id]
       );
-      await notify.enqueue(client, await reload(client, b.id), 'booking_received');
+      await audit(client, { bookingId: b.id, actor: SYSTEM, action: 'booking_confirmed', details: { via: 'payment' } });
+      await notify.enqueue(client, await reload(client, b.id), 'booking_confirmed', { paid: true });
       after(() => realtime().emitBookingUpdate(b.id, 'booking_paid'));
     } else {
       // Paid after the hold lapsed (or booking was closed) — give it back.
@@ -504,22 +546,6 @@ async function applyRefundWebhook(razorpayRefundId, outcome) {
 // Manager decisions
 // ---------------------------------------------------------------------------
 
-async function approve(bookingId, actor) {
-  return tx(async (client, after) => {
-    const b = await lock(client, bookingId);
-    requireStatus(b, ['paid'], 'approve');
-    await client.query(
-      `UPDATE bookings SET status = 'confirmed', confirmed_at = now(), hold_expires_at = NULL, updated_at = now() WHERE id = $1`,
-      [b.id]
-    );
-    await audit(client, { bookingId: b.id, actor, action: 'booking_approved' });
-    await notify.enqueue(client, await reload(client, b.id), 'booking_confirmed');
-    after(notify.flush);
-    after(() => realtime().emitBookingUpdate(b.id, 'booking_approved'));
-    return reload(client, b.id);
-  });
-}
-
 // Close a booking and give back everything paid.
 async function closeWithRefund(client, b, { status, reason, actor, template, action }) {
   await client.query(
@@ -531,17 +557,6 @@ async function closeWithRefund(client, b, { status, reason, actor, template, act
   await audit(client, { bookingId: b.id, actor, action, details: { reason, refund: refund.refund } });
   await notify.enqueue(client, await reload(client, b.id), template, refund);
   return refund;
-}
-
-async function reject(bookingId, reason, actor) {
-  return tx(async (client, after) => {
-    const b = await lock(client, bookingId);
-    requireStatus(b, ['paid'], 'reject');
-    await closeWithRefund(client, b, { status: 'rejected', reason, actor, template: 'booking_rejected', action: 'booking_rejected' });
-    after(notify.flush);
-    after(() => realtime().emitBookingUpdate(b.id, 'booking_rejected'));
-    return reload(client, b.id);
-  });
 }
 
 async function cancel(bookingId, reason, actor) {
@@ -604,6 +619,13 @@ async function extendStay(bookingId, newCheckOut, actor) {
     const b = await lock(client, bookingId);
     requireStatus(b, ['confirmed', 'checked_in'], 'extend');
     if (newCheckOut <= b.check_out) throw new ApiError(400, `New check-out must be after ${b.check_out}`);
+    await roomBlocks.assertNotBlocked(
+      client,
+      { id: b.room_unit_id, unit_number: b.unit_number },
+      b.check_out,
+      newCheckOut,
+      'Move the booking to another room to extend it.'
+    );
 
     const extra = await quoteNights(client, b.room_type_id, b.check_out, newCheckOut);
     const base = round2(Number(b.base_amount) + extra.base);
@@ -624,6 +646,12 @@ async function extendStay(bookingId, newCheckOut, actor) {
         ),
       { roomUnitId: b.room_unit_id, checkIn: b.check_out, checkOut: newCheckOut, excludeId: b.id }
     );
+
+    // Check-out time may already have passed today and marked the room dirty
+    // for a departure. The guest is staying, so that is taken back.
+    const lateJobDropped = await cleaning().dropUntouchedLateJob(client, b.id);
+    // The job is gone, so the housekeeping screens are told without an id.
+    if (lateJobDropped) after(() => realtime().emitJobUpdate(null, 'job_removed'));
 
     const updated = await reload(client, b.id);
     await audit(client, {
@@ -657,6 +685,13 @@ async function checkIn(bookingId, actor) {
     if (b.room_status !== 'Ready') {
       throw new ApiError(409, `Room ${b.unit_number} is not ready yet (housekeeping: ${b.room_status})`);
     }
+    await roomBlocks.assertNotBlocked(
+      client,
+      { id: b.room_unit_id, unit_number: b.unit_number },
+      today,
+      b.check_out,
+      'Move the booking to another room first.'
+    );
 
     await client.query(`UPDATE bookings SET status = 'checked_in', checked_in_at = now(), updated_at = now() WHERE id = $1`, [b.id]);
     await audit(client, { bookingId: b.id, actor, action: 'checked_in', details: { idsRecorded: docs[0].total, adults: b.adults } });
@@ -709,6 +744,122 @@ async function markNoShow(bookingId, actor) {
     );
     await audit(client, { bookingId: b.id, actor, action: 'no_show', details: { kept: Number(b.amount_paid) } });
     after(() => realtime().emitBookingUpdate(b.id, 'no_show'));
+    return reload(client, b.id);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Moving a stay to another room
+// ---------------------------------------------------------------------------
+
+const MOVABLE = ['paid', 'confirmed', 'checked_in'];
+
+// The first night of a stay that is still to come (its check-out day once it is over).
+const firstNightLeft = (b, today) => [b.check_in > today ? b.check_in : today, b.check_out].sort()[0];
+
+/**
+ * The rooms a stay could move to: big enough, free on every night of the stay
+ * and in service on the nights still to come. Rooms of the booked type first.
+ */
+async function moveOptions(bookingId) {
+  const { rows: found } = await query(`${BOOKING_SELECT} WHERE b.id = $1`, [bookingId]);
+  const b = found[0];
+  if (!b) throw new ApiError(404, 'Booking not found');
+  requireStatus(b, MOVABLE, 'move to another room');
+
+  const today = await localToday();
+  const { rows } = await query(
+    `SELECT ru.id, ru.unit_number, ru.floor, ru.view_label, ru.status AS room_status,
+            r.id AS room_type_id, r.name AS room_type
+     FROM room_units ru JOIN rooms r ON r.id = ru.room_type_id
+     WHERE ru.is_active AND r.is_active AND ru.id <> $1 AND r.capacity >= $2
+       AND NOT EXISTS (
+         SELECT 1 FROM bookings o
+         WHERE o.room_unit_id = ru.id AND o.id <> $3 AND o.status = ANY($4)
+           AND NOT (o.status = 'pending_payment' AND o.hold_expires_at < now())
+           AND daterange(o.check_in, o.check_out) && daterange($5::date, $6::date)
+       )
+       AND NOT ${roomBlocks.blockedSql('ru.id', '$7', '$6')}
+     ORDER BY (r.id = $8) DESC, r.price_per_night, ru.unit_number`,
+    [b.room_unit_id, b.adults + b.children, b.id, BLOCKING, b.check_in, b.check_out, firstNightLeft(b, today), b.room_type_id]
+  );
+  return {
+    current: { unitNumber: b.unit_number, roomType: b.room_type },
+    // A guest already in the room moves now, so the new room has to be ready.
+    inHouse: b.status === 'checked_in',
+    rooms: rows.map((u) => ({
+      id: u.id,
+      unitNumber: u.unit_number,
+      floor: u.floor,
+      view: u.view_label,
+      roomType: u.room_type,
+      sameType: u.room_type_id === b.room_type_id,
+      roomStatus: u.room_status,
+    })),
+  };
+}
+
+/**
+ * Move a stay to another room: its room is out of order, or the desk gives a
+ * different one at check-in. The price stays as booked, whatever the new
+ * room's type. A guest who is already in the room moves now: the new room
+ * must be ready, and the one they leave goes to housekeeping.
+ */
+async function moveBooking(bookingId, roomUnitId, actor, { reason = null } = {}) {
+  return tx(async (client, after) => {
+    const b = await lock(client, bookingId);
+    requireStatus(b, MOVABLE, 'move to another room');
+    if (b.room_unit_id === roomUnitId) throw new ApiError(400, `This booking is already in room ${b.unit_number}`);
+
+    const { rows: units } = await client.query(
+      `SELECT ru.id, ru.unit_number, ru.is_active, ru.status, ru.room_type_id, r.name AS room_type, r.capacity,
+              r.is_active AS type_active
+       FROM room_units ru JOIN rooms r ON r.id = ru.room_type_id WHERE ru.id = $1 FOR UPDATE OF ru`,
+      [roomUnitId]
+    );
+    const unit = units[0];
+    if (!unit || !unit.is_active || !unit.type_active) throw new ApiError(404, 'Room not found');
+    if (b.adults + b.children > unit.capacity) {
+      throw new ApiError(400, `Room ${unit.unit_number} fits up to ${unit.capacity} guests`);
+    }
+
+    const today = await localToday(client);
+    const inHouse = b.status === 'checked_in';
+    await roomBlocks.assertNotBlocked(client, unit, firstNightLeft(b, today), b.check_out);
+    if (inHouse && unit.status !== 'Ready') {
+      throw new ApiError(409, `Room ${unit.unit_number} is not ready yet (housekeeping: ${unit.status})`);
+    }
+    await releaseExpiredPaymentHolds(client, unit.id);
+
+    // The booking takes the new room's type with it; what was charged does not change.
+    await guardOverlap(
+      client,
+      () =>
+        client.query(`UPDATE bookings SET room_unit_id = $1, room_type_id = $2, updated_at = now() WHERE id = $3`, [
+          unit.id,
+          unit.room_type_id,
+          b.id,
+        ]),
+      { roomUnitId: unit.id, checkIn: b.check_in, checkOut: b.check_out, excludeId: b.id }
+    );
+
+    // The room a guest has been staying in is left for housekeeping.
+    let job = null;
+    if (inHouse) {
+      ({ job } = await cleaning().markRoomDirty(client, {
+        roomUnitId: b.room_unit_id,
+        notes: `Guest moved to room ${unit.unit_number}`,
+      }));
+    }
+
+    await audit(client, {
+      bookingId: b.id,
+      actor,
+      action: 'room_changed',
+      details: { from: b.unit_number, to: unit.unit_number, fromType: b.room_type, toType: unit.room_type, inHouse, reason },
+    });
+    after(() => realtime().emitBookingUpdate(b.id, 'room_changed'));
+    if (job) after(() => realtime().emitJobUpdate(job.id, 'job_created'));
     return reload(client, b.id);
   });
 }
@@ -813,29 +964,30 @@ async function expireHolds() {
   const expiredPayments = await tx((client) => releaseExpiredPaymentHolds(client));
   for (const id of expiredPayments) realtime().emitBookingUpdate(id, 'payment_window_expired');
 
-  const { rows } = await query(`SELECT id FROM bookings WHERE status = 'paid' AND hold_expires_at < now()`);
-  let expiredApprovals = 0;
+  // A booking paid for under the older rule ("paid", waiting for a manager's
+  // approval) is confirmed like any other paid booking.
+  const { rows } = await query(`SELECT id FROM bookings WHERE status = 'paid'`);
+  let confirmed = 0;
   for (const { id } of rows) {
     try {
       await tx(async (client, after) => {
         const b = await lock(client, id);
-        if (b.status !== 'paid' || new Date(b.hold_expires_at) >= new Date()) return;
-        await closeWithRefund(client, b, {
-          status: 'cancelled',
-          reason: `Not confirmed within ${APPROVAL_HOURS} hours`,
-          actor: SYSTEM,
-          template: 'booking_expired',
-          action: 'approval_window_expired',
-        });
+        if (b.status !== 'paid') return;
+        await client.query(
+          `UPDATE bookings SET status = 'confirmed', confirmed_at = now(), hold_expires_at = NULL, updated_at = now() WHERE id = $1`,
+          [b.id]
+        );
+        await audit(client, { bookingId: b.id, actor: SYSTEM, action: 'booking_confirmed', details: { via: 'payment' } });
+        await notify.enqueue(client, await reload(client, b.id), 'booking_confirmed');
         after(notify.flush);
-        after(() => realtime().emitBookingUpdate(b.id, 'approval_window_expired'));
-        expiredApprovals += 1;
+        after(() => realtime().emitBookingUpdate(b.id, 'booking_paid'));
+        confirmed += 1;
       });
     } catch (err) {
-      console.error(`[bookings] could not expire #${id}:`, err.message); // retried next run
+      console.error(`[bookings] could not confirm #${id}:`, err.message); // retried next run
     }
   }
-  return { expiredPayments: expiredPayments.length, expiredApprovals };
+  return { expiredPayments: expiredPayments.length, confirmed };
 }
 
 // ---------------------------------------------------------------------------
@@ -852,17 +1004,20 @@ async function lookupForGuest(reference, phone) {
     [b.id]
   );
   const { rows: typeRows } = await query(`SELECT images FROM rooms WHERE id = $1`, [b.room_type_id]);
+  const inRoom = ['checked_in', 'checked_out'].includes(b.status);
   return {
     id: b.id,
     reference: b.reference,
     status: b.status,
     guestName: b.guest_name,
     room: {
-      unitNumber: b.unit_number,
+      // The front desk gives the room at check-in and may change the one held
+      // for the booking until then, so no number is promised before arrival.
+      unitNumber: inRoom ? b.unit_number : null,
       type: b.room_type,
       typeId: b.room_type_id,
-      view: b.view_label,
-      floor: b.floor,
+      view: inRoom ? b.view_label : null,
+      floor: inRoom ? b.floor : null,
       images: typeRows[0]?.images || [], // the room type's photos, cover first
     },
     checkIn: b.check_in,
@@ -909,8 +1064,13 @@ async function detail(bookingId) {
       [b.id]
     ),
     query(`SELECT channel, template, status, created_at FROM notifications WHERE booking_id = $1 ORDER BY id`, [b.id]),
-    query(`SELECT id, status, created_at, ready_at FROM cleaning_jobs WHERE booking_id = $1`, [b.id]),
+    // The stay's own clean. (The stayovers done during the stay are not it.)
+    query(`SELECT id, status, created_at, ready_at FROM cleaning_jobs WHERE booking_id = $1 AND reason <> 'stayover'`, [b.id]),
   ]);
+  // Its room out of order on a night still to come? Then the desk has to move it.
+  const roomBlock = BLOCKING.includes(b.status)
+    ? await roomBlocks.findBlock({ query }, b.room_unit_id, firstNightLeft(b, await localToday()), b.check_out)
+    : null;
   return {
     ...b,
     payments: payments.rows,
@@ -919,6 +1079,7 @@ async function detail(bookingId) {
     events: events.rows,
     notifications: messages.rows,
     cleaningJob: jobs.rows[0] || null,
+    roomBlock,
   };
 }
 
@@ -994,15 +1155,93 @@ async function deskOverview() {
   const hasId = new Set(withId.map((d) => d.booking_id));
   for (const b of [...rows, ...tomorrowRows]) b.has_primary_id = hasId.has(b.id);
 
+  // After check-out time a guest who is due out and still checked in is
+  // "late": the desk is warned here, and housekeeping already has the room
+  // down as dirty (cleaning.service markLateCheckouts). Nobody is checked out
+  // by the system.
+  const checkoutHour = cleaning().CHECKOUT_HOUR;
+  const pastCheckoutTime = (await localHour()) >= checkoutHour;
+  for (const b of rows) {
+    b.late_checkout = b.status === 'checked_in' && (b.check_out < today || (b.check_out === today && pastCheckoutTime));
+  }
+
   return {
     today,
+    checkoutHour,
     tomorrowArrivals: tomorrowRows,
     arrivals: rows.filter((b) => b.status === 'confirmed'),
     inHouse: rows.filter((b) => b.status === 'checked_in'),
     departures: rows.filter((b) => b.status === 'checked_in' && b.check_out <= today),
-    awaitingApproval: rows.filter((b) => b.status === 'paid'),
     pendingRefunds,
   };
+}
+
+// ---------------------------------------------------------------------------
+// GST invoice
+// ---------------------------------------------------------------------------
+
+// India's financial year runs April to March: 5 October 2026 is in "26-27".
+function financialYear(isoDay) {
+  const [year, month] = isoDay.split('-').map(Number);
+  const start = month >= 4 ? year : year - 1;
+  return `${String(start).slice(2)}-${String(start + 1).slice(2)}`;
+}
+
+// 15 characters: state code, PAN, entity number, Z, check character.
+const GSTIN_PATTERN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
+
+/**
+ * Everything the printed GST invoice for one booking needs. The first time it
+ * is asked for, the booking gets the next invoice number of the financial
+ * year (GKL/26-27/0001, an unbroken series); after that the same number is
+ * used again — a reprint, not a new invoice.
+ * `billing` ({ name, gstin }, or null to leave it as it is): the company the
+ * guest wants the invoice made out to.
+ */
+async function invoice(bookingId, billing, actor) {
+  return tx(async (client) => {
+    const b = await lock(client, bookingId);
+    requireStatus(b, ['confirmed', 'checked_in', 'checked_out'], 'make an invoice');
+    if (Number(b.balance_due) > 0) {
+      throw new ApiError(409, `Collect the balance of ₹${b.balance_due} first: the invoice is for a stay paid in full`);
+    }
+
+    const { rows: settings } = await client.query(
+      `SELECT legal_name, gstin, address, phone, email FROM resort_settings WHERE id = 1`
+    );
+    const seller = settings[0] || {};
+    if (!seller.legal_name || !seller.gstin) {
+      throw new ApiError(409, "The resort's registered name and GSTIN are not set yet. A manager can add them in Admin → Settings.");
+    }
+
+    if (billing) {
+      const name = String(billing.name || '').trim();
+      const gstin = String(billing.gstin || '').trim().toUpperCase();
+      if (gstin && !GSTIN_PATTERN.test(gstin)) throw new ApiError(400, 'That GSTIN is not valid. It has 15 characters, for example 37ABCDE1234F1Z5.');
+      if (gstin && !name) throw new ApiError(400, 'Enter the company name that goes with the GSTIN');
+      await client.query(`UPDATE bookings SET billing_name = $1, billing_gstin = $2 WHERE id = $3`, [name || null, gstin || null, b.id]);
+    }
+
+    if (!b.invoice_number) {
+      const series = financialYear(await localToday(client));
+      const { rows } = await client.query(
+        `INSERT INTO invoice_counters (series, last_number) VALUES ($1, 1)
+         ON CONFLICT (series) DO UPDATE SET last_number = invoice_counters.last_number + 1
+         RETURNING last_number`,
+        [series]
+      );
+      const number = `GKL/${series}/${String(rows[0].last_number).padStart(4, '0')}`;
+      await client.query(`UPDATE bookings SET invoice_number = $1, invoiced_at = now() WHERE id = $2`, [number, b.id]);
+      await audit(client, { bookingId: b.id, actor, action: 'invoice_issued', details: { number } });
+    }
+
+    const { rows: payments } = await client.query(
+      `SELECT method, amount, reference, razorpay_payment_id, captured_at FROM payments
+       WHERE booking_id = $1 AND status = 'captured' ORDER BY id`,
+      [b.id]
+    );
+    return { booking: await reload(client, b.id), seller, payments };
+  });
 }
 
 module.exports = {
@@ -1010,19 +1249,20 @@ module.exports = {
   RETENTION_DAYS,
   availability,
   createBooking,
+  createOnlineBooking,
   recordPayment,
   createOnlineOrder,
   markOnlinePaid,
   completeManualRefund,
   applyRefundWebhook,
-  approve,
-  reject,
   cancel,
   applyDiscount,
   extendStay,
   checkIn,
   checkOut,
   markNoShow,
+  moveOptions,
+  moveBooking,
   addDocument,
   removeDocument,
   documentViewUrl,
@@ -1032,4 +1272,5 @@ module.exports = {
   detail,
   list,
   deskOverview,
+  invoice,
 };

@@ -4,7 +4,8 @@ import { inr } from '../../lib/bookingUi';
 
 /**
  * Real room numbers free for the chosen dates, grouped by room type, with the
- * price for the stay. `types` is the /availability response.
+ * price for the stay, for the front desk to choose from. `types` is the
+ * /desk/availability response (guests are not shown room numbers).
  */
 export default function RoomPicker({ types, selectedId, onSelect, showType = true, renderTypeHeader }) {
   if (!types) return null;

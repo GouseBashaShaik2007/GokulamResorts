@@ -10,6 +10,13 @@ async function localToday(client = { query }) {
   return rows[0].d;
 }
 
+// The hour of the day at the resort right now, 0-23: for work that starts
+// "at 9" or "at 11" whatever zone the server's own clock is in.
+async function localHour(client = { query }) {
+  const { rows } = await client.query(`SELECT extract(hour FROM now() AT TIME ZONE $1)::int AS h`, [TIMEZONE]);
+  return rows[0].h;
+}
+
 // pg returns DATE columns as JS Dates at local midnight; normalise to YYYY-MM-DD.
 function isoDate(value) {
   if (!value) return value;
@@ -26,4 +33,4 @@ function addDays(iso, days) {
   return d.toISOString().slice(0, 10);
 }
 
-module.exports = { TIMEZONE, localToday, isoDate, addDays };
+module.exports = { TIMEZONE, localToday, localHour, isoDate, addDays };

@@ -15,7 +15,7 @@ import { offerDates, offerSaving } from '@/lib/offers';
 /**
  * Booking box on a room page: dates → live total including GST → Reserve.
  * Shares dates/guests with the booking panel, so Reserve continues right
- * where the guest is (picking a room number of this type).
+ * where the guest is (with this room type already chosen).
  * `offers`: live offers covering this room type, best first.
  * `otherRooms`: the other room types ({ id, name, slug }), offered when this
  * one is full for the chosen dates.
@@ -56,7 +56,7 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
   });
   // { quote, free } when this room type has a room free; { none: true } when it is full.
   const type = types?.[0];
-  const result = types ? (type ? { quote: type.quote, free: type.units.length } : { none: true }) : null;
+  const result = types ? (type ? { quote: type.quote, free: type.free } : { none: true }) : null;
 
   const q = result?.quote;
 
@@ -169,12 +169,11 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
         disabled={datesValid && (tooMany || result?.none)}
         className="btn-primary w-full disabled:opacity-50"
       >
-        {datesValid ? 'Reserve — choose your room' : 'Check availability'}
+        {datesValid ? 'Reserve' : 'Check availability'}
       </button>
       <p className="text-center text-xs text-ink-400">
-        <span className="font-semibold text-gold-600">Best rate when you book direct.</span> You pick your exact
-        room number next. Full payment secures the room; if the resort can&apos;t confirm within 24 hours you&apos;re
-        refunded automatically.
+        <span className="font-semibold text-gold-600">Best rate when you book direct.</span> Full payment confirms
+        your booking at once. Your room number is given to you at check-in.
       </p>
     </div>
   );

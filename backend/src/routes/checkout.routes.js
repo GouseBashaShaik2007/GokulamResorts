@@ -6,9 +6,9 @@ const { createCheckout, confirmCheckout, getCheckout, abandonCheckout } = requir
 
 const router = Router();
 
-// The kiosk is one tablet, and a whole hotel can share one Wi-Fi address, so
-// this is generous: it only has to stop a script that has got hold of a key
-// from flooding the payment gateway.
+// The kiosk is one tablet, and every table and room in the hotel can share one
+// Wi-Fi address, so this is generous: it only has to stop a script that has
+// got hold of a key from flooding the payment gateway.
 const checkoutLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 150,
@@ -23,11 +23,17 @@ router.post(
   '/',
   checkoutLimiter,
   [
-    body('orderType').isIn(['kiosk', 'room']).withMessage('orderType must be "kiosk" or "room"'),
+    body('orderType').isIn(['kiosk', 'table', 'room']).withMessage('orderType must be "kiosk", "table" or "room"'),
     body('accessKey').isString().isLength({ min: 1, max: 40 }),
+    // These only keep junk out. Which of them an order needs, and whether the
+    // table or room exists, is checked in the controller, which can say so in
+    // words the customer understands.
+    body('serviceMode').optional({ nullable: true, checkFalsy: true }).isIn(['dine_in', 'pickup', 'room']).withMessage('serviceMode must be "dine_in", "pickup" or "room"'),
+    body('tableNumber').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1, max: 999 }).withMessage('Unknown table number'),
     body('roomNumber').optional({ nullable: true, checkFalsy: true }).isString().matches(/^[A-Za-z0-9-]{1,20}$/).withMessage('Unknown room'),
     body('customerName').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 150 }),
-    body('customerPhone').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 20 }),
+    // Order messages go to this number by SMS.
+    body('customerPhone').optional({ nullable: true, checkFalsy: true }).isString().matches(/^\+?[0-9][0-9 -]{5,18}$/).withMessage('Enter a valid phone number'),
     body('items').isArray({ min: 1, max: 60 }).withMessage('items must be a non-empty array'),
     body('items.*.menuItemId').isInt({ min: 1 }),
     body('items.*.quantity').isInt({ min: 1, max: 20 }),

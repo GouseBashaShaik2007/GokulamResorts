@@ -438,11 +438,10 @@ CREATE TABLE IF NOT EXISTS cleaning_jobs (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Never two open jobs on the same room, and one checkout clean per stay.
+-- Never two open jobs on the same room. (One checkout clean per stay is a
+-- second rule; it is defined at the end of this file, next to stayovers.)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_cleaning_jobs_open_per_unit
   ON cleaning_jobs (room_unit_id) WHERE status <> 'Ready';
-CREATE UNIQUE INDEX IF NOT EXISTS uq_cleaning_jobs_booking
-  ON cleaning_jobs (booking_id) WHERE booking_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_cleaning_jobs_status ON cleaning_jobs (status);
 
 CREATE TABLE IF NOT EXISTS cleaning_tasks (
@@ -597,3 +596,126 @@ ALTER TABLE cleaning_inspections ADD COLUMN IF NOT EXISTS admin_id INTEGER REFER
 ALTER TABLE cleaning_inspections DROP CONSTRAINT IF EXISTS chk_inspection_decider;
 ALTER TABLE cleaning_inspections ADD CONSTRAINT chk_inspection_decider
   CHECK (inspector_id IS NOT NULL OR admin_id IS NOT NULL);
+
+-- ---------------------------------------------------------
+-- Added 2026-10: stayover service, late check-outs, the room given at
+-- check-in, GST invoices, a table's order paid online, what a kiosk customer
+-- wants done with their order, messages about food orders. All additive.
+-- ---------------------------------------------------------
+
+-- Housekeeping now has three kinds of job:
+--   reason 'checkout'  the room is cleaned for the next guest (Bedding, Toiletry, Inspection)
+--   reason 'manual'    the same, raised by a manager
+--   reason 'stayover'  an occupied room is serviced during a longer stay: bed
+--                      made, toiletries refilled, toilet cleaned. Bedding and
+--                      Toiletry only, no inspection, and the room's own status
+--                      (room_units.status) is left alone — it says whether the
+--                      room is fit for a NEW guest.
+-- source says what raised it: 'stayover' is the morning run for occupied
+-- rooms; 'late' is check-out time passing with the guest still checked in
+-- (the room is marked Dirty and the desk is warned; nobody is checked out).
+ALTER TABLE cleaning_jobs DROP CONSTRAINT IF EXISTS cleaning_jobs_reason_check;
+ALTER TABLE cleaning_jobs ADD CONSTRAINT cleaning_jobs_reason_check
+  CHECK (reason IN ('checkout', 'manual', 'stayover'));
+ALTER TABLE cleaning_jobs DROP CONSTRAINT IF EXISTS cleaning_jobs_source_check;
+ALTER TABLE cleaning_jobs ADD CONSTRAINT cleaning_jobs_source_check
+  CHECK (source IN ('checkout', 'nightly', 'manual', 'stayover', 'late'));
+
+-- One checkout clean per stay; a stay of several nights has a stayover job a day.
+DROP INDEX IF EXISTS uq_cleaning_jobs_booking;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cleaning_jobs_checkout_per_stay
+  ON cleaning_jobs (booking_id) WHERE booking_id IS NOT NULL AND reason = 'checkout';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cleaning_jobs_stayover_per_day
+  ON cleaning_jobs (room_unit_id, job_date) WHERE reason = 'stayover';
+
+-- A stayover that ended without the room being serviced. NULL = it was done.
+--   dnd       "Do not disturb" on the door
+--   refused   the guest said no
+--   other     something else (closed_note says what)
+--   not_done  nobody got to it before the day was over
+ALTER TABLE cleaning_jobs ADD COLUMN IF NOT EXISTS closed_as VARCHAR(10)
+  CHECK (closed_as IN ('dnd', 'refused', 'other', 'not_done'));
+ALTER TABLE cleaning_jobs ADD COLUMN IF NOT EXISTS closed_note TEXT;
+ALTER TABLE cleaning_jobs ADD COLUMN IF NOT EXISTS closed_by_staff_id INTEGER REFERENCES staff(id);
+
+-- 'Skipped': the task's job was closed without it (see closed_as).
+ALTER TABLE cleaning_tasks DROP CONSTRAINT IF EXISTS cleaning_tasks_status_check;
+ALTER TABLE cleaning_tasks ADD CONSTRAINT cleaning_tasks_status_check
+  CHECK (status IN ('Pending', 'InProgress', 'Paused', 'Completed', 'Failed', 'Skipped'));
+
+-- An inspector sending a room back can add a photo of what is wrong. It is in
+-- private storage, like the photos of room problems.
+ALTER TABLE cleaning_inspections ADD COLUMN IF NOT EXISTS photo_key TEXT;
+ALTER TABLE cleaning_inspections ADD COLUMN IF NOT EXISTS photo_content_type VARCHAR(50);
+
+-- GST invoices. The resort's registered name and GSTIN are set in
+-- Admin -> Settings. A booking gets its invoice number the first time its
+-- invoice is printed; numbers run in one unbroken series per financial year
+-- (April to March), e.g. GKL/26-27/0001. A guest billing a company can give
+-- its name and GSTIN.
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS legal_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS gstin      TEXT NOT NULL DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(30);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS invoiced_at    TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS billing_name   VARCHAR(150);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS billing_gstin  VARCHAR(15);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_invoice_number ON bookings (invoice_number)
+  WHERE invoice_number IS NOT NULL;
+CREATE TABLE IF NOT EXISTS invoice_counters (
+  series       VARCHAR(10) PRIMARY KEY,   -- the financial year, e.g. '26-27'
+  last_number  INTEGER NOT NULL DEFAULT 0
+);
+
+-- A table's order is now paid online before it reaches the kitchen, the same
+-- way a room's and the kiosk's are, so it waits in the same checkouts.
+ALTER TABLE kiosk_checkouts DROP CONSTRAINT IF EXISTS kiosk_checkouts_order_type_check;
+ALTER TABLE kiosk_checkouts ADD CONSTRAINT kiosk_checkouts_order_type_check
+  CHECK (order_type IN ('kiosk', 'room', 'table'));
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS table_number VARCHAR(20);
+
+-- The kiosk asks what the customer wants done with the order:
+--   dine_in  brought to a table in the restaurant (table_number)
+--   pickup   collected at the counter when the number is called
+--   room     brought to a hotel room (room_number)
+-- NULL on orders that are not from the kiosk (and on kiosk orders from before this).
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS service_mode VARCHAR(10)
+  CHECK (service_mode IN ('dine_in', 'pickup', 'room'));
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS service_mode VARCHAR(10)
+  CHECK (service_mode IN ('dine_in', 'pickup', 'room'));
+
+-- Messages about a food order (its number, "ready") use the same outbox as
+-- messages about a booking.
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS food_order_id INTEGER REFERENCES food_orders(id);
+CREATE INDEX IF NOT EXISTS idx_notifications_food_order_id ON notifications (food_order_id)
+  WHERE food_order_id IS NOT NULL;
+
+-- ---------------------------------------------------------
+-- Added 2026-10: rooms taken out of order. All additive.
+-- ---------------------------------------------------------
+
+-- A room that cannot be sold or checked into for a while: a broken AC, a
+-- leak, repainting. It covers the nights [start_date, end_date); end_date
+-- NULL means "until someone puts it back". Putting a room back early moves
+-- end_date to that day, so the row stays as a record of when it was out.
+-- Bookings already in the room are not touched: the desk moves them to
+-- another room (they are shown as needing it).
+CREATE TABLE IF NOT EXISTS room_blocks (
+  id                   SERIAL PRIMARY KEY,
+  room_unit_id         INTEGER NOT NULL REFERENCES room_units(id),
+  start_date           DATE NOT NULL,
+  end_date             DATE,
+  reason               TEXT NOT NULL,
+  room_issue_id        INTEGER REFERENCES room_issues(id),  -- the housekeeping report it came from, if any
+  created_by_staff_id  INTEGER REFERENCES staff(id),
+  created_by_admin_id  INTEGER REFERENCES admins(id),
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at             TIMESTAMPTZ,                         -- when it was put back early
+  ended_by_staff_id    INTEGER REFERENCES staff(id),
+  ended_by_admin_id    INTEGER REFERENCES admins(id),
+  CONSTRAINT chk_room_block_dates CHECK (end_date IS NULL OR end_date >= start_date),
+  -- Never two blocks on one room for the same night.
+  CONSTRAINT no_overlapping_room_blocks EXCLUDE USING gist (
+    room_unit_id WITH =,
+    daterange(start_date, end_date) WITH &&
+  )
+);

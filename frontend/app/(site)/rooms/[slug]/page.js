@@ -159,9 +159,9 @@ export default async function RoomPage({ params }) {
               </li>
             )}
             <li>
-              {room.units_count} room{room.units_count === 1 ? '' : 's'} of this type — you choose the exact room by
-              number when you book. Each is listed with its floor and view, so you can take the one you prefer, or
-              rooms next to each other when you travel as a group.
+              {room.units_count} room{room.units_count === 1 ? '' : 's'} of this type. You book the room type, and
+              the front desk gives you your room number at check-in. Travelling as a group and want rooms next to
+              each other? Say so in the special requests when you book.
             </li>
             <li>
               Up to {room.capacity} guest{room.capacity === 1 ? '' : 's'}, counting adults and children together.
@@ -170,7 +170,7 @@ export default async function RoomPage({ params }) {
               <li key={line}>{line}</li>
             ))}
             <li>Bring a photo ID (Aadhaar, passport or driving licence) for every adult; the front desk checks it at check-in.</li>
-            <li>You pay in full online. The resort confirms within 24 hours — if it can&apos;t, you are refunded in full automatically.</li>
+            <li>You pay in full online, and your booking is confirmed as soon as the payment goes through.</li>
             <li>Bookings cancelled before check-in are refunded. If you don&apos;t arrive, the payment is not refunded.</li>
           </ul>
           <p className="mt-3 text-sm">

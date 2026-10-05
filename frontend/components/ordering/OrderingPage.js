@@ -18,6 +18,9 @@ const COUNTER_STEPS = [
  * `table`: the table number; `room`: the room number; neither for the
  * counter. `searchParams.k`: the key the code carries. Without the right key
  * there is no ordering — the page explains how to scan a code instead.
+ *
+ * A table and a room pay online when they order; only the counter's order is
+ * paid afterwards, at the counter.
  */
 export default async function OrderingPage({ table = null, room = null, searchParams }) {
   const accessKey = typeof searchParams.k === 'string' ? searchParams.k : '';
@@ -37,15 +40,15 @@ export default async function OrderingPage({ table = null, room = null, searchPa
         {table ? (
           <>
             <p className="mx-auto mt-3 max-w-2xl text-ink-500">
-              Browse the menu, add what you like, and place your order — it goes straight to our kitchen. You pay at
-              your table; there is nothing to pay online.
+              Browse the menu, add what you like, and pay on your phone by UPI or card. Your order then goes straight
+              to our kitchen, and we bring it to your table.
             </p>
             <TableService table={table} accessKey={accessKey} className="mt-5" />
           </>
         ) : room ? (
           <p className="mx-auto mt-3 max-w-2xl text-ink-500">
-            Browse the menu, add what you like, and place your order — it goes straight to our kitchen and we bring it
-            to Room {room}. Pay online when you order, or in cash when it arrives.
+            Browse the menu, add what you like, and pay on your phone by UPI or card. Your order then goes straight to
+            our kitchen, and we bring it to Room {room}.
           </p>
         ) : (
           <ol className="mx-auto mt-4 flex max-w-3xl flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-ink-500">

@@ -8,6 +8,7 @@
  *   frontdesk    — every front desk screen
  *   staff:<id>   — one staff member's devices (housekeeping tasks)
  *   inspectors   — every inspector (they assign rooms, so they see every job)
+ *   housekeepers — everyone who cleans (bedding, toiletry): their task lists
  *   kitchen      — every kitchen display
  * Events carry just enough to tell the client what changed; clients refetch.
  */
@@ -41,6 +42,7 @@ function initRealtime(httpServer, allowedOrigins) {
       socket.join(`staff:${user.sub}`);
       if (user.staffRole === 'FrontDesk') socket.join('frontdesk');
       if (user.staffRole === 'Inspector') socket.join('inspectors');
+      if (['Bedding', 'Toiletry'].includes(user.staffRole)) socket.join('housekeepers');
     }
   });
 
@@ -48,8 +50,13 @@ function initRealtime(httpServer, allowedOrigins) {
 }
 
 /**
- * Broadcast a cleaning job change to admins, inspectors and the job's assigned staff.
+ * Broadcast a cleaning job change to admins, inspectors, the job's assigned
+ * staff and every housekeeper. (One job changing can take another off a
+ * housekeeper's list: a check-out clean closes the room's stayover, a stay
+ * extended late removes its job. So every task list refreshes, not only the
+ * lists of the people on this job.)
  * `event` is a short machine name, e.g. 'task_completed', 'inspection_approved'.
+ * `jobId` may be null when the job itself is gone ('job_removed').
  * Never throws — realtime is best-effort on top of the committed DB change.
  */
 async function emitJobUpdate(jobId, event, extraStaffIds = []) {
@@ -57,10 +64,10 @@ async function emitJobUpdate(jobId, event, extraStaffIds = []) {
   try {
     // Required lazily to avoid a cycle (service -> pool, realtime -> service).
     const { staffIdsForJob } = require('./services/cleaning.service');
-    const staffIds = new Set([...(await staffIdsForJob(jobId)), ...extraStaffIds]);
+    const staffIds = new Set([...(jobId ? await staffIdsForJob(jobId) : []), ...extraStaffIds]);
     const payload = { jobId, event, at: new Date().toISOString() };
 
-    let target = io.to('admins').to('inspectors');
+    let target = io.to('admins').to('inspectors').to('housekeepers');
     for (const id of staffIds) target = target.to(`staff:${id}`);
     target.emit('cleaning:update', payload);
   } catch (err) {

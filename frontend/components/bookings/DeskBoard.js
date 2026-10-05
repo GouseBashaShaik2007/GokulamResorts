@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { deskAs } from '../../lib/api';
 import useCleaningSocket, { LiveBadge, StaleNotice } from '../../lib/useCleaningSocket';
-import { StatusBadge, inr, fmtDate, fmtDateTime, errMsg } from '../../lib/bookingUi';
+import { StatusBadge, inr, fmtDate, errMsg } from '../../lib/bookingUi';
+import BookingsCalendar from '../admin/BookingsCalendar';
 import BookingDetail from './BookingDetail';
 import BookingSearch from './BookingSearch';
 import CounterBookingForm from './CounterBookingForm';
@@ -65,6 +66,9 @@ function Group({ title, note, items, empty, onOpen, hint, accent, showBlockers }
 }
 
 const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// 11 -> "11 AM", 14 -> "2 PM".
+const hourLabel = (h) => `${((h + 11) % 12) + 1} ${h < 12 ? 'AM' : 'PM'}`;
 
 /** mode: 'desk' (signed in as front desk staff) or 'admin' (signed in as the manager). */
 export default function DeskBoard({ mode }) {
@@ -129,6 +133,9 @@ export default function DeskBoard({ mode }) {
 
   const today = data?.today;
   const departuresIds = new Set((data?.departures || []).map((b) => b.id));
+  // Guests due out who are still checked in after check-out time.
+  const lateCount = (data?.departures || []).filter((b) => b.late_checkout).length;
+  const checkoutTime = hourLabel(data?.checkoutHour ?? 11);
 
   return (
     <div>
@@ -136,6 +143,8 @@ export default function DeskBoard({ mode }) {
         <div className="flex flex-wrap gap-2">
           {tab('today', 'Today')}
           {tab('rooms', 'Rooms')}
+          {/* The manager's Bookings page has its own Calendar view beside this board. */}
+          {mode === 'desk' && tab('calendar', 'Calendar')}
           {tab('food', unpaidFood > 0 ? `Food orders (${unpaidFood} to pay)` : 'Food orders')}
           {tab('search', 'Find booking')}
         </div>
@@ -159,20 +168,6 @@ export default function DeskBoard({ mode }) {
             </span>
           </p>
 
-          {data.awaitingApproval.length > 0 && (
-            <Group
-              title={mode === 'admin' ? 'Needs your approval' : 'Awaiting manager approval'}
-              note={
-                mode === 'admin'
-                  ? 'Paid online. Open one to approve or decline it; left alone, it cancels and refunds itself at the time shown.'
-                  : 'Paid online, not yet approved. Only the manager can approve — if the guest is here or the time is close, call the manager.'
-              }
-              accent="text-gold-600"
-              items={data.awaitingApproval}
-              onOpen={setOpenId}
-              hint={(b) => <span className="text-xs text-ink-400">auto-cancels {fmtDateTime(b.hold_expires_at)}</span>}
-            />
-          )}
           {data.pendingRefunds.length > 0 && (
             <section>
               <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gold-600">Refunds to pay out at the counter ({data.pendingRefunds.length})</h3>
@@ -196,10 +191,22 @@ export default function DeskBoard({ mode }) {
           />
           <Group
             title="Departures"
+            note={
+              lateCount > 0
+                ? `${count(lateCount, 'guest')} still checked in after the ${checkoutTime} check-out. Housekeeping has ${lateCount === 1 ? 'that room' : 'those rooms'} down as dirty. Check the guest out when they leave, or extend the stay if they are staying on.`
+                : undefined
+            }
+            accent={lateCount > 0 ? 'text-orange-700' : undefined}
             items={data.departures}
             empty="No departures due today."
             onOpen={setOpenId}
-            hint={(b) => (b.check_out < today ? <span className="text-xs text-orange-700">overdue</span> : null)}
+            hint={(b) =>
+              b.late_checkout ? (
+                <span className="rounded-full bg-orange-400/10 px-2 py-0.5 text-xs font-medium text-orange-700">
+                  {b.check_out < today ? `overdue since ${fmtDate(b.check_out)}` : `past ${checkoutTime} check-out`}
+                </span>
+              ) : null
+            }
           />
           <Group
             title="In house"
@@ -231,6 +238,8 @@ export default function DeskBoard({ mode }) {
       )}
 
       {view === 'rooms' && <RoomBoard auth={auth} onOpen={setOpenId} onChanged={load} refreshKey={refreshKey} />}
+
+      {view === 'calendar' && <BookingsCalendar mode={mode} refreshKey={refreshKey} onChanged={load} />}
 
       {view === 'food' && <FoodPayments orders={foodOrders} error={foodError} auth={auth} mode={mode} onChanged={loadFood} />}
 

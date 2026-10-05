@@ -7,9 +7,12 @@ import { errMsg, inr } from '@/lib/bookingUi';
 import { ORDER_TYPE_FOR_API, composeOrderNotes, orderHref } from '@/lib/foodOrders';
 import { rememberOrder } from '@/lib/myOrders';
 import useOrderCheckout from '@/lib/useOrderCheckout';
+import { isValidPhone, splitPhone } from '../site/PhoneInput';
 
-const UNCONFIRMED =
-  'We could not confirm your order from this phone. If your payment went through and the order was not placed, the money is returned to you automatically. Please call the restaurant.';
+// Who to turn to when paying does not work: staff are at hand in the restaurant, a phone call away from a room.
+const helpFor = (type) => (type === 'room' ? 'call the restaurant' : 'ask our staff');
+const unconfirmed = (type) =>
+  `We could not confirm your order from this phone. If your payment went through and the order was not placed, the money is returned to you automatically. Please ${helpFor(type)}.`;
 
 /**
  * The guest's details and the act of placing the order.
@@ -17,20 +20,20 @@ const UNCONFIRMED =
  * carries that code's key. `cartKey` names this ordering context on the
  * device (see lib/cart.js).
  *
- * A table or the counter pays afterwards, in person, so the order is simply
- * placed. A hotel room chooses: `payWith` 'online' (pay now, and only then
- * the order exists) or 'cash' (placed at once, paid at the door).
+ * A table and a hotel room pay online, on the guest's phone: the payment
+ * window opens, and only once the payment is in does the order exist. The
+ * counter's order is simply placed, and paid for at the counter.
  *
- * Returns { form, setField, payWith, setPayWith, status, error, submit, testPayment }.
+ * Returns { form, setField, paysOnline, status, stage, error, submit, testPayment }.
  * status: 'idle' | 'placing' | 'paying' (the payment window is open or being
- * checked) | 'error'. `testPayment` is { pay, cancel } while the API's test
- * mode is standing in for the payment window, otherwise null.
+ * checked) | 'error'. `testPayment` is { total, pay, cancel } while the API's
+ * test mode is standing in for the payment window, otherwise null.
  */
 export default function usePlaceOrder({ orderContext, cart, cartKey }) {
   const router = useRouter();
   const { type } = orderContext;
+  const paysOnline = type !== 'counter';
   const [form, setForm] = useState({ customerName: '', customerPhone: '', allergy: '', notes: '' });
-  const [payWith, setPayWith] = useState('online');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
   // If the server says a price changed, this is the total the guest has since been shown.
@@ -49,11 +52,11 @@ export default function usePlaceOrder({ orderContext, cart, cartKey }) {
 
   const checkout = useOrderCheckout({
     messages: {
-      startFailed: 'The payment could not be started. Please try again, or choose cash.',
-      windowFailed: 'The payment window could not be opened. Please check your connection, or choose cash.',
+      startFailed: `The payment could not be started. Please try again, or ${helpFor(type)}.`,
+      windowFailed: `The payment window could not be opened. Please check your connection and try again, or ${helpFor(type)}.`,
       backedOut: 'The payment was not completed, so nothing has been ordered yet.',
     },
-    onPaid: ({ orderToken }) => (orderToken ? placed(orderToken) : setError(UNCONFIRMED)),
+    onPaid: ({ orderToken }) => (orderToken ? placed(orderToken) : setError(unconfirmed(type))),
     onMenuChanged: ({ code, message, total }) => {
       if (code === 'price_changed') {
         agreedTotal.current = total;
@@ -67,27 +70,24 @@ export default function usePlaceOrder({ orderContext, cart, cartKey }) {
   });
   const stage = checkout.pay.stage;
 
-  // A message left by a payment that did not work is cleared by the next attempt.
-  const clearPaymentMessage = () => {
-    if (stage === 'failed' || stage === 'unconfirmed') checkout.dismiss();
-  };
-
-  const choosePayWith = (value) => {
-    setPayWith(value);
-    setError('');
-    clearPaymentMessage();
-  };
-
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    clearPaymentMessage();
+    // A message left by a payment that did not work is cleared by the next attempt.
+    if (stage === 'failed' || stage === 'unconfirmed') checkout.dismiss();
     if (type === 'counter' && !form.customerName.trim()) {
       setError('Please enter a name so we can call out your order.');
       return;
     }
-    // The phone field always carries a country code; only send a real number.
-    const phone = /\d{6,}/.test(form.customerPhone) ? form.customerPhone : undefined;
+    // The phone field always carries a country code, so "nothing typed" is not
+    // an empty value. A number is optional; half a number would send the
+    // guest's order messages nowhere.
+    const typedPhone = splitPhone(form.customerPhone).local.replace(/\D/g, '').length > 0;
+    if (typedPhone && !isValidPhone(form.customerPhone)) {
+      setError('Please check the phone number, or leave it empty.');
+      return;
+    }
+    const phone = typedPhone ? form.customerPhone : undefined;
     const order = {
       orderType: ORDER_TYPE_FOR_API[type],
       accessKey: orderContext.accessKey,
@@ -99,13 +99,16 @@ export default function usePlaceOrder({ orderContext, cart, cartKey }) {
       items: cart.items.map((i) => ({ menuItemId: i.id, quantity: i.quantity, spiceLevel: i.spiceLevel || undefined, notes: i.notes || undefined })),
     };
 
-    if (type === 'room' && payWith === 'online') {
+    if (paysOnline) {
       const total = agreedTotal.current ?? cart.total;
-      const prefill = { ...(phone ? { contact: phone.replace(/[^\d+]/g, '') } : {}), ...(order.customerName ? { name: order.customerName } : {}) };
+      const prefill = { ...(phone ? { contact: phone } : {}), ...(order.customerName ? { name: order.customerName } : {}) };
       checkout.start({
         body: { ...order, expectedTotal: total },
         total,
-        gateway: { description: `Food to Room ${orderContext.roomId}`, ...(Object.keys(prefill).length ? { prefill } : {}) },
+        gateway: {
+          description: type === 'room' ? `Food to Room ${orderContext.roomId}` : `Food for Table ${orderContext.tableId}`,
+          ...(Object.keys(prefill).length ? { prefill } : {}),
+        },
       });
       return;
     }
@@ -124,11 +127,10 @@ export default function usePlaceOrder({ orderContext, cart, cartKey }) {
   return {
     form,
     setField,
-    payWith,
-    setPayWith: choosePayWith,
+    paysOnline,
     status: placing ? 'placing' : paying ? 'paying' : error ? 'error' : 'idle',
     stage,
-    error: stage === 'failed' ? checkout.pay.message : stage === 'unconfirmed' ? UNCONFIRMED : error,
+    error: stage === 'failed' ? checkout.pay.message : stage === 'unconfirmed' ? unconfirmed(type) : error,
     submit,
     testPayment: stage === 'mock' ? { total: checkout.pay.total, pay: checkout.mockPay, cancel: checkout.mockCancel } : null,
   };

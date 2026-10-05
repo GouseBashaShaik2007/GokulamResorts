@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { errMsg, fmtDateTime, inr as rupees } from '@/lib/bookingUi';
+import { errMsg, inr as rupees } from '@/lib/bookingUi';
 import PageHeader from '@/components/ui/PageHeader';
 
 // `action`: this number is something waiting on the manager, so when it is
@@ -122,9 +122,9 @@ export default function Overview() {
             {/* What is waiting on a decision or an action comes first. */}
             <StatCard
               action
-              label="Awaiting Approval"
-              value={stats.awaitingApproval}
-              hint={stats.approvalDeadline ? `First one auto-cancels ${fmtDateTime(stats.approvalDeadline)}` : 'Bookings needing a decision'}
+              label="Late Check-outs"
+              value={stats.lateCheckouts ?? 0}
+              hint={stats.lateCheckouts > 0 ? 'Still checked in after check-out time' : undefined}
               href="/admin/bookings"
             />
             <StatCard action label="Refunds to Pay Out" value={stats.pendingRefunds} hint={stats.pendingRefunds > 0 ? 'At the counter' : undefined} href="/admin/bookings" />

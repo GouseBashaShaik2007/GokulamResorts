@@ -1,17 +1,23 @@
 /**
  * Background jobs (resort timezone):
- *   every 2 min   expire unpaid holds + unapproved paid bookings (auto refund)
+ *   every 2 min   release rooms whose payment window ran out (paying confirms
+ *                 a booking, so nothing waits for anyone's approval)
  *   every minute  retry guest messages still in the outbox
  *   every 5 min   close online food payments nobody completed (refund any paid late)
+ *   every 10 min  housekeeping's two daily rounds: from 9 AM a stayover job
+ *                 for every occupied room; from 11 AM a cleaning job for every
+ *                 room whose guest is past check-out time and still checked in
  *   11 PM         cleaning safety net for check-outs without a cleaning job
  *   3:30 AM       delete ID documents past the retention period, and photos
- *                 of room problems resolved more than a month ago
+ *                 of room problems resolved more than a month ago, and of
+ *                 rooms an inspector sent back that long ago
  *   6:15 AM       refresh display exchange rates (and once at startup)
  */
 const cron = require('node-cron');
 const { TIMEZONE } = require('../utils/dates');
 const bookings = require('../services/booking.service');
 const notify = require('../services/notify.service');
+const cleaning = require('../services/cleaning.service');
 const { scheduleNightlyCleaning } = require('./nightlyCleaning');
 const fx = require('../services/fx.service');
 const roomIssues = require('../controllers/roomIssue.controller');
@@ -41,11 +47,20 @@ function startScheduler() {
   every('*/2 * * * *', 'expire holds', () => bookings.expireHolds());
   every('* * * * *', 'notification retry', () => notify.flush());
   every('*/5 * * * *', 'online food payments', () => checkouts.sweepStaleCheckouts());
+  // Housekeeping's daily rounds. Each one looks at the resort's clock itself
+  // and does nothing before its hour (STAYOVER_HOUR, CHECKOUT_HOUR), and each
+  // room is only ever done once — so they simply run all day, and a server
+  // that was asleep at 9 or at 11 catches up as soon as it wakes.
+  every('*/10 * * * *', 'stayover jobs', () => cleaning.generateStayoverJobs());
+  every('*/10 * * * *', 'late check-outs', () => cleaning.markLateCheckouts());
   every(process.env.DOC_PURGE_CRON || '30 3 * * *', 'purge ID documents', async () => ({
     purged: await bookings.purgeExpiredDocuments(),
   }));
   every(process.env.DOC_PURGE_CRON || '30 3 * * *', 'purge room problem photos', async () => ({
     purged: await roomIssues.purgeOldPhotos(),
+  }));
+  every(process.env.DOC_PURGE_CRON || '30 3 * * *', 'purge inspector photos', async () => ({
+    purged: await cleaning.purgeOldInspectionPhotos(),
   }));
   every('15 6 * * *', 'exchange rates', () => fx.refreshRates());
   fx.refreshRates(); // don't wait until tomorrow morning after a restart

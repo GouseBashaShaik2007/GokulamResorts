@@ -86,7 +86,7 @@ function loadPersistedHold() {
 //
 // step:   'stay' | 'room' | 'guest' | 'pay'
 // status: 'idle' | 'booking' (holding the room) | 'paying' | 'error'
-// pick:   the chosen room { unit, roomType, quote }
+// pick:   the chosen room type and its price { roomType, quote }
 // hold:   the order for a room held for payment
 //         { bookingId, reference, holdExpiresAt, orderId, amount, currency, keyId, mock }
 // heldStay: the dates and guests that hold was made for
@@ -272,13 +272,13 @@ export function BookingProvider({ children }) {
   // Razorpay for an order that already exists — a new one, or one the guest
   // came back to. The one place the checkout window is opened.
   const openCheckout = useCallback(
-    async (order, forStay, unitNumber) => {
+    async (order, forStay, roomName) => {
       await checkout.ensureRazorpayLoaded();
       dispatch({ type: 'paymentOpened' });
       const failed = (message) => dispatch({ type: 'failed', message });
       checkout.openRazorpayCheckout({
         order,
-        description: `Room ${unitNumber || ''} · ${forStay.checkIn} to ${forStay.checkOut}`,
+        description: `${roomName || 'Room'} · ${forStay.checkIn} to ${forStay.checkOut}`,
         guest,
         onSuccess: reset,
         onDismiss: () => dispatch({ type: 'paymentDismissed' }),
@@ -293,15 +293,15 @@ export function BookingProvider({ children }) {
   // screen or a live Razorpay checkout.
   const submitAndPay = useCallback(async () => {
     if (!pick) {
-      dispatch({ type: 'problem', message: 'Please choose a room number.' });
+      dispatch({ type: 'problem', message: 'Please choose a room.' });
       return;
     }
     dispatch({ type: 'bookingStarted' });
     const forStay = { checkIn: stay.checkIn, checkOut: stay.checkOut, adults, children: kids };
     try {
-      const order = await checkout.createHoldAndOrder({ roomUnitId: pick.unit.id, ...forStay, guest });
+      const order = await checkout.createHoldAndOrder({ roomTypeId: pick.roomType.id, ...forStay, guest });
       dispatch({ type: 'held', order, stay: forStay });
-      if (!order.mock) await openCheckout(order, forStay, pick.unit.unitNumber);
+      if (!order.mock) await openCheckout(order, forStay, pick.roomType.name);
     } catch (err) {
       dispatch({
         type: 'failed',
@@ -316,7 +316,7 @@ export function BookingProvider({ children }) {
   const resumePayment = useCallback(async () => {
     if (!hold || hold.mock) return;
     try {
-      await openCheckout(hold, bookedStay, pick?.unit?.unitNumber);
+      await openCheckout(hold, bookedStay, pick?.roomType?.name);
     } catch (err) {
       dispatch({ type: 'failed', message: err.message || 'Could not open checkout. Please try again.' });
     }

@@ -10,15 +10,19 @@ import {
   IDLE_WARNING_SECONDS,
   KIOSK_PATH,
   MENU_REFRESH_MS,
+  NO_SERVICE,
   RELOAD_AFTER_MS,
   forgetKioskKey,
   menuChangeNotice,
   readKioskKey,
   reconcileOrder,
   saveKioskKey,
+  serviceChosen,
+  serviceForApi,
 } from '@/lib/kiosk';
 import KioskOrder from './KioskOrder';
 import KioskPay from './KioskPay';
+import KioskService from './KioskService';
 import { IdleWarning, KioskConnecting, KioskDone, KioskLocked, KioskStart, TurnSideways } from './KioskScreens';
 import { useCountdown, useIdle, useWakeLock } from './kioskHooks';
 import useOrderCheckout from '@/lib/useOrderCheckout';
@@ -39,6 +43,10 @@ const gatewayPhone = (raw) => {
  *            → offline     the restaurant's system cannot be reached (retries)
  *            → start       "Tap to start", between customers
  *   start → order → done → start
+ *
+ * While ordering there are two steps: the menu, and then "How would you like
+ * your order?" — dine-in (with the table), pickup, or room drop (with the
+ * room) — which ends in the payment.
  */
 export default function Kiosk() {
   const [phase, setPhase] = useState('checking');
@@ -49,7 +57,11 @@ export default function Kiosk() {
   const [payer, setPayer] = useState(null); // the resort's own contact, for the payment window
   const [allergy, setAllergy] = useState('');
   const [notice, setNotice] = useState('');
-  const [placed, setPlaced] = useState(null); // { orderNumber, total } on the "done" screen
+  // Where an order can be brought: how many tables there are, and the hotel's room numbers.
+  const [places, setPlaces] = useState({ tables: 0, rooms: [] });
+  const [service, setService] = useState(NO_SERVICE); // what this customer wants done with the order
+  const [choosing, setChoosing] = useState(false); // the "how would you like your order?" step is showing
+  const [placed, setPlaced] = useState(null); // { orderNumber, total, service } on the "done" screen
   const cart = useCart(null); // never written to the device
   const loadedAt = useRef(Date.now());
 
@@ -74,6 +86,7 @@ export default function Kiosk() {
           // The key does not stay in the address bar (or the browser's history).
           if (fromLink) window.history.replaceState(null, '', KIOSK_PATH);
           setAccessKey(candidate);
+          setPlaces({ tables: res.data.tables || 0, rooms: res.data.rooms || [] });
           setPhase('start');
         } else {
           if (!fromLink) forgetKioskKey();
@@ -110,6 +123,17 @@ export default function Kiosk() {
       return null;
     }
   }, []);
+
+  // The tables and rooms are read again for each customer: a table added in
+  // Admin, or a room taken out of use, shows without setting the tablet up again.
+  const loadPlaces = useCallback(async () => {
+    try {
+      const res = await api.get('/order-access', { params: { type: 'kiosk', k: accessKey } });
+      if (res.data.valid) setPlaces({ tables: res.data.tables || 0, rooms: res.data.rooms || [] });
+    } catch {
+      // not reachable: keep the ones already known
+    }
+  }, [accessKey]);
 
   // Between customers: keep the menu fresh, and pick up a new version of the
   // site once in a while (only when it can actually be reached).
@@ -153,6 +177,8 @@ export default function Kiosk() {
   // ----- payment -----
   const cartRef = useRef(cart);
   cartRef.current = cart;
+  const serviceRef = useRef(service);
+  serviceRef.current = service;
 
   // Bring the order in line with a menu that changed under it; says what changed.
   const applyMenu = useCallback((fresh) => {
@@ -160,6 +186,8 @@ export default function Kiosk() {
     if (result.removed.length === 0 && !result.repriced) return false;
     cartRef.current.restore(result.lines);
     setNotice(menuChangeNotice(result));
+    // The message is shown with the order, so the customer is taken back to it before paying.
+    setChoosing(false);
     return true;
   }, []);
 
@@ -173,7 +201,9 @@ export default function Kiosk() {
       cartRef.current.clear();
       setAllergy('');
       setNotice('');
-      setPlaced(order);
+      // The order-number screen says what happens next: brought to the table or room, or called at the counter.
+      setPlaced({ ...order, service: serviceRef.current });
+      setService(NO_SERVICE);
       setPhase('done');
     },
     // The server refused the checkout: a dish sold out or a price changed since the menu was read.
@@ -198,8 +228,11 @@ export default function Kiosk() {
     cart.clear();
     setAllergy('');
     setNotice('');
+    setService(NO_SERVICE);
+    setChoosing(false);
     setPhase('order');
     loadMenu(); // prices and sold-out dishes as they are this minute
+    loadPlaces(); // and the tables and rooms as they are now
     // On the tablet, every new order puts the screen back to full screen in case someone left it.
     if (window.matchMedia?.('(pointer: coarse)').matches && !document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().catch(() => {});
@@ -212,18 +245,32 @@ export default function Kiosk() {
     cartRef.current.clear();
     setAllergy('');
     setNotice('');
+    setService(NO_SERVICE);
+    setChoosing(false);
     setPlaced(null);
     setPhase('start');
     // payment.cancel is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pay = () => {
+  // From the order to "how would you like your order?".
+  const chooseService = () => {
+    if (cart.items.length === 0) return;
     setNotice('');
+    setChoosing(true);
+  };
+
+  const pay = () => {
+    if (!serviceChosen(service) || cart.items.length === 0) return;
+    setNotice('');
+    // The payment's own panel takes over the screen. If the payment is not
+    // completed the customer is back at their order, with the choice kept.
+    setChoosing(false);
     payment.start({
       body: {
         orderType: 'kiosk',
         accessKey,
+        ...serviceForApi(service),
         items: cart.items.map((line) => ({ menuItemId: line.id, quantity: line.quantity, spiceLevel: line.spiceLevel || undefined, notes: line.notes || undefined })),
         notes: composeOrderNotes({ allergy }) || undefined,
         expectedTotal: cart.total,
@@ -278,9 +325,21 @@ export default function Kiosk() {
           onAllergy={setAllergy}
           notice={notice}
           onDismissNotice={() => setNotice('')}
-          onPay={pay}
+          onContinue={chooseService}
           paying={paying}
           onStartOver={reset}
+        />
+      )}
+      {/* The step before the payment, over the order (which keeps its place for "Back to my order"). */}
+      {phase === 'order' && menu && choosing && (
+        <KioskService
+          places={places}
+          service={service}
+          onChange={setService}
+          total={cart.total}
+          onPay={pay}
+          paying={paying}
+          onBack={() => setChoosing(false)}
         />
       )}
       {phase === 'done' && placed && <KioskDone order={placed} seconds={doneLeft} onDone={reset} />}

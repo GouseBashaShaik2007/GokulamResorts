@@ -147,7 +147,8 @@ const listJobs = asyncHandler(async (req, res) => {
   res.json({ success: true, jobs });
 });
 
-// POST /api/admin/cleaning/jobs — mark a room Dirty
+// POST /api/admin/cleaning/jobs — mark a room Dirty. On an occupied room the
+// full clean replaces the day's stayover, if that is still open.
 const createJob = asyncHandler(async (req, res) => {
   const { roomUnitId, priority, notes } = req.body;
   const job = await cleaning.createManualJob({ roomUnitId, priority, notes, adminId: req.admin.sub });
@@ -157,6 +158,7 @@ const createJob = asyncHandler(async (req, res) => {
 
 // PUT /api/admin/cleaning/jobs/:id/assign — { beddingStaffId, toiletryStaffId, inspectorId }
 // Also PUT /api/staff/jobs/:id/assign, for inspectors.
+// A stayover has no inspection, so it takes bedding and toiletry staff only.
 const assignJob = asyncHandler(async (req, res) => {
   const jobId = Number(req.params.id);
   const { beddingStaffId, toiletryStaffId, inspectorId } = req.body;

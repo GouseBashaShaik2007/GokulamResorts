@@ -107,8 +107,6 @@ router.delete('/rooms/:id', [param('id').isInt({ min: 1 })], validate, deleteRoo
 const reasonField = body('reason').trim().isLength({ min: 3, max: 500 }).withMessage('A reason is required');
 const bookingId = [param('id').isInt({ min: 1 })];
 
-router.post('/bookings/:id/approve', bookingId, validate, mgr.approve);
-router.post('/bookings/:id/reject', [...bookingId, reasonField], validate, mgr.reject);
 router.post('/bookings/:id/cancel', [...bookingId, reasonField], validate, mgr.cancel);
 router.post(
   '/bookings/:id/discount',
@@ -422,6 +420,9 @@ router.put(
     blankable('mapsUrl').isURL({ protocols: ['http', 'https'], require_protocol: true }).withMessage('Paste the full Google Maps link, starting with https://').isLength({ max: 500 }),
     blankable('checkInTime').isString().isLength({ max: 20 }),
     blankable('checkOutTime').isString().isLength({ max: 20 }),
+    blankable('legalName').isString().isLength({ max: 150 }),
+    // 15 characters: state code, PAN, entity number, Z, check character.
+    blankable('gstin').isString().trim().toUpperCase().matches(/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/).withMessage('Enter the 15-character GSTIN, e.g. 37ABCDE1234F1Z5'),
     body('tableCount').optional().isInt({ min: 1, max: 200 }).withMessage('Number of tables must be between 1 and 200').toInt(),
   ],
   validate,

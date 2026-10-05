@@ -126,12 +126,13 @@ export default function GuestStep() {
       <button type="submit" disabled={isSubmitting} className="btn-primary w-full disabled:opacity-60">
         {status === 'booking' && 'Holding your room...'}
         {status === 'paying' && 'Waiting for payment...'}
-        {(status === 'idle' || status === 'error') && `Pay ${inr(pick.quote.total)} · Room ${pick.unit.unitNumber}`}
+        {(status === 'idle' || status === 'error') && `Pay ${inr(pick.quote.total)}`}
       </button>
-      {/* The approval step is unusual, so it is spelled out before the guest pays. */}
+      {/* What paying does, spelled out before the guest pays. */}
       <ol className="space-y-1.5 rounded-xl bg-sand-100 p-4 text-sm text-ink-700">
         <li><span className="font-semibold text-ink-900">1. You pay now.</span> The full amount, securely through Razorpay.</li>
-        <li><span className="font-semibold text-ink-900">2. We confirm within 24 hours.</span> If the resort can&apos;t confirm, you are refunded in full automatically.</li>
+        <li><span className="font-semibold text-ink-900">2. Your booking is confirmed at once.</span> You get your booking reference straight away.</li>
+        <li><span className="font-semibold text-ink-900">3. Your room is ready at check-in.</span> The front desk gives you your room number when you arrive.</li>
       </ol>
       <p className="text-center text-xs text-ink-400">
         <span className="font-semibold text-gold-600">Best rate when you book direct.</span> Please bring a photo ID for every adult at check-in.
