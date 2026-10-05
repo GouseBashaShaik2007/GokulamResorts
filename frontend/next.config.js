@@ -23,12 +23,13 @@ const nextConfig = {
   },
   // Lets two dev servers run side by side without sharing (and corrupting) one build folder.
   distDir: process.env.NEXT_DIST_DIR || '.next',
-  // Ordering at the restaurant counter now lives at /order (tables are
-  // /order/<number>). It was /kiosk and then /dine — one letter away from
-  // /dining — so both old addresses still lead there, query string included.
+  // The restaurant's kiosk screen lives at /dine-in; its older names lead
+  // there. (Not permanent: these two addresses pointed at /order for a while,
+  // and a browser that remembers a permanent redirect never asks again.)
+  // Their sub-pages were order confirmations, which now live under /order.
   async redirects() {
     return ['/kiosk', '/dine'].flatMap((old) => [
-      { source: old, destination: '/order', permanent: true },
+      { source: old, destination: '/dine-in', permanent: false },
       { source: `${old}/:path*`, destination: '/order/:path*', permanent: true },
     ]);
   },

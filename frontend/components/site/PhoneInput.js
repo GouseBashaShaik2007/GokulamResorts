@@ -26,12 +26,12 @@ export default function PhoneInput({ id, value, onChange, required, onBlur, inva
   const max = prefix === '+91' ? 10 : 14;
 
   return (
-    <div className={`flex overflow-hidden rounded-lg border bg-navy-800 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400 ${invalid ? 'border-red-600' : 'border-navy-600'}`}>
+    <div className={`flex overflow-hidden rounded-lg border bg-sand-200 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400 ${invalid ? 'border-red-600' : 'border-sand-400'}`}>
       <select
         aria-label="Country code"
         value={prefix}
         onChange={(e) => onChange(e.target.value + digits)}
-        className="border-r border-navy-600 bg-transparent pl-3 pr-1 text-navy-50 focus:outline-none"
+        className="border-r border-sand-400 bg-transparent pl-3 pr-1 text-ink-900 focus:outline-none"
       >
         {PREFIXES.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
@@ -49,7 +49,7 @@ export default function PhoneInput({ id, value, onChange, required, onBlur, inva
         onChange={(e) => onChange(prefix + e.target.value.replace(/\D/g, '').slice(0, max))}
         pattern={prefix === '+91' ? '\\d{5} \\d{5}' : '[\\d ]{6,16}'}
         title={prefix === '+91' ? 'Enter the 10-digit mobile number' : 'Enter the mobile number'}
-        className="w-full bg-transparent px-3 py-3 tracking-wide text-navy-50 placeholder:text-navy-400 focus:outline-none"
+        className="w-full bg-transparent px-3 py-3 tracking-wide text-ink-900 placeholder:text-ink-400 focus:outline-none"
       />
     </div>
   );

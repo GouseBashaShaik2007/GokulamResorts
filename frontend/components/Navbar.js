@@ -53,20 +53,20 @@ function MoreMenu({ overHero, isActive }) {
         aria-controls="more-menu"
         onClick={() => setOpen((v) => !v)}
         className={`flex items-center gap-1 whitespace-nowrap text-sm font-medium transition-colors ${
-          overHero ? 'text-white hover:text-white/75' : 'text-navy-100 hover:text-ocean-500'
+          overHero ? 'text-white hover:text-white/75' : 'text-ink-800 hover:text-ocean-500'
         } ${anyActive ? 'underline decoration-gold-400 decoration-2 underline-offset-8' : ''}`}
       >
         More
         <svg viewBox="0 0 12 12" className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" /></svg>
       </button>
       {open && (
-        <ul id="more-menu" className="absolute right-0 top-full z-50 mt-3 w-48 rounded-xl border border-navy-700 bg-navy-950 py-2 shadow-xl">
+        <ul id="more-menu" className="absolute right-0 top-full z-50 mt-3 w-48 rounded-xl border border-sand-300 bg-sand-50 py-2 shadow-xl">
           {moreLinks.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
                 aria-current={isActive(link.href) ? 'page' : undefined}
-                className={`block px-4 py-2 text-sm hover:bg-navy-800 ${isActive(link.href) ? 'font-semibold text-ocean-600' : 'text-navy-100'}`}
+                className={`block px-4 py-2 text-sm hover:bg-sand-200 ${isActive(link.href) ? 'font-semibold text-ocean-600' : 'text-ink-800'}`}
               >
                 {link.label}
               </Link>
@@ -106,13 +106,13 @@ export default function Navbar() {
     <div ref={topMarker} className="pointer-events-none absolute left-0 top-0 h-10 w-px" aria-hidden="true" />
     <header
       className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
-        overHero ? 'border-transparent bg-gradient-to-b from-black/50 to-transparent' : 'border-navy-700 bg-navy-950 shadow-sm'
+        overHero ? 'border-transparent bg-gradient-to-b from-black/50 to-transparent' : 'border-sand-300 bg-sand-50 shadow-sm'
       }`}
     >
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8" aria-label="Main">
         <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
           <span className={`font-serif text-2xl font-semibold tracking-wide ${overHero ? 'text-white' : 'text-gold-600'}`}>Gokulam</span>
-          <span className={`hidden text-sm uppercase tracking-[0.3em] sm:inline lg:hidden xl:inline ${overHero ? 'text-white/80' : 'text-navy-200'}`}>Resorts</span>
+          <span className={`hidden text-sm uppercase tracking-[0.3em] sm:inline lg:hidden xl:inline ${overHero ? 'text-white/80' : 'text-ink-700'}`}>Resorts</span>
         </Link>
 
         <div className="hidden items-center gap-5 lg:flex xl:gap-8">
@@ -122,7 +122,7 @@ export default function Navbar() {
               href={link.href}
               aria-current={isActive(link.href) ? 'page' : undefined}
               className={`whitespace-nowrap text-sm font-medium transition-colors ${
-                overHero ? 'text-white hover:text-white/75' : 'text-navy-100 hover:text-ocean-500'
+                overHero ? 'text-white hover:text-white/75' : 'text-ink-800 hover:text-ocean-500'
               } ${isActive(link.href) ? 'underline decoration-gold-400 decoration-2 underline-offset-8' : ''}`}
             >
               {link.label}
@@ -131,7 +131,7 @@ export default function Navbar() {
           <MoreMenu overHero={overHero} isActive={isActive} />
 
           <CurrencySwitcher />
-          <button type="button" onClick={() => openBooking()} className="btn-gold whitespace-nowrap px-5 py-2 text-sm">
+          <button type="button" onClick={() => openBooking()} className="btn-primary whitespace-nowrap px-5 py-2 text-sm">
             Book Now
           </button>
         </div>
@@ -149,14 +149,14 @@ export default function Navbar() {
       </nav>
 
       {open && (
-        <div id="mobile-menu" className="border-t border-navy-800 bg-navy-950 px-4 pb-4 lg:hidden">
+        <div id="mobile-menu" className="border-t border-sand-200 bg-sand-50 px-4 pb-4 lg:hidden">
           <div className="flex flex-col gap-1 pt-3">
             {[...mainLinks, ...moreLinks].map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 aria-current={isActive(link.href) ? 'page' : undefined}
-                className={`rounded-lg px-3 py-2 hover:bg-navy-800 hover:text-gold-600 ${isActive(link.href) ? 'font-semibold text-ocean-600' : 'text-navy-100'}`}
+                className={`rounded-lg px-3 py-2 hover:bg-sand-200 hover:text-gold-600 ${isActive(link.href) ? 'font-semibold text-ocean-600' : 'text-ink-800'}`}
                 onClick={() => setOpen(false)}
               >
                 {link.label}
@@ -169,7 +169,7 @@ export default function Navbar() {
                 setOpen(false);
                 openBooking();
               }}
-              className="btn-gold mt-2 text-center"
+              className="btn-primary mt-2 text-center"
             >
               Book Now
             </button>

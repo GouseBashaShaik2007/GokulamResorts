@@ -21,20 +21,20 @@ function facts(item) {
 
 function ItemRow({ item, onEdit, onSoldOut, onRestore }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-navy-700 bg-navy-800 p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sand-300 bg-sand-200 p-4">
       <div className="flex min-w-0 items-center gap-3">
         {item.image ? (
           <img src={item.image} alt="" className="h-12 w-12 flex-none rounded-lg object-cover" />
         ) : (
-          <div className="flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-dashed border-navy-600 text-[10px] text-navy-400">
+          <div className="flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-dashed border-sand-400 text-[10px] text-ink-400">
             No photo
           </div>
         )}
         <div className="min-w-0">
-          <p className="font-medium text-navy-50">
+          <p className="font-medium text-ink-900">
             {item.name} {!item.is_available && <span className="ml-2 text-xs text-red-700">(sold out)</span>}
           </p>
-          <p className="text-sm text-navy-400">{facts(item)}</p>
+          <p className="text-sm text-ink-400">{facts(item)}</p>
         </div>
       </div>
       <div className="flex gap-2">
@@ -80,13 +80,13 @@ export default function ItemList({ items, categories, onEdit, onSoldOut, onResto
   return (
     <div className="card p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-serif text-xl font-bold text-navy-50">All Menu Items</h2>
+        <h2 className="font-serif text-xl font-bold text-ink-900">All Menu Items</h2>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             aria-pressed={soldOutOnly}
             onClick={() => setSoldOutOnly((v) => !v)}
-            className={`rounded-full border px-3 py-1.5 text-sm ${soldOutOnly ? 'border-red-700 bg-red-700 text-white' : 'border-navy-600 text-navy-200'}`}
+            className={`rounded-full border px-3 py-1.5 text-sm ${soldOutOnly ? 'border-red-700 bg-red-700 text-white' : 'border-sand-400 text-ink-700'}`}
           >
             Sold out ({soldOutCount})
           </button>
@@ -113,13 +113,13 @@ export default function ItemList({ items, categories, onEdit, onSoldOut, onResto
                   type="button"
                   aria-expanded={!!open}
                   onClick={() => setFolded((f) => ({ ...f, [group.id]: !f[group.id] }))}
-                  className="flex w-full items-center justify-between gap-3 border-b border-navy-700 pb-1.5 text-left text-sm font-semibold uppercase tracking-wider text-navy-300"
+                  className="flex w-full items-center justify-between gap-3 border-b border-sand-300 pb-1.5 text-left text-sm font-semibold uppercase tracking-wider text-ink-500"
                 >
                   <span>
-                    {group.name} <span className="font-normal text-navy-400">({group.items.length})</span>
+                    {group.name} <span className="font-normal text-ink-400">({group.items.length})</span>
                     {!group.is_active && <span className="ml-2 text-xs normal-case tracking-normal text-red-700">hidden category</span>}
                   </span>
-                  <span aria-hidden="true" className={`text-navy-400 transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+                  <span aria-hidden="true" className={`text-ink-400 transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
                 </button>
               </h3>
               {open && (
@@ -130,8 +130,8 @@ export default function ItemList({ items, categories, onEdit, onSoldOut, onResto
             </section>
           );
         })}
-        {items.length === 0 && <p className="text-navy-400">No menu items yet.</p>}
-        {items.length > 0 && groups.length === 0 && <p className="text-navy-400">No dishes match{search.trim() ? ` “${search}”` : ''}.</p>}
+        {items.length === 0 && <p className="text-ink-400">No menu items yet.</p>}
+        {items.length > 0 && groups.length === 0 && <p className="text-ink-400">No dishes match{search.trim() ? ` “${search}”` : ''}.</p>}
       </div>
     </div>
   );

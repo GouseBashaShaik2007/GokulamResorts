@@ -61,23 +61,23 @@ export default function ContactForm({ initialReason }) {
     return (
       <div className="card space-y-4 p-6 sm:p-8" role="status">
         <p className="eyebrow">Message sent</p>
-        <h2 className="font-serif text-2xl font-semibold text-navy-50">Thank you, {sent.name.split(' ')[0]}</h2>
-        <p className="text-navy-300">We&apos;ll get back to you shortly at {sent.email}.</p>
-        <dl className="space-y-2 rounded-xl bg-navy-900 p-4 text-sm">
-          <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">About</dt><dd className="text-navy-100">{sent.reason}</dd></div>
+        <h2 className="font-serif text-2xl font-semibold text-ink-900">Thank you, {sent.name.split(' ')[0]}</h2>
+        <p className="text-ink-500">We&apos;ll get back to you shortly at {sent.email}.</p>
+        <dl className="space-y-2 rounded-xl bg-sand-100 p-4 text-sm">
+          <div className="flex gap-3"><dt className="w-20 flex-none text-ink-400">About</dt><dd className="text-ink-800">{sent.reason}</dd></div>
           {sent.checkIn && (
             <div className="flex gap-3">
-              <dt className="w-20 flex-none text-navy-400">{sentNeeds.day ? 'Date' : 'Dates'}</dt>
-              <dd className="text-navy-100">{fmtDate(sent.checkIn)}{!sentNeeds.day && sent.checkOut ? ` → ${fmtDate(sent.checkOut)}` : ''}</dd>
+              <dt className="w-20 flex-none text-ink-400">{sentNeeds.day ? 'Date' : 'Dates'}</dt>
+              <dd className="text-ink-800">{fmtDate(sent.checkIn)}{!sentNeeds.day && sent.checkOut ? ` → ${fmtDate(sent.checkOut)}` : ''}</dd>
             </div>
           )}
           {sentNeeds.party && sent.guests && (
-            <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">People</dt><dd className="text-navy-100">{sent.guests}</dd></div>
+            <div className="flex gap-3"><dt className="w-20 flex-none text-ink-400">People</dt><dd className="text-ink-800">{sent.guests}</dd></div>
           )}
           {sentNeeds.budget && sent.budget.trim() && (
-            <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">Budget</dt><dd className="text-navy-100">{sent.budget}</dd></div>
+            <div className="flex gap-3"><dt className="w-20 flex-none text-ink-400">Budget</dt><dd className="text-ink-800">{sent.budget}</dd></div>
           )}
-          <div className="flex gap-3"><dt className="w-20 flex-none text-navy-400">Message</dt><dd className="whitespace-pre-line text-navy-100">{sent.message}</dd></div>
+          <div className="flex gap-3"><dt className="w-20 flex-none text-ink-400">Message</dt><dd className="whitespace-pre-line text-ink-800">{sent.message}</dd></div>
         </dl>
         <button type="button" onClick={() => setStatus('idle')} className="btn-outline">Send another message</button>
       </div>
@@ -90,7 +90,7 @@ export default function ContactForm({ initialReason }) {
         <legend className="label">What is it about?</legend>
         <div className="mt-1 flex flex-wrap gap-2">
           {CONTACT_REASONS.map((r) => (
-            <label key={r} className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ocean-400 has-[:focus-visible]:ring-offset-2 ${form.reason === r ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-navy-700 text-navy-200'}`}>
+            <label key={r} className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ocean-400 has-[:focus-visible]:ring-offset-2 ${form.reason === r ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-sand-300 text-ink-700'}`}>
               <input type="radio" name="reason" value={r} checked={form.reason === r} onChange={set('reason')} className="sr-only" />
               {r}
             </label>
@@ -100,7 +100,7 @@ export default function ContactForm({ initialReason }) {
 
       {/* Whether a room is free, and what it costs, is answered at once by the booking panel. */}
       {form.reason === 'Stay' && (
-        <p className="rounded-xl bg-navy-900 px-4 py-3 text-sm text-navy-200">
+        <p className="rounded-xl bg-sand-100 px-4 py-3 text-sm text-ink-700">
           Want to know if a room is free for your dates, and the price?{' '}
           <OpenBookingButton className="font-semibold text-ocean-600 underline underline-offset-2">Check availability now</OpenBookingButton>
           {' '}— it answers straight away. For anything else about a stay, write to us below.
@@ -158,7 +158,7 @@ export default function ContactForm({ initialReason }) {
 
       {status === 'error' && <p role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-      <button type="submit" disabled={status === 'sending'} className="btn-gold w-full disabled:opacity-60">
+      <button type="submit" disabled={status === 'sending'} className="btn-primary w-full disabled:opacity-60">
         {status === 'sending' ? 'Sending…' : 'Send message'}
       </button>
     </form>

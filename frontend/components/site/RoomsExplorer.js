@@ -83,11 +83,11 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
   return (
     <>
       {/* Sticks just under the navbar while the list scrolls. */}
-      <div className="sticky top-[var(--nav-h)] z-30 -mx-4 mb-8 border-b border-navy-700 bg-navy-950/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
+      <div className="sticky top-[var(--nav-h)] z-30 -mx-4 mb-8 border-b border-sand-300 bg-sand-50/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
         <div className="flex items-center gap-x-6 gap-y-3 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
           {viewOptions.length > 0 && (
             <div className="flex flex-none items-center gap-2" role="group" aria-label="View">
-              <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">View</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">View</span>
               <Chip size="sm" pressed={view === 'all'} onClick={() => set({ view: '' })}>Any</Chip>
               {viewOptions.map((v) => (
                 <Chip key={v} size="sm" pressed={view === v} onClick={() => set({ view: v })}>{v}</Chip>
@@ -96,11 +96,11 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
           )}
 
           <label className="flex flex-none items-center gap-2 text-sm">
-            <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Guests</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">Guests</span>
             <select
               value={guests}
               onChange={(e) => set({ guests: Number(e.target.value) || '' })}
-              className="rounded-full border border-navy-700 bg-transparent px-3 py-1.5 text-sm text-navy-100 focus:border-ocean-400 focus:outline-none"
+              className="rounded-full border border-sand-300 bg-transparent px-3 py-1.5 text-sm text-ink-800 focus:border-ocean-400 focus:outline-none"
             >
               <option value={0}>Any</option>
               {GUEST_CHOICES.map((n) => (
@@ -110,11 +110,11 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
           </label>
 
           <label className="flex flex-none items-center gap-2 text-sm sm:ml-auto">
-            <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Sort</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">Sort</span>
             <select
               value={sort}
               onChange={(e) => set({ sort: e.target.value === 'priceAsc' ? '' : e.target.value })}
-              className="rounded-full border border-navy-700 bg-transparent px-3 py-1.5 text-sm text-navy-100 focus:border-ocean-400 focus:outline-none"
+              className="rounded-full border border-sand-300 bg-transparent px-3 py-1.5 text-sm text-ink-800 focus:border-ocean-400 focus:outline-none"
             >
               {Object.entries(SORTS).map(([key, s]) => (
                 <option key={key} value={key}>{s.label}</option>
@@ -124,7 +124,7 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm text-navy-400">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm text-ink-400">
         <p aria-live="polite">
           {shown.length} room type{shown.length === 1 ? '' : 's'}
           {prices && (
@@ -150,7 +150,7 @@ export default function RoomsExplorer({ rooms, offers = [] }) {
           })}
         </div>
       ) : (
-        <div className="card p-8 text-center text-navy-300">
+        <div className="card p-8 text-center text-ink-500">
           No rooms match those filters.{' '}
           <button type="button" onClick={clear} className="font-semibold text-ocean-500 underline">
             Clear filters

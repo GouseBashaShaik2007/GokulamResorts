@@ -15,7 +15,7 @@ const lineIdFor = (id, spiceLevel, notes) => `${id}|${spiceLevel || ''}|${(notes
 const CART_KEEP_MS = 4 * 60 * 60 * 1000;
 
 function readCart(cartKey) {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined' || !cartKey) return [];
   try {
     const saved = JSON.parse(window.localStorage.getItem(storageKey(cartKey)) || 'null');
     // Saved as { savedAt, items }; carts from before that were a bare list with no age.
@@ -28,8 +28,10 @@ function readCart(cartKey) {
   }
 }
 
-// Client-side cart, persisted per ordering context (table vs walk-in) so a
-// QR-menu cart and the walk-in cart don't collide in the same browser.
+// Client-side cart, persisted per ordering context (table vs counter) so a
+// table's cart and the counter's don't collide in the same browser.
+// `cartKey` null keeps the cart in memory only: the kiosk, where the next
+// customer must never find the last one's order.
 export function useCart(cartKey) {
   const [items, setItems] = useState([]);
 
@@ -39,6 +41,7 @@ export function useCart(cartKey) {
 
   const persist = useCallback(
     (next) => {
+      if (!cartKey) return next;
       try {
         window.localStorage.setItem(storageKey(cartKey), JSON.stringify({ savedAt: Date.now(), items: next }));
       } catch {

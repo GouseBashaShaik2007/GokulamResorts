@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api, { TOKEN_KEYS, withAdminAuth } from '../../../lib/api';
+import api from '../../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 import useCleaningSocket, { LiveBadge, StaleNotice } from '../../../lib/useCleaningSocket';
@@ -20,8 +20,7 @@ function MarkDirtyForm({ units, openUnitIds, onCreated, onError }) {
     try {
       await api.post(
         '/admin/cleaning/jobs',
-        { roomUnitId: Number(form.roomUnitId), priority: form.priority, notes: form.notes || null },
-        withAdminAuth()
+        { roomUnitId: Number(form.roomUnitId), priority: form.priority, notes: form.notes || null }
       );
       onCreated(units.find((u) => u.id === Number(form.roomUnitId)));
       setForm({ roomUnitId: '', priority: 'Normal', notes: '' });
@@ -49,7 +48,7 @@ function MarkDirtyForm({ units, openUnitIds, onCreated, onError }) {
         <label className="label">Note (optional)</label>
         <input aria-label="Note (optional)" className="input-field py-2" value={form.notes} placeholder="e.g. VIP arriving 2 PM" onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
       </div>
-      <button type="submit" className="btn-gold px-5 py-2 text-sm">Mark Dirty</button>
+      <button type="submit" className="btn-primary px-5 py-2 text-sm">Mark Dirty</button>
     </form>
   );
 }
@@ -76,7 +75,7 @@ function AssignAll({ jobs, staff, onDone, onError }) {
         const job = jobs.find((j) => j.id === id);
         const body = Object.fromEntries(chosen.filter((r) => waiting(r.type).includes(job)).map((r) => [r.field, Number(picks[r.type])]));
         // eslint-disable-next-line no-await-in-loop -- one room at a time keeps the board's live updates in order
-        await api.put(`/admin/cleaning/jobs/${id}/assign`, body, withAdminAuth());
+        await api.put(`/admin/cleaning/jobs/${id}/assign`, body);
         done += 1;
       }
       onDone(`${done} room${done === 1 ? '' : 's'} assigned.`);
@@ -91,7 +90,7 @@ function AssignAll({ jobs, staff, onDone, onError }) {
 
   return (
     <div className="card flex flex-wrap items-end gap-3 p-4">
-      <p className="w-full text-sm font-medium text-navy-100">Assign everything that has nobody on it ({total} task{total === 1 ? '' : 's'})</p>
+      <p className="w-full text-sm font-medium text-ink-800">Assign everything that has nobody on it ({total} task{total === 1 ? '' : 's'})</p>
       {TASK_ROLES.map((r) => {
         const n = waiting(r.type).length;
         const people = staff.filter((s) => s.role === r.role && s.is_active);
@@ -111,7 +110,7 @@ function AssignAll({ jobs, staff, onDone, onError }) {
           </div>
         );
       })}
-      <button type="button" disabled={busy || chosen.length === 0} onClick={assign} className="btn-gold px-5 py-2 text-sm disabled:opacity-50">
+      <button type="button" disabled={busy || chosen.length === 0} onClick={assign} className="btn-primary px-5 py-2 text-sm disabled:opacity-50">
         {busy ? 'Assigning…' : 'Assign'}
       </button>
     </div>
@@ -133,7 +132,7 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/admin/cleaning/jobs', withAdminAuth());
+      const res = await api.get('/admin/cleaning/jobs');
       setJobs(res.data.jobs);
       reloadUnits?.(); // room tiles follow the jobs
     } catch (err) {
@@ -144,7 +143,7 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
   useEffect(() => {
     load();
   }, [load]);
-  const live = useCleaningSocket(TOKEN_KEYS.admin, load);
+  const live = useCleaningSocket('admin', load);
 
   const runNightly = async () => {
     setNightlyMenuOpen(false);
@@ -155,7 +154,7 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
     });
     if (!ok) return;
     try {
-      const res = await api.post('/admin/cleaning/run-nightly', {}, withAdminAuth());
+      const res = await api.post('/admin/cleaning/run-nightly', {});
       toast(res.data.created ? `${res.data.created} cleaning job${res.data.created === 1 ? '' : 's'} created.` : 'Nothing was missing — every checkout already has a cleaning job.');
       load();
     } catch (err) {
@@ -185,7 +184,7 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
           <div className="relative">
             <button
               onClick={() => setNightlyMenuOpen((v) => !v)}
-              className="rounded-lg border border-navy-700 px-2.5 py-1.5 text-sm text-navy-300 hover:bg-navy-800"
+              className="rounded-lg border border-sand-300 px-2.5 py-1.5 text-sm text-ink-500 hover:bg-sand-200"
               aria-label="More actions"
               aria-haspopup="menu"
               aria-expanded={nightlyMenuOpen}
@@ -195,14 +194,14 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
             {nightlyMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setNightlyMenuOpen(false)} />
-                <div role="menu" className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-navy-700 bg-navy-900 py-1 shadow-lg">
+                <div role="menu" className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-sand-300 bg-sand-100 py-1 shadow-lg">
                   <button
                     role="menuitem"
                     onClick={runNightly}
-                    className="block w-full px-4 py-2 text-left text-sm text-navy-200 hover:bg-navy-800"
+                    className="block w-full px-4 py-2 text-left text-sm text-ink-700 hover:bg-sand-200"
                   >
                     Create missing cleaning jobs…
-                    <span className="mt-0.5 block text-xs text-navy-400">Done automatically at 11 PM; never makes duplicates.</span>
+                    <span className="mt-0.5 block text-xs text-ink-400">Done automatically at 11 PM; never makes duplicates.</span>
                   </button>
                 </div>
               </>
@@ -240,7 +239,7 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
           <JobCard key={job.id} job={job} staff={staff} onChanged={load} onError={fail} />
         ))}
       </div>
-      {shown.length === 0 && <p className="text-navy-400">No cleaning jobs here.</p>}
+      {shown.length === 0 && <p className="text-ink-400">No cleaning jobs here.</p>}
     </div>
   );
 }

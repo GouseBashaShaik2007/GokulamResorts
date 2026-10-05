@@ -37,7 +37,7 @@ export default function TableService({ table, accessKey, className = '' }) {
           type="button"
           disabled={sent[request.kind] || sending === request.kind}
           onClick={() => send(request)}
-          className="rounded-full border border-navy-600 px-4 py-2 text-sm font-medium text-navy-100 transition-colors hover:border-ocean-500 hover:text-ocean-600 disabled:cursor-default disabled:border-navy-700 disabled:text-navy-400"
+          className="rounded-full border border-sand-400 px-4 py-2 text-sm font-medium text-ink-800 transition-colors hover:border-ocean-500 hover:text-ocean-600 disabled:cursor-default disabled:border-sand-300 disabled:text-ink-400"
         >
           {sent[request.kind] ? `${request.sent} ✓` : request.label}
         </button>

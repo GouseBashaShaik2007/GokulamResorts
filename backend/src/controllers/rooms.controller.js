@@ -8,6 +8,7 @@ const { localToday, addDays } = require('../utils/dates');
 const ROOM_TYPE_SELECT = `
   SELECT r.id, r.name, r.slug, r.description, r.price_per_night, r.capacity,
          r.size_sqft, r.bed_type, r.amenities, r.images,
+         r.breakfast_included, r.extra_bed_available, r.extra_bed_charge, r.smoking_allowed, r.wheelchair_accessible,
          (SELECT count(*)::int FROM room_units ru WHERE ru.room_type_id = r.id AND ru.is_active) AS units_count,
          COALESCE((SELECT array_agg(DISTINCT ru.view_label ORDER BY ru.view_label) FROM room_units ru
                    WHERE ru.room_type_id = r.id AND ru.is_active AND ru.view_label IS NOT NULL), '{}') AS views

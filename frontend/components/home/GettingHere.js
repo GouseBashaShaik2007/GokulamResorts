@@ -9,8 +9,8 @@ export function GettingHereList({ className = '' }) {
         <li key={g.place} className="flex gap-4">
           <span className="w-20 flex-none text-xs font-semibold uppercase tracking-wider text-gold-600">{g.mode}</span>
           <span>
-            <span className="block font-medium text-navy-50">{g.place}</span>
-            <span className="text-sm text-navy-300">{g.detail}</span>
+            <span className="block font-medium text-ink-900">{g.place}</span>
+            <span className="text-sm text-ink-500">{g.detail}</span>
           </span>
         </li>
       ))}
@@ -22,13 +22,13 @@ export function GettingHereList({ className = '' }) {
 export default function GettingHere({ contact }) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-      <div className="grid overflow-hidden rounded-2xl border border-navy-700 lg:grid-cols-[2fr_3fr]">
-        <div className="bg-navy-900 p-8 sm:p-10">
+      <div className="grid overflow-hidden rounded-2xl border border-sand-300 lg:grid-cols-[2fr_3fr]">
+        <div className="bg-sand-100 p-8 sm:p-10">
           <p className="eyebrow">Getting here</p>
           <h2 className="section-heading mt-1">Easy to reach, easy to forget the world</h2>
           <GettingHereList className="mt-6" />
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-gold">Get directions</a>
+            <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-primary">Get directions</a>
             <Link href="/chirala-guide" className="btn-outline">Chirala guide</Link>
           </div>
         </div>

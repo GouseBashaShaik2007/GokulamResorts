@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import api, { withAdminAuth } from '../../lib/api';
+import api from '../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 import { errMsg } from '../../lib/bookingUi';
@@ -15,7 +15,7 @@ export default function KitchenStaffCard() {
   const [error, setError] = useState('');
 
   const load = () => {
-    api.get('/admin/kitchen-staff', withAdminAuth()).then((res) => setStaff(res.data.staff)).catch((err) => setError(errMsg(err, 'Could not load kitchen staff')));
+    api.get('/admin/kitchen-staff').then((res) => setStaff(res.data.staff)).catch((err) => setError(errMsg(err, 'Could not load kitchen staff')));
   };
   useEffect(load, []);
 
@@ -23,7 +23,7 @@ export default function KitchenStaffCard() {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/admin/kitchen-staff', form, withAdminAuth());
+      await api.post('/admin/kitchen-staff', form);
       toast(`${form.name} added. They sign in at /kitchen with the PIN you just set.`);
       setForm({ name: '', pin: '' });
       load();
@@ -34,7 +34,7 @@ export default function KitchenStaffCard() {
 
   const toggle = async (s) => {
     try {
-      await api.put(`/admin/kitchen-staff/${s.id}`, { isActive: !s.is_active }, withAdminAuth());
+      await api.put(`/admin/kitchen-staff/${s.id}`, { isActive: !s.is_active });
       toast(`${s.name} ${s.is_active ? 'deactivated — their PIN no longer works' : 'reactivated'}.`);
       load();
     } catch (err) {
@@ -55,7 +55,7 @@ export default function KitchenStaffCard() {
     });
     if (!pin) return;
     api
-      .put(`/admin/kitchen-staff/${s.id}`, { pin }, withAdminAuth())
+      .put(`/admin/kitchen-staff/${s.id}`, { pin })
       .then(() => {
         toast(`PIN reset for ${s.name}.`);
         load();
@@ -66,8 +66,8 @@ export default function KitchenStaffCard() {
   return (
     <div className="card space-y-4 p-6">
       <div>
-        <h2 className="font-serif text-xl font-bold text-navy-50">Kitchen</h2>
-        <p className="text-sm text-navy-400">
+        <h2 className="font-serif text-xl font-bold text-ink-900">Kitchen</h2>
+        <p className="text-sm text-ink-400">
           Each cook signs in to the kitchen display with their own PIN, so every order action is recorded against the
           person who made it.
         </p>
@@ -86,7 +86,7 @@ export default function KitchenStaffCard() {
             value={form.pin} onChange={(e) => setForm((p) => ({ ...p, pin: e.target.value.replace(/[^0-9]/g, '') }))}
           />
         </div>
-        <button type="submit" className="btn-gold px-5 py-2 text-sm">Add</button>
+        <button type="submit" className="btn-primary px-5 py-2 text-sm">Add</button>
       </form>
 
       {/* Stays beside the form it belongs to: usually "that PIN is too easy to guess". */}
@@ -94,10 +94,10 @@ export default function KitchenStaffCard() {
 
       <div className="space-y-2">
         {staff.map((s) => (
-          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 py-2.5">
-            <p className={`font-medium ${s.is_active ? 'text-navy-50' : 'text-navy-400 line-through'}`}>{s.name}</p>
+          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sand-300 bg-sand-200 px-4 py-2.5">
+            <p className={`font-medium ${s.is_active ? 'text-ink-900' : 'text-ink-400 line-through'}`}>{s.name}</p>
             <div className="flex gap-2">
-              <button onClick={() => resetPin(s)} className="rounded-lg border border-navy-600 px-3 py-1 text-xs text-navy-200 hover:bg-navy-700">
+              <button onClick={() => resetPin(s)} className="rounded-lg border border-sand-400 px-3 py-1 text-xs text-ink-700 hover:bg-sand-300">
                 Reset PIN
               </button>
               <button
@@ -109,7 +109,7 @@ export default function KitchenStaffCard() {
             </div>
           </div>
         ))}
-        {staff.length === 0 && <p className="text-sm text-navy-400">No kitchen staff yet.</p>}
+        {staff.length === 0 && <p className="text-sm text-ink-400">No kitchen staff yet.</p>}
       </div>
     </div>
   );

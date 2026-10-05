@@ -78,7 +78,7 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
 
   return (
     <div className="card p-6">
-      <h2 className="font-serif text-xl font-bold text-navy-50">{item ? `Edit: ${item.name}` : 'Add a Menu Item'}</h2>
+      <h2 className="font-serif text-xl font-bold text-ink-900">{item ? `Edit: ${item.name}` : 'Add a Menu Item'}</h2>
       <form onSubmit={submit} className="mt-4 space-y-4">
         <div>
           <label className="label" htmlFor="dish-category">Category</label>
@@ -115,8 +115,8 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
 
         <fieldset>
           <legend className="label">Diet</legend>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-navy-200">
-            <div className="inline-flex overflow-hidden rounded-lg border border-navy-600">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-ink-700">
+            <div className="inline-flex overflow-hidden rounded-lg border border-sand-400">
               {[
                 { veg: true, label: 'Veg' },
                 { veg: false, label: 'Non-veg' },
@@ -124,7 +124,7 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
                 <label
                   key={option.label}
                   className={`flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-ocean-400 ${
-                    form.isVeg === option.veg ? 'bg-navy-700 text-navy-50' : 'bg-white text-navy-300'
+                    form.isVeg === option.veg ? 'bg-sand-300 text-ink-900' : 'bg-white text-ink-500'
                   }`}
                 >
                   <input
@@ -137,7 +137,7 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
                 </label>
               ))}
             </div>
-            <label className={`flex items-center gap-2 ${form.isVeg ? '' : 'text-navy-400'}`}>
+            <label className={`flex items-center gap-2 ${form.isVeg ? '' : 'text-ink-400'}`}>
               <input name="isJain" type="checkbox" checked={form.isJain} disabled={!form.isVeg} onChange={change} />
               Jain (no onion, garlic or root vegetables)
             </label>
@@ -146,7 +146,7 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
 
         <fieldset>
           <legend className="label">Contains</legend>
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-navy-200">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-700">
             {ALLERGENS.map((a) => (
               <label key={a.value} className="flex items-center gap-2">
                 <input type="checkbox" checked={form.allergens.includes(a.value)} onChange={() => toggleAllergen(a.value)} />
@@ -154,10 +154,10 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
               </label>
             ))}
           </div>
-          <p className="mt-1 text-xs text-navy-400">Guests see these on the menu, e.g. “Contains nuts, dairy”. Tick everything the dish is cooked with.</p>
+          <p className="mt-1 text-xs text-ink-400">Guests see these on the menu, e.g. “Contains nuts, dairy”. Tick everything the dish is cooked with.</p>
         </fieldset>
 
-        <label className="flex items-center gap-2 text-sm text-navy-200">
+        <label className="flex items-center gap-2 text-sm text-ink-700">
           <input name="spiceAdjustable" type="checkbox" checked={form.spiceAdjustable} onChange={change} />
           Let guests choose the spice level (Mild / Medium / Hot) when ordering
         </label>
@@ -168,16 +168,16 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
             {form.image ? (
               <img src={form.image} alt="" className="h-16 w-16 rounded-lg object-cover" />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-navy-600 text-xs text-navy-400">None</div>
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-sand-400 text-xs text-ink-400">None</div>
             )}
             <div className="flex-1">
               <input
                 id="dish-photo"
                 type="file" accept="image/jpeg,image/png,image/webp"
                 onChange={pickPhoto} disabled={uploading}
-                className="block w-full text-sm text-navy-300 file:mr-3 file:rounded-lg file:border-0 file:bg-ocean-500 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ocean-600"
+                className="block w-full text-sm text-ink-500 file:mr-3 file:rounded-lg file:border-0 file:bg-ocean-500 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ocean-600"
               />
-              {uploading && <p className="mt-1 text-xs text-navy-400" role="status">Uploading…</p>}
+              {uploading && <p className="mt-1 text-xs text-ink-400" role="status">Uploading…</p>}
               {form.image && !uploading && (
                 <button type="button" onClick={() => setForm((p) => ({ ...p, image: '' }))} className="mt-1 text-xs text-red-700 hover:underline">
                   Remove photo
@@ -188,7 +188,7 @@ export default function ItemForm({ item, categories, onSave, onCancel, uploadPho
         </div>
 
         <div className="flex gap-3">
-          <button type="submit" disabled={uploading} className="btn-gold flex-1 disabled:opacity-60">{item ? 'Save Changes' : 'Add Item'}</button>
+          <button type="submit" disabled={uploading} className="btn-primary flex-1 disabled:opacity-60">{item ? 'Save Changes' : 'Add Item'}</button>
           {item && <button type="button" onClick={onCancel} className="btn-outline">Cancel</button>}
         </div>
       </form>

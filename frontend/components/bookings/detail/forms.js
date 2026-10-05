@@ -19,7 +19,7 @@ export function RejectCancelForm({ kind, b, busy, onSubmit }) {
         onSubmit(reason);
       }}
     >
-      <p className="text-sm text-navy-100">
+      <p className="text-sm text-ink-800">
         {kind === 'reject' ? 'Reject' : 'Cancel'} and refund {inr(b.amount_paid)}{' '}
         {b.payments.some((p) => p.method !== 'razorpay') ? '(counter payments are refunded at the desk)' : 'to the original payment method'}.
       </p>
@@ -49,7 +49,7 @@ export function DiscountForm({ busy, onSubmit }) {
         <input required type="number" min="0" step="0.01" max={form.type === 'percent' ? 100 : undefined} className="input-field py-2 text-sm" aria-label="Discount value" placeholder={form.type === 'percent' ? 'e.g. 10' : 'e.g. 1500'} value={form.value} onChange={set('value')} />
       </div>
       <input required minLength={3} className="input-field py-2 text-sm" aria-label="Reason" placeholder="Reason (required, logged)" value={form.reason} onChange={set('reason')} />
-      <p className="text-xs text-navy-400">
+      <p className="text-xs text-ink-400">
         Replaces any earlier manual discount (0 removes it). Applied after promotions. If the guest already paid more than the new total, the difference is refunded automatically.
       </p>
       <button disabled={busy} className={`${btn} bg-ocean-500 text-white`}>Apply discount</button>
@@ -86,7 +86,7 @@ export function ExtendForm({ b, busy, onSubmit }) {
   const [checkOut, setCheckOut] = useState(addDays(b.check_out, 1));
   return (
     <form
-      className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-navy-600 bg-navy-800/50 p-4"
+      className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-sand-400 bg-sand-200/50 p-4"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit(checkOut);
@@ -97,7 +97,7 @@ export function ExtendForm({ b, busy, onSubmit }) {
         <input aria-label="New check-out" required type="date" min={addDays(b.check_out, 1)} className="input-field py-2 text-sm" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
       </div>
       <button disabled={busy} className={`${btn} bg-ocean-500 text-white`}>Extend</button>
-      <p className="w-full text-xs text-navy-400">Extra nights use current rates and promotions and are added as a balance due.</p>
+      <p className="w-full text-xs text-ink-400">Extra nights use current rates and promotions and are added as a balance due.</p>
     </form>
   );
 }
@@ -129,7 +129,7 @@ export function IdUploadForm({ b, hasPrimary, busy, onSubmit }) {
   };
 
   return (
-    <form className="mt-3 space-y-3 rounded-xl border border-navy-600 bg-navy-800/50 p-4" onSubmit={submit}>
+    <form className="mt-3 space-y-3 rounded-xl border border-sand-400 bg-sand-200/50 p-4" onSubmit={submit}>
       <div className="grid gap-2 sm:grid-cols-2">
         <div>
           <label className="label">Guest name (as on ID)</label>
@@ -154,7 +154,7 @@ export function IdUploadForm({ b, hasPrimary, busy, onSubmit }) {
         <label className="label">Photo or PDF of the ID (max 5 MB)</label>
         <input aria-label="Photo or PDF of the ID (max 5 MB)"
           required type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
-          className="block w-full text-sm text-navy-200 file:mr-3 file:rounded-lg file:border-0 file:bg-navy-700 file:px-3 file:py-2 file:text-navy-100"
+          className="block w-full text-sm text-ink-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sand-300 file:px-3 file:py-2 file:text-ink-800"
           onChange={(e) => setForm((f) => ({ ...f, file: e.target.files[0] }))}
         />
       </div>
@@ -164,11 +164,11 @@ export function IdUploadForm({ b, hasPrimary, busy, onSubmit }) {
           The first 8 digits are covered in this image — only the last 4 digits are visible (masked Aadhaar).
         </label>
       )}
-      <label className="flex items-center gap-2 text-sm text-navy-200">
+      <label className="flex items-center gap-2 text-sm text-ink-700">
         <input type="checkbox" checked={form.isPrimary} disabled={hasPrimary} onChange={set('isPrimary')} />
         Primary guest {hasPrimary && '(already recorded)'}
       </label>
-      <p className="text-xs text-navy-400">
+      <p className="text-xs text-ink-400">
         By saving you confirm you checked the original ID against the guest. The file is stored privately and only managers can open it.
       </p>
       <button disabled={busy || (form.idType === 'Aadhaar' && !form.maskedConfirmed)} className={`${btn} bg-ocean-500 text-white`}>

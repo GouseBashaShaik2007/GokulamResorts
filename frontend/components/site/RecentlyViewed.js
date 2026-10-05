@@ -37,9 +37,9 @@ export default function RecentlyViewed({ excludeId, className = '' }) {
 
   return (
     <div className={`flex flex-wrap items-center gap-2 text-sm ${className}`}>
-      <span className="text-navy-400">Recently viewed:</span>
+      <span className="text-ink-400">Recently viewed:</span>
       {rooms.map((r) => (
-        <Link key={r.id} href={roomPath(r)} className="rounded-full border border-navy-700 px-3 py-1 text-navy-100 hover:border-ocean-400 hover:text-ocean-500">
+        <Link key={r.id} href={roomPath(r)} className="rounded-full border border-sand-300 px-3 py-1 text-ink-800 hover:border-ocean-400 hover:text-ocean-500">
           {r.name}
         </Link>
       ))}

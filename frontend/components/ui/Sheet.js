@@ -22,13 +22,13 @@ export default function Sheet({ open, onClose, label, children }) {
             aria-modal="true"
             aria-label={label}
             tabIndex={-1}
-            className="fixed inset-x-0 bottom-0 z-[70] max-h-[88vh] overflow-y-auto rounded-t-3xl bg-navy-950 shadow-2xl focus:outline-none sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-full sm:max-w-md sm:rounded-none"
+            className="fixed inset-x-0 bottom-0 z-[70] max-h-[88vh] overflow-y-auto rounded-t-3xl bg-sand-50 shadow-2xl focus:outline-none sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-full sm:max-w-md sm:rounded-none"
             initial={{ y: '100%', x: 0 }}
             animate={{ y: 0, x: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
           >
-            <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-navy-700 sm:hidden" aria-hidden="true" />
+            <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-sand-300 sm:hidden" aria-hidden="true" />
             {children}
           </motion.div>
         </>

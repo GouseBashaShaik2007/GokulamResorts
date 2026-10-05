@@ -1,17 +1,16 @@
 // Shared helpers for the staff-side (admin / kitchen / staff / frontdesk)
-// login flows. Lives inside the (staff) route group on purpose (an
+// sign-in flows. Lives inside the (staff) route group on purpose (an
 // underscore-prefixed folder is invisible to the router) instead of
 // frontend/lib/, which the guest-site build owns.
 //
-// Each section keeps its real auth token in localStorage, sent as a Bearer
-// header on every API call (see lib/api.js) — that's the actual security
-// boundary and is unchanged. Alongside it we set a small, non-sensitive
-// "I'm signed in" marker cookie. middleware.js reads that cookie to decide
-// whether to redirect to the section's login page *before* any page ever
-// renders, instead of the page rendering blank and only then discovering
-// (client-side, after hydration) that there's no token. The cookie carries
-// no token/identity — losing or forging it only ever gets you bounced to a
-// login form, never past the real API auth.
+// The real sign-in is a cookie the API sets, which this code cannot read
+// (httpOnly) — that is the security boundary; every API route checks it.
+// Alongside it the page sets a small, non-sensitive "I'm signed in" marker
+// cookie on the site's own address. middleware.js reads that marker to send
+// someone who isn't signed in to the login page *before* any page renders,
+// instead of the page rendering empty and only then finding out. The marker
+// carries no identity — losing or forging it only ever gets you bounced to a
+// login form, never past the API's own check.
 
 export const SESSION_COOKIES = {
   admin: 'gokulam_admin_session',
@@ -19,8 +18,8 @@ export const SESSION_COOKIES = {
   staff: 'gokulam_staff_session', // shared by /staff and /frontdesk
 };
 
-// Kept in rough sync with each backend token's own expiresIn so the cookie
-// doesn't outlive (or expire long before) the token it's standing in for.
+// Kept in rough sync with how long each sign-in lasts on the API, so the
+// marker doesn't outlive (or expire long before) the sign-in it stands for.
 const MAX_AGE_SECONDS = {
   admin: 8 * 60 * 60, // JWT_EXPIRES_IN
   kitchen: 12 * 60 * 60, // KITCHEN_JWT_EXPIRES_IN

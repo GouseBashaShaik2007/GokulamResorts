@@ -19,13 +19,15 @@ function errorHandler(err, req, res, next) {
       ? 'Internal server error'
       : err.message || 'Internal server error';
 
-  res.status(status).json({ success: false, message });
+  // `details` (ApiError's third argument) lets a screen react to a known case, e.g. { code: 'sold_out' }.
+  res.status(status).json({ success: false, message, ...(err.details || {}) });
 }
 
 class ApiError extends Error {
-  constructor(statusCode, message) {
+  constructor(statusCode, message, details = null) {
     super(message);
     this.statusCode = statusCode;
+    if (details) this.details = details;
   }
 }
 

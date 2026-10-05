@@ -7,7 +7,7 @@ const ToastCtx = createContext(null);
 const TONE = {
   success: 'border-green-700/30 bg-green-50 text-green-900',
   error: 'border-red-700/30 bg-red-50 text-red-900',
-  info: 'border-navy-700 bg-navy-950 text-navy-50',
+  info: 'border-sand-300 bg-sand-50 text-ink-900',
 };
 
 /**

@@ -14,9 +14,9 @@ export const btn = 'rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50
 
 export function Section({ title, children, right }) {
   return (
-    <section className="border-t border-navy-800 py-4">
+    <section className="border-t border-sand-200 py-4">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-navy-400">{title}</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-400">{title}</h3>
         {right}
       </div>
       {children}
@@ -27,8 +27,8 @@ export function Section({ title, children, right }) {
 export function Row({ label, children, strong }) {
   return (
     <div className="flex justify-between gap-4 py-0.5 text-sm">
-      <span className="text-navy-400">{label}</span>
-      <span className={strong ? 'font-semibold text-navy-50' : 'text-navy-100'}>{children}</span>
+      <span className="text-ink-400">{label}</span>
+      <span className={strong ? 'font-semibold text-ink-900' : 'text-ink-800'}>{children}</span>
     </div>
   );
 }
@@ -44,7 +44,7 @@ export function Shell({ children, onClose }) {
         aria-modal="true"
         aria-label="Booking details"
         tabIndex={-1}
-        className="h-full w-full max-w-xl overflow-y-auto bg-navy-900 shadow-2xl focus:outline-none"
+        className="h-full w-full max-w-xl overflow-y-auto bg-sand-100 shadow-2xl focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {children}

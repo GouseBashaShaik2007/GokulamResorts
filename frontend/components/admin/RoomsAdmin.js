@@ -29,14 +29,14 @@ export default function RoomsAdmin() {
 
   return (
     <div>
-      <div className="mb-6 flex gap-2 border-b border-navy-800 pb-3">
+      <div className="mb-6 flex gap-2 border-b border-sand-200 pb-3">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => pick(t.key)}
             aria-pressed={tab === t.key}
-            className={`rounded-lg px-3 py-1.5 text-sm ${tab === t.key ? 'bg-navy-700 font-medium text-gold-600' : 'text-navy-300 hover:text-navy-100'}`}
+            className={`rounded-lg px-3 py-1.5 text-sm ${tab === t.key ? 'bg-sand-300 font-medium text-gold-600' : 'text-ink-500 hover:text-ink-800'}`}
           >
             {t.label}
           </button>

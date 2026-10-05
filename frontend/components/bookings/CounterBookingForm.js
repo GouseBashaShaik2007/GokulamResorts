@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import api, { authFor } from '../../lib/api';
+import api, { deskAs } from '../../lib/api';
 import { inr, todayIST, addDays, errMsg } from '../../lib/bookingUi';
 import RoomPicker from './RoomPicker';
 
@@ -32,7 +32,7 @@ function saveDraft(draft) {
 
 // Walk-in booking at the desk: confirmed immediately, paid in full now.
 export default function CounterBookingForm({ mode, onCreated }) {
-  const auth = authFor(mode);
+  const auth = deskAs(mode);
   const today = todayIST();
   const [stay, setStay] = useState({ checkIn: today, checkOut: addDays(today, 1), adults: 2, children: 0 });
   const [types, setTypes] = useState(null);
@@ -114,7 +114,7 @@ export default function CounterBookingForm({ mode, onCreated }) {
   return (
     <div className="space-y-5">
       {restored && (
-        <p role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ocean-500/30 bg-ocean-50 px-4 py-2.5 text-sm text-navy-100">
+        <p role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ocean-500/30 bg-ocean-50 px-4 py-2.5 text-sm text-ink-800">
           <span>
             The walk-in you were entering{guest.name ? ` for ${guest.name}` : ''} is back. Find rooms and choose the room again to carry on.
           </span>
@@ -147,7 +147,7 @@ export default function CounterBookingForm({ mode, onCreated }) {
           <label className="label">Children</label>
           <input aria-label="Children" type="number" min={0} max={10} className="input-field py-2" value={stay.children} onChange={setS('children')} />
         </div>
-        <button className="btn-gold col-span-2 py-2.5 sm:col-span-1">Find rooms</button>
+        <button className="btn-primary col-span-2 py-2.5 sm:col-span-1">Find rooms</button>
       </form>
 
       {types && (
@@ -158,8 +158,8 @@ export default function CounterBookingForm({ mode, onCreated }) {
 
       {pick && (
         <form onSubmit={submit} className="card space-y-4 p-4">
-          <p className="text-sm text-navy-200">
-            Room <span className="font-semibold text-navy-50">{pick.unit.unitNumber}</span> · {pick.roomType.name} · {stay.checkIn} → {stay.checkOut}
+          <p className="text-sm text-ink-700">
+            Room <span className="font-semibold text-ink-900">{pick.unit.unitNumber}</span> · {pick.roomType.name} · {stay.checkIn} → {stay.checkOut}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
@@ -180,8 +180,8 @@ export default function CounterBookingForm({ mode, onCreated }) {
             <input id="walkin-requests" maxLength={1000} className="input-field py-2" value={guest.specialRequests} onChange={setG('specialRequests')} placeholder="Extra bed, late arrival, anniversary…" />
           </div>
           {/* The price as the guest will hear it: nightly rate, any offer, GST, total. */}
-          <dl className="space-y-1 rounded-xl border border-navy-700 p-3 text-sm">
-            <div className="flex justify-between text-navy-200">
+          <dl className="space-y-1 rounded-xl border border-sand-300 p-3 text-sm">
+            <div className="flex justify-between text-ink-700">
               <dt>{inr(pick.quote.nightlyRate)} × {pick.quote.nights} night{pick.quote.nights > 1 ? 's' : ''}</dt>
               <dd>{inr(pick.quote.base)}</dd>
             </div>
@@ -192,18 +192,18 @@ export default function CounterBookingForm({ mode, onCreated }) {
               </div>
             )}
             {(pick.quote.taxDetails || []).map((t) => (
-              <div key={t.rate} className="flex justify-between text-navy-200">
+              <div key={t.rate} className="flex justify-between text-ink-700">
                 <dt>GST {t.rate}%</dt>
                 <dd>{inr(t.tax)}</dd>
               </div>
             ))}
-            <div className="flex justify-between border-t border-navy-700 pt-1 font-semibold text-navy-50">
+            <div className="flex justify-between border-t border-sand-300 pt-1 font-semibold text-ink-900">
               <dt>Total</dt>
               <dd>{inr(pick.quote.total)}</dd>
             </div>
           </dl>
           <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3">
-            <p className="mb-2 text-sm text-navy-100">
+            <p className="mb-2 text-sm text-ink-800">
               Collect full payment: <span className="font-semibold text-gold-600">{inr(pick.quote.total)}</span>
             </p>
             <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
@@ -216,8 +216,8 @@ export default function CounterBookingForm({ mode, onCreated }) {
             </div>
           </div>
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-          <button disabled={busy} className="btn-gold w-full disabled:opacity-60">{busy ? 'Saving…' : 'Confirm booking & payment'}</button>
-          <p className="text-center text-xs text-navy-400">
+          <button disabled={busy} className="btn-primary w-full disabled:opacity-60">{busy ? 'Saving…' : 'Confirm booking & payment'}</button>
+          <p className="text-center text-xs text-ink-400">
             Confirmed straight away. The booking opens next, so you can add the guest&apos;s ID and check them in.
           </p>
         </form>

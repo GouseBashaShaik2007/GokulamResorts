@@ -26,7 +26,7 @@ export default async function RoomsPage() {
       <div className="mb-8 flex flex-col gap-6">
         <Reveal className="max-w-2xl">
           <PageHeader eyebrow="Chirala Beach" title="Rooms &amp; Suites">
-            <p className="mt-4 text-navy-300">
+            <p className="mt-4 text-ink-500">
               Compare the room types by size, bed, view and price. Choose one, then pick your exact room by number
               when you book.
             </p>
@@ -38,7 +38,7 @@ export default async function RoomsPage() {
       {rooms.length > 0 ? (
         <RoomsExplorer rooms={rooms} offers={offers} />
       ) : (
-        <div className="card p-8 text-center text-navy-300">
+        <div className="card p-8 text-center text-ink-500">
           Rooms are not available to view right now. Please try again shortly.
         </div>
       )}

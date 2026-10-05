@@ -71,7 +71,7 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
     <div className="card space-y-5 p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p>
-          <span className="text-xs text-navy-400">from </span>
+          <span className="text-xs text-ink-400">from </span>
           <Price inr={room.price_per_night} suffix="+ GST / night" className="text-2xl" />
         </p>
         <ReviewBadge />
@@ -83,11 +83,11 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
           Taken off automatically when your dates qualify.
         </p>
       ))}
-      {offers.length > 1 && <p className="-mt-2 text-xs text-navy-400">Offers don&apos;t combine: each night gets the bigger saving.</p>}
+      {offers.length > 1 && <p className="-mt-2 text-xs text-ink-400">Offers don&apos;t combine: each night gets the bigger saving.</p>}
 
       <div className="space-y-3">
-        <div className="rounded-xl border border-navy-700 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-navy-400">Dates</p>
+        <div className="rounded-xl border border-sand-300 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Dates</p>
           <DateRangePicker
             checkIn={stay.checkIn}
             checkOut={stay.checkOut}
@@ -98,33 +98,33 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="rounded-xl border border-navy-700 px-4 py-2 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
-            <span className="block text-xs font-semibold uppercase tracking-wider text-navy-400">Adults</span>
-            <input type="number" min={1} max={room.capacity} value={stay.adults} onChange={setNum('adults')} onBlur={() => stay.adults === '' && setStay({ adults })} className="w-full bg-transparent text-navy-50 focus:outline-none" />
+          <label className="rounded-xl border border-sand-300 px-4 py-2 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-ink-400">Adults</span>
+            <input type="number" min={1} max={room.capacity} value={stay.adults} onChange={setNum('adults')} onBlur={() => stay.adults === '' && setStay({ adults })} className="w-full bg-transparent text-ink-900 focus:outline-none" />
           </label>
-          <label className="rounded-xl border border-navy-700 px-4 py-2 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
-            <span className="block text-xs font-semibold uppercase tracking-wider text-navy-400">Children</span>
-            <input type="number" min={0} max={Math.max(0, room.capacity - 1)} value={stay.children} onChange={setNum('children')} onBlur={() => stay.children === '' && setStay({ children: kids })} className="w-full bg-transparent text-navy-50 focus:outline-none" />
+          <label className="rounded-xl border border-sand-300 px-4 py-2 focus-within:border-ocean-400 focus-within:ring-1 focus-within:ring-ocean-400">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-ink-400">Children</span>
+            <input type="number" min={0} max={Math.max(0, room.capacity - 1)} value={stay.children} onChange={setNum('children')} onBlur={() => stay.children === '' && setStay({ children: kids })} className="w-full bg-transparent text-ink-900 focus:outline-none" />
           </label>
         </div>
         {tooMany && <p className="text-sm text-red-600">This room fits up to {room.capacity} guests.</p>}
       </div>
 
       {datesValid && !tooMany && (
-        <div className="space-y-1.5 border-t border-navy-700 pt-4 text-sm" aria-live="polite">
-          {loading && <p className="text-navy-400">Checking these dates…</p>}
+        <div className="space-y-1.5 border-t border-sand-300 pt-4 text-sm" aria-live="polite">
+          {loading && <p className="text-ink-400">Checking these dates…</p>}
           {error && <p className="text-red-600">{error}</p>}
           {!loading && result?.none && (
             <>
-              <p className="font-medium text-navy-100">Fully booked for these dates — try other dates.</p>
+              <p className="font-medium text-ink-800">Fully booked for these dates — try other dates.</p>
               {alternatives.length > 0 && (
                 <div className="pt-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-navy-400">Free on these dates</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Free on these dates</p>
                   <ul className="mt-1.5 space-y-1.5">
                     {alternatives.map((t) => (
                       <li key={t.room.id} className="flex items-baseline justify-between gap-3">
                         <Link href={roomPath(t.room)} className="font-medium text-ocean-600 underline underline-offset-2">{t.room.name}</Link>
-                        <span className="whitespace-nowrap text-navy-300">{inr(t.quote.total)} incl. GST</span>
+                        <span className="whitespace-nowrap text-ink-500">{inr(t.quote.total)} incl. GST</span>
                       </li>
                     ))}
                   </ul>
@@ -134,7 +134,7 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
           )}
           {!loading && q && (
             <>
-              <div className="flex justify-between text-navy-300">
+              <div className="flex justify-between text-ink-500">
                 <span>{inr(q.nightlyRate)} × {q.nights} night{q.nights > 1 ? 's' : ''}</span>
                 <span>{inr(q.base)}<Approx inr={q.base} /></span>
               </div>
@@ -145,17 +145,17 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
                 </div>
               )}
               {q.taxDetails.map((t) => (
-                <div key={t.rate} className="flex justify-between text-navy-300">
+                <div key={t.rate} className="flex justify-between text-ink-500">
                   <span>GST {t.rate}%</span>
                   <span>{inr(t.tax)}<Approx inr={t.tax} /></span>
                 </div>
               ))}
-              <div className="flex items-baseline justify-between border-t border-navy-700 pt-2">
-                <span className="font-semibold text-navy-50">Total incl. taxes</span>
+              <div className="flex items-baseline justify-between border-t border-sand-300 pt-2">
+                <span className="font-semibold text-ink-900">Total incl. taxes</span>
                 <Price inr={q.total} className="text-xl" />
               </div>
               {currency !== 'INR' && (
-                <p className="text-xs text-navy-400">Converted amounts are approximate. You are charged in Indian rupees.</p>
+                <p className="text-xs text-ink-400">Converted amounts are approximate. You are charged in Indian rupees.</p>
               )}
               {result.free <= 2 && <p className="text-xs text-orange-700">Only {result.free} room{result.free > 1 ? 's' : ''} of this type left for these dates</p>}
             </>
@@ -167,11 +167,11 @@ export default function RoomBookingBox({ room, offers = [], otherRooms = [] }) {
         type="button"
         onClick={() => openBooking({ roomTypeId: room.id })}
         disabled={datesValid && (tooMany || result?.none)}
-        className="btn-gold w-full disabled:opacity-50"
+        className="btn-primary w-full disabled:opacity-50"
       >
         {datesValid ? 'Reserve — choose your room' : 'Check availability'}
       </button>
-      <p className="text-center text-xs text-navy-400">
+      <p className="text-center text-xs text-ink-400">
         <span className="font-semibold text-gold-600">Best rate when you book direct.</span> You pick your exact
         room number next. Full payment secures the room; if the resort can&apos;t confirm within 24 hours you&apos;re
         refunded automatically.

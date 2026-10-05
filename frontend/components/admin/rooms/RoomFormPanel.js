@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import api, { withAdminAuth } from '../../../lib/api';
+import api from '../../../lib/api';
 import useModal from '../../../lib/useModal';
 import { errMsg } from '../../../lib/bookingUi';
 import { useToast } from '@/components/ui/Toast';
@@ -25,6 +25,18 @@ const toggleAmenity = (text, name) => {
   return (hasAmenity(text, name) ? list.filter((a) => !sameAmenity(a, name)) : [...list, name]).join(', ');
 };
 
+// What guests ask about before booking. Each is yes, no, or not stated yet
+// ('' in the form, null to the API) — the room page says nothing about a
+// detail until the manager has said.
+const DETAILS = [
+  { key: 'breakfastIncluded', column: 'breakfast_included', label: 'Breakfast', yes: 'Included in the price', no: 'Not included' },
+  { key: 'extraBedAvailable', column: 'extra_bed_available', label: 'Extra bed', yes: 'Can be added', no: 'Not available' },
+  { key: 'smokingAllowed', column: 'smoking_allowed', label: 'Smoking', yes: 'Allowed', no: 'Not allowed' },
+  { key: 'wheelchairAccessible', column: 'wheelchair_accessible', label: 'Wheelchair access', yes: 'Accessible', no: 'Not accessible' },
+];
+const toChoice = (value) => (value === true ? 'yes' : value === false ? 'no' : '');
+const fromChoice = (choice) => (choice === 'yes' ? true : choice === 'no' ? false : null);
+
 const emptyForm = {
   name: '',
   description: '',
@@ -34,6 +46,11 @@ const emptyForm = {
   bedType: '',
   amenities: '',
   images: [],
+  breakfastIncluded: '',
+  extraBedAvailable: '',
+  extraBedCharge: '',
+  smokingAllowed: '',
+  wheelchairAccessible: '',
 };
 
 /** Slide-over to add a room type, or edit `editingRoom`. */
@@ -59,6 +76,8 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
         bedType: editingRoom.bed_type || '',
         amenities: (editingRoom.amenities || []).join(', '),
         images: editingRoom.images || [],
+        ...Object.fromEntries(DETAILS.map((d) => [d.key, toChoice(editingRoom[d.column])])),
+        extraBedCharge: editingRoom.extra_bed_charge ?? '',
       });
     } else {
       setForm(emptyForm);
@@ -76,6 +95,9 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
     bedType: form.bedType || null,
     amenities: parseAmenities(form.amenities),
     images: form.images,
+    ...Object.fromEntries(DETAILS.map((d) => [d.key, fromChoice(form[d.key])])),
+    // A charge only means something when an extra bed can be added.
+    extraBedCharge: form.extraBedAvailable === 'yes' && form.extraBedCharge !== '' ? Number(form.extraBedCharge) : null,
   });
 
   const submit = async (e) => {
@@ -84,9 +106,9 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
     setSaving(true);
     try {
       if (editingRoom) {
-        await api.put(`/admin/rooms/${editingRoom.id}`, toPayload(), withAdminAuth());
+        await api.put(`/admin/rooms/${editingRoom.id}`, toPayload());
       } else {
-        await api.post('/admin/add-room', toPayload(), withAdminAuth());
+        await api.post('/admin/add-room', toPayload());
       }
       onSaved();
       onClose();
@@ -109,11 +131,11 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
         aria-modal="true"
         aria-label={editingRoom ? `Edit ${editingRoom.name}` : 'Add a new room'}
         tabIndex={-1}
-        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l border-navy-700 bg-navy-950 p-6 shadow-2xl focus:outline-none"
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l border-sand-300 bg-sand-50 p-6 shadow-2xl focus:outline-none"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif text-xl font-bold text-navy-50">{editingRoom ? `Edit ${editingRoom.name}` : 'Add a New Room'}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg px-2 py-1 text-navy-400 hover:bg-navy-800 hover:text-navy-100">✕</button>
+          <h2 className="font-serif text-xl font-bold text-ink-900">{editingRoom ? `Edit ${editingRoom.name}` : 'Add a New Room'}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg px-2 py-1 text-ink-400 hover:bg-sand-200 hover:text-ink-800">✕</button>
         </div>
 
         <form onSubmit={submit} className="space-y-4">
@@ -159,7 +181,7 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
                     type="button"
                     aria-pressed={on}
                     onClick={() => setForm((p) => ({ ...p, amenities: toggleAmenity(p.amenities, name) }))}
-                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${on ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-navy-700 text-navy-200 hover:border-ocean-300'}`}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${on ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-sand-300 text-ink-700 hover:border-ocean-300'}`}
                   >
                     {name}
                   </button>
@@ -174,9 +196,31 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
               onChange={handleChange}
               placeholder="Add any others, separated by commas"
             />
-            <p className="mt-1 text-xs text-navy-400">
-              Shown to guests on the room page, grouped (in the room, bathroom, food &amp; drink, services). The page
-              also says in plain words whether breakfast is included — it is, when “Breakfast Included” is ticked here.
+            <p className="mt-1 text-xs text-ink-400">Shown to guests on the room page, grouped (in the room, bathroom, food &amp; drink, services).</p>
+          </fieldset>
+          <fieldset>
+            <legend className="label">What guests ask before booking</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DETAILS.map((d) => (
+                <div key={d.key}>
+                  <label className="mb-1 block text-xs font-medium text-ink-500" htmlFor={`room-${d.key}`}>{d.label}</label>
+                  <select id={`room-${d.key}`} name={d.key} className="input-field py-2" value={form[d.key]} onChange={handleChange}>
+                    <option value="">Not stated</option>
+                    <option value="yes">{d.yes}</option>
+                    <option value="no">{d.no}</option>
+                  </select>
+                </div>
+              ))}
+              {form.extraBedAvailable === 'yes' && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-ink-500" htmlFor="room-extraBedCharge">Extra bed charge per night (₹)</label>
+                  <input id="room-extraBedCharge" name="extraBedCharge" type="number" min="0" step="1" className="input-field py-2" placeholder="Empty: no charge stated" value={form.extraBedCharge} onChange={handleChange} />
+                </div>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-ink-400">
+              The room page states each of these in a sentence. “Not stated” says nothing — except breakfast, which then
+              follows the amenities above (included when “Breakfast Included” is ticked).
             </p>
           </fieldset>
 
@@ -190,7 +234,7 @@ export default function RoomFormPanel({ open, onClose, editingRoom, onSaved }) {
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
 
           <div className="flex gap-3 pt-2">
-            <button type="submit" disabled={saving} className="btn-gold flex-1 disabled:opacity-60">
+            <button type="submit" disabled={saving} className="btn-primary flex-1 disabled:opacity-60">
               {saving ? 'Saving…' : editingRoom ? 'Save Changes' : 'Add Room'}
             </button>
             <button type="button" onClick={onClose} className="btn-outline">Cancel</button>

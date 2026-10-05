@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import api, { withAdminAuth } from '../../../lib/api';
+import api from '../../../lib/api';
 import { errMsg } from '../../../lib/bookingUi';
 
 const MAX_MB = 5; // the API refuses anything larger
@@ -39,7 +39,7 @@ export default function ImageUploader({ images, onChange, error, setError }) {
         const formData = new FormData();
         formData.append('file', file);
         // eslint-disable-next-line no-await-in-loop -- sequential keeps upload order == drop order
-        const res = await api.post('/admin/upload-image?type=room', formData, withAdminAuth());
+        const res = await api.post('/admin/upload-image?type=room', formData);
         uploaded.push(res.data.url);
         setProgress({ done: uploaded.length, total: files.length });
       }
@@ -93,7 +93,7 @@ export default function ImageUploader({ images, onChange, error, setError }) {
           }
         }}
         className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center text-sm transition ${
-          dragOver ? 'border-gold-400 bg-gold-500/10 text-gold-700' : 'border-navy-600 text-navy-400 hover:border-navy-500'
+          dragOver ? 'border-gold-400 bg-gold-500/10 text-gold-700' : 'border-sand-400 text-ink-400 hover:border-ink-300'
         }`}
       >
         <span role="status">{progress ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : 'Drag photos here, or click to choose files'}</span>
@@ -102,7 +102,7 @@ export default function ImageUploader({ images, onChange, error, setError }) {
           className="hidden" onChange={(e) => { uploadFiles(e.target.files); e.target.value = ''; }}
         />
       </div>
-      <p className="mt-1 text-xs text-navy-400">
+      <p className="mt-1 text-xs text-ink-400">
         JPG, PNG or WEBP, up to {MAX_MB} MB each. Landscape photos at least 1600 pixels wide look best — guests see them
         full-width. The first photo is the cover.
       </p>
@@ -111,7 +111,7 @@ export default function ImageUploader({ images, onChange, error, setError }) {
       {images.length > 0 && (
         <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
           {images.map((url, i) => (
-            <div key={url} className={`relative overflow-hidden rounded-lg border ${i === 0 ? 'border-gold-400 ring-1 ring-gold-400' : 'border-navy-700'}`}>
+            <div key={url} className={`relative overflow-hidden rounded-lg border ${i === 0 ? 'border-gold-400 ring-1 ring-gold-400' : 'border-sand-300'}`}>
               <img src={url} alt="" className="h-20 w-full object-cover" />
               {i === 0 && (
                 <span className="absolute left-1 top-1 rounded bg-ocean-500 px-1.5 py-0.5 text-[10px] font-bold text-white">Cover</span>

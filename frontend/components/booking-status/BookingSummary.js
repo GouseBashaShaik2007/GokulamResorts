@@ -54,38 +54,38 @@ export default function BookingSummary({ b, justBooked }) {
         </div>
         <div className="space-y-6 p-6 sm:p-8">
           <div>
-            <p className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wider text-navy-400">
+            <p className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wider text-ink-400">
               Booking
-              <span className="font-mono text-sm font-semibold normal-case tracking-normal text-navy-50">{b.reference}</span>
+              <span className="font-mono text-sm font-semibold normal-case tracking-normal text-ink-900">{b.reference}</span>
               <CopyButton text={b.reference} />
             </p>
-            <Title className="mt-1 font-serif text-3xl font-semibold text-navy-50" aria-live="polite">{celebrated ? 'Your stay' : s.title}</Title>
-            {s.text && !celebrated && <p className="mt-2 text-navy-300">{s.text}</p>}
-            {b.closeReason && b.status === 'cancelled' && <p className="mt-2 text-navy-300">Reason: {b.closeReason}.</p>}
+            <Title className="mt-1 font-serif text-3xl font-semibold text-ink-900" aria-live="polite">{celebrated ? 'Your stay' : s.title}</Title>
+            {s.text && !celebrated && <p className="mt-2 text-ink-500">{s.text}</p>}
+            {b.closeReason && b.status === 'cancelled' && <p className="mt-2 text-ink-500">Reason: {b.closeReason}.</p>}
           </div>
 
           <StayProgress status={b.status} />
           {upcoming && <CheckInCountdown checkIn={b.checkIn} />}
 
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-            <div><dt className="text-navy-400">Guest</dt><dd className="text-navy-50">{b.guestName}</dd></div>
-            <div><dt className="text-navy-400">Room</dt><dd className="text-navy-50">{b.room.unitNumber} · {b.room.type}{b.room.view ? ` · ${b.room.view}` : ''}</dd></div>
-            <div><dt className="text-navy-400">Check-in</dt><dd className="text-navy-50">{fmtDate(b.checkIn)}</dd></div>
-            <div><dt className="text-navy-400">Check-out</dt><dd className="text-navy-50">{fmtDate(b.checkOut)} · {nights} night{nights > 1 ? 's' : ''}</dd></div>
-            <div><dt className="text-navy-400">Guests</dt><dd className="text-navy-50">{b.adults} adult{b.adults > 1 ? 's' : ''}{b.children ? `, ${b.children} child${b.children > 1 ? 'ren' : ''}` : ''}</dd></div>
+            <div><dt className="text-ink-400">Guest</dt><dd className="text-ink-900">{b.guestName}</dd></div>
+            <div><dt className="text-ink-400">Room</dt><dd className="text-ink-900">{b.room.unitNumber} · {b.room.type}{b.room.view ? ` · ${b.room.view}` : ''}</dd></div>
+            <div><dt className="text-ink-400">Check-in</dt><dd className="text-ink-900">{fmtDate(b.checkIn)}</dd></div>
+            <div><dt className="text-ink-400">Check-out</dt><dd className="text-ink-900">{fmtDate(b.checkOut)} · {nights} night{nights > 1 ? 's' : ''}</dd></div>
+            <div><dt className="text-ink-400">Guests</dt><dd className="text-ink-900">{b.adults} adult{b.adults > 1 ? 's' : ''}{b.children ? `, ${b.children} child${b.children > 1 ? 'ren' : ''}` : ''}</dd></div>
             <div>
-              <dt className="text-navy-400">Total</dt>
-              <dd className="text-navy-50"><span className="price">{inr(b.total)}</span>{b.tax > 0 && <span className="ml-1 text-xs text-navy-400">incl. GST {inr(b.tax)}</span>}</dd>
+              <dt className="text-ink-400">Total</dt>
+              <dd className="text-ink-900"><span className="price">{inr(b.total)}</span>{b.tax > 0 && <span className="ml-1 text-xs text-ink-400">incl. GST {inr(b.tax)}</span>}</dd>
             </div>
             {b.paid > 0 && (
-              <div><dt className="text-navy-400">Paid</dt><dd className="text-navy-50">{inr(b.paid)}</dd></div>
+              <div><dt className="text-ink-400">Paid</dt><dd className="text-ink-900">{inr(b.paid)}</dd></div>
             )}
             {b.balanceDue > 0 && b.status !== 'pending_payment' && (
-              <div><dt className="text-navy-400">Due at the resort</dt><dd className="font-semibold text-red-700">{inr(b.balanceDue)}</dd></div>
+              <div><dt className="text-ink-400">Due at the resort</dt><dd className="font-semibold text-red-700">{inr(b.balanceDue)}</dd></div>
             )}
             {refunded > 0 && (
               <div className="sm:col-span-2">
-                <dt className="text-navy-400">Refund</dt>
+                <dt className="text-ink-400">Refund</dt>
                 <dd className="text-green-800">
                   {inr(refunded)} —{' '}
                   {b.refunds.some((r) => r.method !== 'razorpay' && r.status === 'pending')
@@ -96,15 +96,15 @@ export default function BookingSummary({ b, justBooked }) {
             )}
           </dl>
           {b.status === 'paid' && b.holdExpiresAt && !celebrated && (
-            <p className="text-xs text-navy-400">
+            <p className="text-xs text-ink-400">
               Confirmation due by {fmtDateTime(b.holdExpiresAt)}. If the resort has not confirmed by then, the booking is
               cancelled and the full amount is refunded automatically.
             </p>
           )}
 
           {upcoming && (
-            <div className="rounded-xl bg-navy-900 p-4 text-sm text-navy-200">
-              <p className="font-semibold text-navy-50">Before you arrive</p>
+            <div className="rounded-xl bg-sand-100 p-4 text-sm text-ink-700">
+              <p className="font-semibold text-ink-900">Before you arrive</p>
               <ul className="mt-2 space-y-1.5">
                 <li>Bring a photo ID (Aadhaar, passport or driving licence) for every adult — the front desk checks them at check-in.</li>
                 {contact.checkInTime && <li>Check-in is from {contact.checkInTime} on {fmtDate(b.checkIn)}{contact.checkOutTime ? `; check-out is by ${contact.checkOutTime}` : ''}.</li>}
@@ -119,7 +119,7 @@ export default function BookingSummary({ b, justBooked }) {
 
           {/* Keeping the booking comes first; leaving the page last. */}
           <div className="no-print flex flex-wrap items-center gap-3">
-            {keepable && <button type="button" onClick={addToCalendar} className="btn-gold">Add to calendar</button>}
+            {keepable && <button type="button" onClick={addToCalendar} className="btn-primary">Add to calendar</button>}
             {keepable && <button type="button" onClick={() => window.print()} className="btn-outline">Print or save as PDF</button>}
             <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-outline">Directions</a>
             {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="btn-outline">WhatsApp the front desk</a>}

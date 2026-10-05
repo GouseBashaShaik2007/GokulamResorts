@@ -94,11 +94,11 @@ export default function BookingSearch({ auth, onOpen, refreshKey }) {
           <option value="">All statuses</option>
           {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <label className="text-xs text-navy-400">
+        <label className="text-xs text-ink-400">
           Staying from
           <input type="date" className="input-field mt-0.5 block w-auto py-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
-        <label className="text-xs text-navy-400">
+        <label className="text-xs text-ink-400">
           to
           <input type="date" min={from || undefined} className="input-field mt-0.5 block w-auto py-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
@@ -108,12 +108,12 @@ export default function BookingSearch({ auth, onOpen, refreshKey }) {
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-navy-400">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-400">
         <p role="status">
           {sorted.length} booking{sorted.length === 1 ? '' : 's'}
           {sorted.length >= MAX_ROWS && ` (the first ${MAX_ROWS} — narrow the search to see the rest)`}
         </p>
-        <button type="button" disabled={sorted.length === 0} onClick={() => downloadCsv(sorted)} className="rounded-lg border border-navy-600 px-3 py-1.5 text-sm text-navy-100 hover:bg-navy-800 disabled:opacity-40">
+        <button type="button" disabled={sorted.length === 0} onClick={() => downloadCsv(sorted)} className="rounded-lg border border-sand-400 px-3 py-1.5 text-sm text-ink-800 hover:bg-sand-200 disabled:opacity-40">
           Download as CSV
         </button>
       </div>
@@ -122,7 +122,7 @@ export default function BookingSearch({ auth, onOpen, refreshKey }) {
         <table className="w-full min-w-[720px] text-left text-sm">
           <caption className="sr-only">Bookings matching the search. Select a booking number to open it.</caption>
           <thead>
-            <tr className="border-b border-navy-700 text-navy-400">
+            <tr className="border-b border-sand-300 text-ink-400">
               <th scope="col" className="px-4 py-2">#</th>
               <th scope="col" className="px-4 py-2">Guest</th>
               <th scope="col" className="px-4 py-2">Room</th>
@@ -133,7 +133,7 @@ export default function BookingSearch({ auth, onOpen, refreshKey }) {
           </thead>
           <tbody>
             {shown.map((b) => (
-              <tr key={b.id} onClick={() => onOpen(b.id)} className="cursor-pointer border-b border-navy-800 text-navy-100 hover:bg-navy-800">
+              <tr key={b.id} onClick={() => onOpen(b.id)} className="cursor-pointer border-b border-sand-200 text-ink-800 hover:bg-sand-200">
                 <td className="px-4 py-2">
                   <button
                     type="button"
@@ -149,9 +149,9 @@ export default function BookingSearch({ auth, onOpen, refreshKey }) {
                 </td>
                 <td className="px-4 py-2">
                   {b.guest_name}
-                  <div className="text-xs text-navy-400">{b.guest_phone} · {b.source}</div>
+                  <div className="text-xs text-ink-400">{b.guest_phone} · {b.source}</div>
                 </td>
-                <td className="px-4 py-2">{b.unit_number} <span className="text-xs text-navy-400">{b.room_type}</span></td>
+                <td className="px-4 py-2">{b.unit_number} <span className="text-xs text-ink-400">{b.room_type}</span></td>
                 <td className="px-4 py-2">{fmtDate(b.check_in)} → {fmtDate(b.check_out)}</td>
                 <td className="px-4 py-2">
                   {inr(b.total_amount)}
@@ -162,14 +162,14 @@ export default function BookingSearch({ auth, onOpen, refreshKey }) {
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && <p className="p-4 text-navy-400">No bookings found.</p>}
+        {rows.length === 0 && <p className="p-4 text-ink-400">No bookings found.</p>}
       </div>
 
       {pages > 1 && (
         <nav className="flex items-center justify-center gap-3 text-sm" aria-label="Pages of results">
-          <button type="button" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-navy-600 px-3 py-1.5 text-navy-100 disabled:opacity-40">← Previous</button>
-          <span className="text-navy-300">Page {page} of {pages}</span>
-          <button type="button" disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-navy-600 px-3 py-1.5 text-navy-100 disabled:opacity-40">Next →</button>
+          <button type="button" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-sand-400 px-3 py-1.5 text-ink-800 disabled:opacity-40">← Previous</button>
+          <span className="text-ink-500">Page {page} of {pages}</span>
+          <button type="button" disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-sand-400 px-3 py-1.5 text-ink-800 disabled:opacity-40">Next →</button>
         </nav>
       )}
     </div>

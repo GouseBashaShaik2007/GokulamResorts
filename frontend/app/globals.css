@@ -15,13 +15,13 @@
 }
 
 body {
-  @apply bg-navy-950 text-navy-50 font-sans antialiased;
+  @apply bg-sand-50 text-ink-900 font-sans antialiased;
 }
 
-.btn-gold {
+.btn-primary {
   @apply inline-flex items-center justify-center rounded-full bg-ocean-500 px-6 py-3
     font-semibold tracking-wide text-white transition-all duration-300 ease-out-soft hover:bg-ocean-600
-    focus:outline-none focus:ring-2 focus:ring-ocean-300 focus:ring-offset-2 focus:ring-offset-navy-950
+    focus:outline-none focus:ring-2 focus:ring-ocean-300 focus:ring-offset-2 focus:ring-offset-sand-50
     active:scale-[0.98];
 }
 
@@ -32,12 +32,12 @@ body {
 }
 
 .section-heading {
-  @apply font-serif text-display-md font-semibold leading-tight tracking-tight text-navy-50;
+  @apply font-serif text-display-md font-semibold leading-tight tracking-tight text-ink-900;
 }
 
 /* Oversized editorial heading — marketing pages only, not dashboards. */
 .display-heading {
-  @apply font-serif text-display-lg font-medium tracking-tight text-navy-50;
+  @apply font-serif text-display-lg font-medium tracking-tight text-ink-900;
 }
 
 .eyebrow {
@@ -60,12 +60,12 @@ body {
 }
 
 .card {
-  @apply rounded-2xl border border-navy-700/60 bg-navy-900 shadow-lg shadow-black/20 transition-shadow duration-300;
+  @apply rounded-2xl border border-sand-300/60 bg-sand-100 shadow-lg shadow-black/20 transition-shadow duration-300;
 }
 
 /* Frosted panel — the floating booking bar, badges overlapping imagery, etc. */
 .glass {
-  @apply border border-navy-700 bg-navy-950/60 shadow-glass backdrop-blur-xl;
+  @apply border border-sand-300 bg-sand-50/60 shadow-glass backdrop-blur-xl;
 }
 
 /* Hover-only image zoom. Gated to real pointer devices so it never fires on
@@ -86,12 +86,12 @@ body {
 }
 
 .input-field {
-  @apply w-full rounded-lg border border-navy-600 bg-navy-800 px-4 py-3 text-navy-50
-    placeholder:text-navy-400 focus:border-ocean-400 focus:outline-none focus:ring-1 focus:ring-ocean-400;
+  @apply w-full rounded-lg border border-sand-400 bg-sand-200 px-4 py-3 text-ink-900
+    placeholder:text-ink-400 focus:border-ocean-400 focus:outline-none focus:ring-1 focus:ring-ocean-400;
 }
 
 .label {
-  @apply mb-1 block text-sm font-medium text-navy-300;
+  @apply mb-1 block text-sm font-medium text-ink-500;
 }
 
 /* Page fade-in (see app/(site)/template.js). Starts nearly visible so the
@@ -118,7 +118,7 @@ body {
 /* Stock photo stand-ins (data-placeholder="true") are replaced when the
    resort's own photos arrive. Neutral frame for rooms without photos yet. */
 .photo-coming-soon {
-  @apply flex h-full w-full flex-col items-center justify-center gap-1 bg-navy-800 text-center text-navy-400;
+  @apply flex h-full w-full flex-col items-center justify-center gap-1 bg-sand-200 text-center text-ink-400;
   background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(28, 42, 51, 0.04) 14px 15px);
 }
 
@@ -126,7 +126,7 @@ body {
    .input-field is tuned for the guest site's cards), and the scrollbar keeps
    its space so moving between sections never shifts the page sideways. */
 .admin-shell .input-field {
-  @apply border-navy-700 bg-white;
+  @apply border-sand-300 bg-white;
 }
 .admin-shell .input-field:focus {
   @apply border-ocean-500 ring-1 ring-ocean-500;

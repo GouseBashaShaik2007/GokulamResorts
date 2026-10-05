@@ -16,12 +16,11 @@ import usePlaceOrder from './ordering/usePlaceOrder';
 
 /**
  * The ordering screen: search and filters, the menu, a dish sheet, and the
- * order (cart) sheet. `orderContext` says where the order is for — a table or
- * the counter — and carries the key from the QR code that opened the page
+ * order (cart) sheet. `orderContext` says where the order is for — a table, a
+ * hotel room or the counter — and carries the key from the QR code that opened the page
  * (see lib/foodOrders.js).
  */
 export default function MenuBrowser({ categories, items, orderContext }) {
-  const isTable = orderContext.type === 'table';
   const cartKey = orderingKey(orderContext);
   const cart = useCart(cartKey);
   const toast = useToast();
@@ -71,7 +70,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
       </div>
 
       {sections.length === 0 && (
-        <div className="card p-8 text-center text-navy-300">
+        <div className="card p-8 text-center text-ink-500">
           No dishes match.{' '}
           <button type="button" onClick={() => { setSearch(''); setVegOnly(false); setJainOnly(false); }} className="font-semibold text-ocean-600 underline">
             Show the whole menu
@@ -110,7 +109,7 @@ export default function MenuBrowser({ categories, items, orderContext }) {
       </Sheet>
 
       <Sheet open={cartOpen} onClose={() => setCartOpen(false)} label="Your order">
-        <CartSheet cart={cart} isTable={isTable} order={order} onClear={clearOrder} onClose={() => setCartOpen(false)} />
+        <CartSheet cart={cart} orderContext={orderContext} order={order} onClear={clearOrder} onClose={() => setCartOpen(false)} />
       </Sheet>
     </div>
   );

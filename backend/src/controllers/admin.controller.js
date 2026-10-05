@@ -7,7 +7,9 @@ const publicImage = require('../services/publicImage.service');
 const { logAction } = require('../utils/auditLog');
 const { TIMEZONE } = require('../utils/dates');
 const orderAccess = require('../utils/orderAccess');
+const foodOrders = require('../services/foodOrders.service');
 const { emitFoodUpdate } = require('../realtime');
+const { startSession, endSession } = require('../utils/session');
 
 // POST /api/admin/login
 const login = asyncHandler(async (req, res) => {
@@ -29,9 +31,17 @@ const login = asyncHandler(async (req, res) => {
   const token = jwt.sign({ sub: admin.id, email: admin.email, role: 'admin' }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '8h',
   });
+  // The sign-in goes into a cookie scripts cannot read, not into the answer.
+  startSession(res, 'admin', token);
 
-  res.json({ success: true, token, admin: { id: admin.id, name: admin.name, email: admin.email } });
+  res.json({ success: true, admin: { id: admin.id, name: admin.name, email: admin.email } });
 });
+
+// POST /api/admin/logout
+const logout = (req, res) => {
+  endSession(res, 'admin');
+  res.json({ success: true });
+};
 
 // POST /api/admin/add-room
 const addRoom = asyncHandler(async (req, res) => {
@@ -45,7 +55,14 @@ const addRoom = asyncHandler(async (req, res) => {
     bedType,
     amenities,
     images,
+    breakfastIncluded,
+    extraBedAvailable,
+    extraBedCharge,
+    smokingAllowed,
+    wheelchairAccessible,
   } = req.body;
+  // true, false, or null when the manager has not said.
+  const stated = (value) => (typeof value === 'boolean' ? value : null);
 
   const slug = name
     .toLowerCase()
@@ -55,8 +72,9 @@ const addRoom = asyncHandler(async (req, res) => {
 
   const { rows } = await query(
     `INSERT INTO rooms
-      (name, slug, description, price_per_night, capacity, total_rooms, size_sqft, bed_type, amenities, images)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      (name, slug, description, price_per_night, capacity, total_rooms, size_sqft, bed_type, amenities, images,
+       breakfast_included, extra_bed_available, extra_bed_charge, smoking_allowed, wheelchair_accessible)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      RETURNING *`,
     [
       name,
@@ -69,6 +87,11 @@ const addRoom = asyncHandler(async (req, res) => {
       bedType || null,
       amenities || [],
       images || [],
+      stated(breakfastIncluded),
+      stated(extraBedAvailable),
+      extraBedCharge ?? null,
+      stated(smokingAllowed),
+      stated(wheelchairAccessible),
     ]
   );
 
@@ -91,6 +114,11 @@ const updateRoom = asyncHandler(async (req, res) => {
     'amenities',
     'images',
     'is_active',
+    'breakfast_included',
+    'extra_bed_available',
+    'extra_bed_charge',
+    'smoking_allowed',
+    'wheelchair_accessible',
   ];
   // Accept both camelCase (from the admin UI) and snake_case keys.
   const map = {
@@ -99,6 +127,11 @@ const updateRoom = asyncHandler(async (req, res) => {
     sizeSqft: 'size_sqft',
     bedType: 'bed_type',
     isActive: 'is_active',
+    breakfastIncluded: 'breakfast_included',
+    extraBedAvailable: 'extra_bed_available',
+    extraBedCharge: 'extra_bed_charge',
+    smokingAllowed: 'smoking_allowed',
+    wheelchairAccessible: 'wheelchair_accessible',
   };
 
   const setClauses = [];
@@ -363,8 +396,8 @@ const listFoodOrders = asyncHandler(async (req, res) => {
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
   const { rows: orders } = await query(
-    `SELECT id, order_type, table_number, customer_name, customer_phone, notes,
-            total_amount, status, created_at, updated_at
+    `SELECT id, order_type, table_number, room_number, customer_name, customer_phone, notes,
+            total_amount, status, created_at, updated_at, paid_at, payment_method, payment_reference, refund_status
      FROM food_orders
      ${where}
      ORDER BY created_at DESC`,
@@ -412,6 +445,7 @@ const updateFoodOrderStatus = asyncHandler(async (req, res) => {
   if (status === 'cancelled' && !String(reason || '').trim()) {
     throw new ApiError(400, 'A reason is required to cancel an order');
   }
+  await foodOrders.assertNotRefunded(id, status);
 
   const { rows } = await query(
     `UPDATE food_orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING id, status`,
@@ -428,9 +462,14 @@ const updateFoodOrderStatus = asyncHandler(async (req, res) => {
     action: 'food_order_status_change',
     details: { orderId: rows[0].id, status, ...(status === 'cancelled' ? { reason: String(reason).trim() } : {}) },
   });
+  // An order paid on the kiosk is refunded the way it was paid; `refund` tells the screen.
+  const actor = { type: 'admin', id: req.admin?.sub ?? null };
+  const refund = status === 'cancelled' ? await foodOrders.refundIfPaidOnline(rows[0].id, actor) : null;
+  // A room order paid in cash is paid at the door: delivering it records the cash.
+  const cash = await foodOrders.syncCashOnDelivery(rows[0].id, status, actor);
   emitFoodUpdate('order_status', { orderId: rows[0].id, status });
 
-  res.json({ success: true, order: rows[0] });
+  res.json({ success: true, order: rows[0], refund, cash });
 });
 
 const SETTINGS_COLUMNS =
@@ -519,7 +558,10 @@ const getOrderLinks = asyncHandler(async (req, res) => {
     siteUrl: rows[0]?.site_url || '',
     tableCount,
     counterKey: orderAccess.counterKey(),
+    kioskKey: orderAccess.kioskKey(), // given once to the restaurant's kiosk tablet
     tables: Array.from({ length: tableCount }, (_, i) => ({ table: i + 1, key: orderAccess.tableKey(i + 1) })),
+    // One code per hotel room in use: food ordered from it is brought to that room.
+    rooms: (await orderAccess.roomNumbers()).map((room) => ({ room, key: orderAccess.roomKey(room) })),
   });
 });
 
@@ -568,7 +610,10 @@ const todayStats = asyncHandler(async (req, res) => {
        (SELECT count(*)::int FROM refunds WHERE status = 'pending' AND method <> 'razorpay') AS pending_refunds,
        (SELECT count(*)::int FROM room_units WHERE is_active) AS rooms,
        (SELECT count(*)::int FROM room_units WHERE is_active AND status <> 'Ready') AS rooms_not_ready,
-       (SELECT count(*)::int FROM food_orders WHERE status IN ('new', 'preparing', 'ready')) AS open_food_orders`,
+       (SELECT count(*)::int FROM food_orders WHERE status IN ('new', 'preparing', 'ready')) AS open_food_orders,
+       (SELECT count(*)::int FROM food_orders WHERE status <> 'cancelled' AND paid_at IS NULL
+          AND created_at > now() - interval '3 days') AS unpaid_food_orders,
+       (SELECT count(*)::int FROM room_issues WHERE status = 'open') AS open_room_issues`,
     [TIMEZONE]
   );
   const r = rows[0];
@@ -589,12 +634,15 @@ const todayStats = asyncHandler(async (req, res) => {
       rooms: r.rooms,
       roomsNotReady: r.rooms_not_ready,
       openFoodOrders: r.open_food_orders,
+      unpaidFoodOrders: r.unpaid_food_orders, // not cancelled, not yet marked paid, last 3 days
+      openRoomIssues: r.open_room_issues, // problems housekeeping reported, not yet resolved
     },
   });
 });
 
 module.exports = {
   login,
+  logout,
   addRoom,
   updateRoom,
   deleteRoom,

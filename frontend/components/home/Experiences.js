@@ -15,7 +15,7 @@ function Tile({ href, children }) {
 
 export default function Experiences() {
   return (
-    <section className="bg-navy-900 py-20">
+    <section className="bg-sand-100 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHead eyebrow="Experiences" title="Days by the sea" />
         <RevealStagger className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">

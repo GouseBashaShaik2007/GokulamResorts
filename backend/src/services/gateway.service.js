@@ -70,6 +70,19 @@ async function refundPayment(razorpayPaymentId, amount, notes) {
   return { id: refund.id, status: refund.status === 'processed' ? 'processed' : 'pending' };
 }
 
+/**
+ * The payment that settled a gateway order, or null if nobody has paid it.
+ * Used where the browser's own report never arrived (a kiosk that lost its
+ * connection, a customer who approved the payment late). A mock order is only
+ * ever paid through the screen, so there is nothing to find.
+ */
+async function paidPaymentFor(orderId) {
+  if (isMock()) return null;
+  const { items = [] } = await razorpay().orders.fetchPayments(orderId);
+  const paid = items.find((p) => p.status === 'captured') || items.find((p) => p.status === 'authorized');
+  return paid ? { id: paid.id, method: paid.method } : null;
+}
+
 module.exports = {
   MODE,
   isMock,
@@ -78,4 +91,5 @@ module.exports = {
   verifyCheckoutSignature,
   verifyWebhookSignature,
   refundPayment,
+  paidPaymentFor,
 };

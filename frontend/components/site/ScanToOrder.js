@@ -3,7 +3,8 @@ import PageHeader from '@/components/ui/PageHeader';
 
 // Shown instead of the ordering screen to anyone who didn't arrive by scanning
 // a QR code at the resort (no key in the address, or one that doesn't match).
-export default function ScanToOrder() {
+// `room`: the address was a hotel room's, so point at the code in the room.
+export default function ScanToOrder({ room = false }) {
   return (
     <div className="mx-auto max-w-xl px-4 py-20 text-center sm:px-6">
       <svg viewBox="0 0 24 24" className="mx-auto h-14 w-14 text-ocean-500" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -11,13 +12,14 @@ export default function ScanToOrder() {
         <path d="M7 7h4v4H7zM13 7h4v4h-4zM7 13h4v4H7zM13 13h1.5M17 13v1.5M13 17h1.5M17 17h0" />
       </svg>
       <PageHeader size="compact" title="Scan the QR code to order" className="mt-6">
-        <p className="mt-4 text-navy-300">
-          Ordering is for guests at our restaurant. Point your phone&apos;s camera at the QR code on your table, or the
-          one at the restaurant counter, and the menu opens ready to order.
+        <p className="mt-4 text-ink-500">
+          {room
+            ? 'Ordering to a room is for guests staying with us. Point your phone’s camera at the QR code in your room, and the menu opens ready to order.'
+            : 'Ordering is for guests at our restaurant. Point your phone’s camera at the QR code on your table, or the one at the restaurant counter, and the menu opens ready to order.'}
         </p>
       </PageHeader>
-      <p className="mt-2 text-sm text-navy-400">Already scanned one and still seeing this? Please ask our staff — they&apos;ll take your order.</p>
-      <Link href="/dining#menu" className="btn-gold mt-8 inline-flex">See the menu</Link>
+      <p className="mt-2 text-sm text-ink-400">Already scanned one and still seeing this? Please ask our staff — they&apos;ll take your order.</p>
+      <Link href="/dining#menu" className="btn-primary mt-8 inline-flex">See the menu</Link>
     </div>
   );
 }

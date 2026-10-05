@@ -4,6 +4,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const gateway = require('../services/gateway.service');
 const bookings = require('../services/booking.service');
 const storage = require('../services/storage.service');
+const checkouts = require('./checkout.controller');
+const foodOrders = require('../services/foodOrders.service');
 
 // POST /api/create-order — { bookingId, phone }
 // Razorpay order for a booking that is holding its room (pending_payment).
@@ -66,9 +68,14 @@ const webhook = asyncHandler(async (req, res) => {
     const { rows } = await query(`SELECT 1 FROM payments WHERE razorpay_order_id = $1`, [p.order_id]);
     if (rows.length > 0) {
       await bookings.markOnlinePaid({ orderId: p.order_id, paymentId: p.id, via: 'webhook' });
+    } else {
+      // Not a booking: a food order paid online, from the kiosk or a room (ignored if it is neither).
+      await checkouts.settle({ gatewayOrderId: p.order_id, paymentId: p.id, via: 'webhook' });
     }
   } else if (event === 'refund.processed' || event === 'refund.failed') {
-    await bookings.applyRefundWebhook(payload.refund.entity.id, event === 'refund.processed' ? 'processed' : 'failed');
+    const outcome = event === 'refund.processed' ? 'processed' : 'failed';
+    await bookings.applyRefundWebhook(payload.refund.entity.id, outcome);
+    await foodOrders.applyRefundOutcome(payload.refund.entity.id, outcome);
   }
   res.json({ success: true });
 });

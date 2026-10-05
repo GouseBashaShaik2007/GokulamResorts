@@ -31,6 +31,7 @@ router.use(deskAuth);
 
 router.get('/overview', desk.overview);
 router.get('/rooms', desk.rooms);
+router.post('/rooms/:id/approve-cleaning', [param('id').isInt({ min: 1 })], validate, desk.approveCleaning);
 router.get('/bookings', desk.list);
 router.get('/bookings/:id', bookingId, validate, desk.detail);
 router.get(
@@ -89,6 +90,25 @@ router.post('/bookings/:id/check-in', bookingId, validate, desk.checkIn);
 router.post('/bookings/:id/extend', [...bookingId, body('checkOut').isISO8601()], validate, desk.extend);
 router.post('/bookings/:id/check-out', bookingId, validate, desk.checkOut);
 router.post('/bookings/:id/no-show', bookingId, validate, desk.noShow);
+
+// Food orders: who has paid. Cash needs no reference; a UPI or card one may be noted.
+router.get('/food-orders', desk.foodOrders);
+router.post(
+  '/food-orders/:id/pay',
+  [
+    param('id').isInt({ min: 1 }),
+    methodField('method'),
+    body('reference').optional({ checkFalsy: true }).isString().trim().isLength({ max: 100 }),
+  ],
+  validate,
+  desk.payFoodOrder
+);
+router.post(
+  '/food-orders/:id/unpay',
+  [param('id').isInt({ min: 1 }), body('reason').isString().trim().isLength({ min: 3, max: 300 }).withMessage('Say why the payment is being undone')],
+  validate,
+  desk.unpayFoodOrder
+);
 
 router.post(
   '/refunds/:id/complete',

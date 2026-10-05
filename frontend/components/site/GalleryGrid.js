@@ -43,8 +43,8 @@ export default function GalleryGrid({ roomPhotos = [] }) {
 
       {/* The chosen category as a heading, so the page has an outline beyond its title. */}
       {current && (
-        <h2 className="mb-6 font-serif text-2xl font-semibold text-navy-50">
-          {current.label} <span className="font-sans text-sm font-normal text-navy-400">· {shown.length} photo{shown.length === 1 ? '' : 's'}</span>
+        <h2 className="mb-6 font-serif text-2xl font-semibold text-ink-900">
+          {current.label} <span className="font-sans text-sm font-normal text-ink-400">· {shown.length} photo{shown.length === 1 ? '' : 's'}</span>
         </h2>
       )}
 
@@ -62,7 +62,7 @@ export default function GalleryGrid({ roomPhotos = [] }) {
             type="button"
             onClick={() => setOpen(i)}
             // Every tile has its shape before its photo arrives, so nothing jumps.
-            className="media-zoom block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-navy-800"
+            className="media-zoom block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-sand-200"
             aria-label={`Open photo: ${p.alt}`}
           >
             <img src={thumb(p.src)} alt={p.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" {...(p.placeholder ? { 'data-placeholder': 'true' } : {})} />

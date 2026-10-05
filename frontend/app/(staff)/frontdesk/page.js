@@ -16,7 +16,7 @@ export default function FrontDeskPage() {
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <PageHeader size="section" eyebrow="Gokulam Resorts" title="Front Desk" />
         <div className="flex items-center gap-3">
-          {profile?.name && <span className="text-sm text-navy-300">{profile.name}</span>}
+          {profile?.name && <span className="text-sm text-ink-500">{profile.name}</span>}
           <button onClick={signOut} className="btn-outline px-4 py-2 text-sm">Log Out</button>
         </div>
       </div>

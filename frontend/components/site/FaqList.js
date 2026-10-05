@@ -63,7 +63,7 @@ export default function FaqList({ sections }) {
       <p className="sr-only" role="status">{search.trim() ? `${count} question${count === 1 ? '' : 's'} found` : ''}</p>
 
       {shown.length === 0 && (
-        <p className="mt-8 text-navy-300">
+        <p className="mt-8 text-ink-500">
           Nothing matches “{search}”.{' '}
           <button type="button" onClick={() => setSearch('')} className="font-semibold text-ocean-600 underline">Show every question</button>
         </p>
@@ -71,22 +71,22 @@ export default function FaqList({ sections }) {
 
       {shown.map((section) => (
         <section key={section.group} className="mt-12">
-          <h2 className="font-serif text-2xl font-semibold text-navy-50">{section.group}</h2>
-          <div className="mt-4 divide-y divide-navy-700 border-y border-navy-700">
+          <h2 className="font-serif text-2xl font-semibold text-ink-900">{section.group}</h2>
+          <div className="mt-4 divide-y divide-sand-300 border-y border-sand-300">
             {section.items.map((f) => (
               <details
                 key={f.slug}
                 id={f.slug}
                 open={!!open[f.slug]}
                 onToggle={(e) => { const isOpen = e.currentTarget.open; setOpen((o) => (!!o[f.slug] === isOpen ? o : { ...o, [f.slug]: isOpen })); }}
-                className="group scroll-mt-24 px-3 py-4 open:bg-navy-900"
+                className="group scroll-mt-24 px-3 py-4 open:bg-sand-100"
               >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded font-medium text-navy-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-400 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 group-open:font-semibold">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded font-medium text-ink-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-400 focus-visible:ring-offset-2 focus-visible:ring-offset-sand-50 group-open:font-semibold">
                   {f.q}
                   <span className="text-xl text-ocean-500 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
                 </summary>
-                <p className="mt-3 leading-relaxed text-navy-300"><Answer item={f} /></p>
-                <a href={`#${f.slug}`} className="mt-2 inline-block text-xs text-navy-400 underline underline-offset-2 hover:text-ocean-600">Link to this answer</a>
+                <p className="mt-3 leading-relaxed text-ink-500"><Answer item={f} /></p>
+                <a href={`#${f.slug}`} className="mt-2 inline-block text-xs text-ink-400 underline underline-offset-2 hover:text-ocean-600">Link to this answer</a>
               </details>
             ))}
           </div>

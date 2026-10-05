@@ -9,7 +9,7 @@ export function DishInfo({ item, className = '' }) {
   const heat = SPICE_RATING_LABEL[item.spice_rating] || '';
   if (!item.is_jain && !heat && !allergens) return null;
   return (
-    <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-navy-300 ${className}`}>
+    <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500 ${className}`}>
       {item.is_jain && <span className="rounded-full border border-green-700/50 px-2 py-0.5 font-semibold text-green-800">Jain</span>}
       {heat && <span className="rounded-full border border-red-700/40 px-2 py-0.5 font-semibold text-red-800">Spice: {heat}</span>}
       {allergens && <span>Contains {allergens.toLowerCase()}</span>}
@@ -58,13 +58,13 @@ export default function MenuItemCard({ item, inCart, onOpen }) {
       </div>
 
       <div className="flex flex-1 flex-col p-5">
-        <h3 className="font-serif text-lg font-semibold text-navy-50">{item.name}</h3>
-        {item.description && <p className="mt-1 line-clamp-2 text-sm text-navy-300">{item.description}</p>}
+        <h3 className="font-serif text-lg font-semibold text-ink-900">{item.name}</h3>
+        {item.description && <p className="mt-1 line-clamp-2 text-sm text-ink-500">{item.description}</p>}
         <DishInfo item={item} className="mt-2" />
         <div className="mt-auto flex items-center justify-between pt-4">
           <span className="price text-lg">{inr(item.price)}</span>
           {soldOut ? (
-            <span className="rounded-full bg-navy-800 px-3 py-1.5 text-sm font-semibold text-navy-200">Sold out today</span>
+            <span className="rounded-full bg-sand-200 px-3 py-1.5 text-sm font-semibold text-ink-700">Sold out today</span>
           ) : (
             <span className="rounded-full border border-ocean-500/60 px-4 py-1.5 text-sm font-semibold text-ocean-600 group-hover:bg-ocean-50">Add</span>
           )}

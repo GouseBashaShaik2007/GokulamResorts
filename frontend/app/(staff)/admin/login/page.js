@@ -12,7 +12,7 @@ export default function AdminLoginPage() {
     >
       {/* Setup hint for developers only — never shown on the deployed site. */}
       {process.env.NODE_ENV === 'development' && (
-        <p className="mt-4 text-center text-xs text-navy-400">
+        <p className="mt-4 text-center text-xs text-ink-400">
           Default credentials come from ADMIN_EMAIL / ADMIN_PASSWORD in the backend .env (set via{' '}
           <code className="text-gold-600">npm run db:seed</code>).
         </p>

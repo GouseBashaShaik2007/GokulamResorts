@@ -25,6 +25,14 @@ services:
       - key: FRONTEND_URL
         sync: false
 
+      # Staff sign in with cookies, which the browser only sends when the site
+      # and this API share a domain: put the site on yourdomain.in and this API
+      # on api.yourdomain.in (custom domains on both Vercel and Render). On
+      # the default *.vercel.app and *.onrender.com addresses staff CANNOT
+      # sign in. Optional: the shared parent domain, e.g. .yourdomain.in
+      - key: COOKIE_DOMAIN
+        sync: false
+
       # Supabase Postgres connection string (Project Settings -> Database -> Connection string -> URI).
       - key: DATABASE_URL
         sync: false

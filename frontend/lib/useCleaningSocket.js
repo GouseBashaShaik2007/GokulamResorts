@@ -10,20 +10,22 @@ const SOCKET_URL = API_URL.replace(/\/api\/?$/, '');
 /**
  * Subscribes to live updates. Calls `onUpdate(event)` whenever something this
  * user can see changes (and once on (re)connect to catch up); the caller
- * refetches. `eventName` is 'cleaning:update' (housekeeping) or
- * 'booking:update' (front desk / manager).
- * Returns whether the socket is currently connected (for a "Live" badge).
+ * refetches.
+ *
+ * `section`: which staff tool is asking — 'admin' | 'kitchen' | 'staff'. The
+ * browser sends that tool's sign-in cookie with the connection.
+ * `eventName`: 'cleaning:update' (housekeeping), 'booking:update' (front desk
+ * and manager), 'food:update' (kitchen, food orders), 'issue:update' (room
+ * problems).
+ * Returns whether the connection is up (for a "Live" badge).
  */
-export default function useCleaningSocket(tokenKey, onUpdate, eventName = 'cleaning:update') {
+export default function useCleaningSocket(section, onUpdate, eventName = 'cleaning:update') {
   const [connected, setConnected] = useState(false);
   const handlerRef = useRef(onUpdate);
   handlerRef.current = onUpdate;
 
   useEffect(() => {
-    const token = window.localStorage.getItem(tokenKey);
-    if (!token) return undefined;
-
-    const socket = io(SOCKET_URL, { auth: { token }, transports: ['websocket', 'polling'] });
+    const socket = io(SOCKET_URL, { auth: { section }, withCredentials: true, transports: ['websocket', 'polling'] });
     socket.on('connect', () => {
       setConnected(true);
       handlerRef.current?.({ event: 'reconnected' }); // catch up on anything missed
@@ -32,15 +34,15 @@ export default function useCleaningSocket(tokenKey, onUpdate, eventName = 'clean
     socket.on(eventName, (e) => handlerRef.current?.(e));
 
     return () => socket.close();
-  }, [tokenKey, eventName]);
+  }, [section, eventName]);
 
   return connected;
 }
 
 export function LiveBadge({ live }) {
   return (
-    <span className={`flex items-center gap-1.5 text-xs ${live ? 'text-green-700' : 'text-navy-400'}`}>
-      <span className={`h-2 w-2 rounded-full ${live ? 'bg-green-400' : 'bg-navy-500'}`} />
+    <span className={`flex items-center gap-1.5 text-xs ${live ? 'text-green-700' : 'text-ink-400'}`}>
+      <span className={`h-2 w-2 rounded-full ${live ? 'bg-green-400' : 'bg-ink-300'}`} />
       {live ? 'Live' : 'Offline'}
     </span>
   );

@@ -9,23 +9,23 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Sand-to-ink gradient. Class names are unchanged from the old dark
-        // theme (navy-950 was the page bg, navy-50 was the main text color)
-        // but the meaning is inverted: 950 is now the lightest sand and 50
-        // is now the darkest ink, so every existing bg-navy-950/text-navy-50
-        // usage renders correctly in the new light theme with no per-file edits.
-        navy: {
-          50: '#1C2A33', // ink — primary text/headings
-          100: '#24333D',
-          200: '#37474F',
-          300: '#5B6B73', // ink-muted — secondary/description text
-          400: '#6E7D84',
-          500: '#8C9AA0',
-          600: '#C9C0AE',
-          700: '#E4D6BF', // sand border/divider
-          800: '#EDE4D2', // light surface (inputs, subtle panels)
-          900: '#F3ECE1', // alternate section background
-          950: '#FBF8F3', // page background
+        // The site's neutrals, as two scales that both run light to dark.
+        // sand: backgrounds, panels and borders.
+        sand: {
+          50: '#FBF8F3', // page background
+          100: '#F3ECE1', // alternate section background, cards
+          200: '#EDE4D2', // light surface (inputs, subtle panels)
+          300: '#E4D6BF', // border / divider
+          400: '#C9C0AE', // stronger border
+        },
+        // ink: text.
+        ink: {
+          300: '#8C9AA0',
+          400: '#6E7D84', // small print, hints
+          500: '#5B6B73', // secondary / description text
+          700: '#37474F',
+          800: '#24333D',
+          900: '#1C2A33', // primary text, headings
         },
         // "Brass" — decorative only (eyebrows, small labels, thin accents).
         // Never a large button fill; see the `ocean` scale for that.
@@ -54,7 +54,7 @@ module.exports = {
           800: '#082A2F',
           900: '#051A1D',
         },
-        // Literal dark navy, deliberately untouched by the inversion above —
+        // Literal dark navy (the one dark surface on a light site) —
         // reserved for the footer and photo overlays only.
         night: {
           DEFAULT: '#0B1F26',

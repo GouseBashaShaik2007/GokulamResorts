@@ -354,8 +354,8 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_available ON menu_items (is_available)
 
 CREATE TABLE IF NOT EXISTS food_orders (
   id              SERIAL PRIMARY KEY,
-  order_type      VARCHAR(20) NOT NULL, -- table | kiosk
-  table_number    VARCHAR(20),          -- NULL for kiosk/counter orders
+  order_type      VARCHAR(20) NOT NULL, -- table | counter | kiosk
+  table_number    VARCHAR(20),          -- NULL for counter and kiosk orders
   customer_name   VARCHAR(150),
   customer_phone  VARCHAR(20),
   notes           TEXT,
@@ -474,3 +474,126 @@ CREATE TABLE IF NOT EXISTS cleaning_inspections (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cleaning_inspections_job_id ON cleaning_inspections (job_id);
+
+-- ---------------------------------------------------------
+-- Added 2026-10: paid food orders, housekeeping PINs, room problems,
+-- room details. All additive.
+-- ---------------------------------------------------------
+
+-- Payment for a food order is taken at the counter and recorded by the front
+-- desk or a manager. paid_at NULL = not yet paid.
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS paid_at            TIMESTAMPTZ;
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_method     VARCHAR(10) CHECK (payment_method IN ('cash', 'upi', 'card'));
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_reference  VARCHAR(100);
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS paid_by_staff_id   INTEGER REFERENCES staff(id);
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS paid_by_admin_id   INTEGER REFERENCES admins(id);
+CREATE INDEX IF NOT EXISTS idx_food_orders_unpaid ON food_orders (created_at) WHERE paid_at IS NULL;
+
+-- Housekeeping may sign in by tapping their name and typing a PIN (a shared
+-- phone, no keyboard to speak of). NULL = no PIN; phone + password still works.
+-- The front desk never gets one.
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS pin_hash VARCHAR(255);
+
+-- Problems housekeeping finds in a room: a broken tap, a stain, lost property.
+-- The photo, if any, is in private storage (photo_key) and is deleted a month
+-- after the problem is resolved.
+CREATE TABLE IF NOT EXISTS room_issues (
+  id                    SERIAL PRIMARY KEY,
+  room_unit_id          INTEGER NOT NULL REFERENCES room_units(id),
+  kind                  VARCHAR(20) NOT NULL CHECK (kind IN ('repair', 'damage', 'lost_property', 'other')),
+  description           TEXT NOT NULL,
+  photo_key             TEXT,
+  photo_content_type    VARCHAR(50),
+  reported_by_staff_id  INTEGER NOT NULL REFERENCES staff(id),
+  status                VARCHAR(10) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+  resolved_by_admin_id  INTEGER REFERENCES admins(id),
+  resolution_note       TEXT,
+  resolved_at           TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_room_issues_status ON room_issues (status, created_at);
+
+-- What guests ask about a room before booking. NULL = the manager has not
+-- said, and the guest site then says nothing (breakfast falls back to the
+-- amenities list).
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS breakfast_included     BOOLEAN;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS extra_bed_available    BOOLEAN;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS extra_bed_charge       NUMERIC(10,2) CHECK (extra_bed_charge >= 0); -- per night; NULL = no charge stated
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS smoking_allowed        BOOLEAN;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS wheelchair_accessible  BOOLEAN;
+
+-- ---------------------------------------------------------
+-- Added 2026-10: the restaurant's self-ordering kiosk. All additive.
+-- ---------------------------------------------------------
+
+-- The kiosk takes payment on its own screen before anything reaches the
+-- kitchen. A checkout is a priced basket waiting for that payment; when the
+-- payment arrives it becomes a food order that is already paid. (Room orders
+-- paid online use it too: see the columns added further down.)
+--   created    waiting for the payment
+--   paid       the order exists (food_order_id)
+--   abandoned  the customer backed out, or nobody paid in time
+--   refunded   a payment arrived after it was abandoned and was sent back
+CREATE TABLE IF NOT EXISTS kiosk_checkouts (
+  id                   SERIAL PRIMARY KEY,
+  token                VARCHAR(40) NOT NULL UNIQUE,
+  items                JSONB NOT NULL, -- priced lines, as they are copied to food_order_items
+  notes                TEXT,
+  total_amount         NUMERIC(10,2) NOT NULL CHECK (total_amount > 0),
+  status               VARCHAR(10) NOT NULL DEFAULT 'created'
+                       CHECK (status IN ('created', 'paid', 'abandoned', 'refunded')),
+  razorpay_order_id    VARCHAR(60) NOT NULL UNIQUE,
+  razorpay_payment_id  VARCHAR(60),
+  refund_reference     VARCHAR(60),
+  food_order_id        INTEGER REFERENCES food_orders(id),
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  paid_at              TIMESTAMPTZ,
+  checked_at           TIMESTAMPTZ -- when the clean-up job asked the gateway about it
+);
+CREATE INDEX IF NOT EXISTS idx_kiosk_checkouts_unchecked ON kiosk_checkouts (created_at)
+  WHERE checked_at IS NULL AND status IN ('created', 'abandoned');
+
+-- A food order paid through the payment gateway (the kiosk) has
+-- payment_method 'online' and the gateway's payment id. If it is cancelled
+-- later, the refund_* columns say how giving the money back stands.
+-- order_type is now one of: table | counter | kiosk.
+ALTER TABLE food_orders DROP CONSTRAINT IF EXISTS food_orders_payment_method_check;
+ALTER TABLE food_orders ADD CONSTRAINT food_orders_payment_method_check
+  CHECK (payment_method IN ('cash', 'upi', 'card', 'online'));
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS gateway_payment_id VARCHAR(60);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_food_orders_gateway_payment ON food_orders (gateway_payment_id)
+  WHERE gateway_payment_id IS NOT NULL;
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS refund_reference   VARCHAR(60);
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS refund_status      VARCHAR(10) CHECK (refund_status IN ('pending', 'processed', 'failed'));
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS refunded_at        TIMESTAMPTZ;
+
+-- ---------------------------------------------------------
+-- Added 2026-10: food ordered to a hotel room. All additive.
+-- ---------------------------------------------------------
+
+-- Each hotel room has a QR code; an order from it is brought to the room
+-- (order_type 'room', room_number = the unit's number). The guest pays online
+-- when ordering, or in cash at the door: delivering an unpaid room order
+-- records the cash (payment_reference 'Collected on delivery').
+-- order_type is now one of: table | counter | kiosk | room.
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS room_number VARCHAR(20);
+
+-- A room order paid online waits for its payment the same way a kiosk order
+-- does, so it uses the same checkouts. (The table keeps the name of its first use.)
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS order_type     VARCHAR(20) NOT NULL DEFAULT 'kiosk' CHECK (order_type IN ('kiosk', 'room'));
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS room_number    VARCHAR(20);
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS customer_name  VARCHAR(150);
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(20);
+
+-- ---------------------------------------------------------
+-- Added 2026-10: a manager or the front desk can decide an inspection when
+-- no inspector is on shift. All additive.
+-- ---------------------------------------------------------
+
+-- Who decided: inspector_id is the staff member (the inspector, or front desk
+-- staff standing in for one); admin_id is set instead when a manager did it.
+ALTER TABLE cleaning_inspections ALTER COLUMN inspector_id DROP NOT NULL;
+ALTER TABLE cleaning_inspections ADD COLUMN IF NOT EXISTS admin_id INTEGER REFERENCES admins(id);
+ALTER TABLE cleaning_inspections DROP CONSTRAINT IF EXISTS chk_inspection_decider;
+ALTER TABLE cleaning_inspections ADD CONSTRAINT chk_inspection_decider
+  CHECK (inspector_id IS NOT NULL OR admin_id IS NOT NULL);

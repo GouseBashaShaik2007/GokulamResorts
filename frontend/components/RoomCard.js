@@ -28,6 +28,7 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
     room.bed_type,
     room.size_sqft ? `${room.size_sqft} sq ft` : null,
     room.views?.length ? room.views[0] + (room.views.length > 1 ? ' +' : '') : null,
+    room.extra_bed_available === true ? 'Extra bed available' : null,
   ].filter(Boolean);
   const amenities = topAmenities(room, 3);
 
@@ -40,14 +41,14 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
       </div>
 
       <div className="flex flex-1 flex-col p-6">
-        <Heading className={`font-serif font-semibold text-navy-50 ${wide ? 'text-3xl' : 'text-2xl'}`}>
+        <Heading className={`font-serif font-semibold text-ink-900 ${wide ? 'text-3xl' : 'text-2xl'}`}>
           <Link href={roomPath(room)} className="rounded after:absolute after:inset-0 after:content-[''] focus:outline-none focus-visible:after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-ocean-400">
             {room.name}
           </Link>
         </Heading>
-        <p className={`mt-2 text-sm leading-relaxed text-navy-300 ${wide ? 'line-clamp-4' : 'line-clamp-2'}`}>{room.description}</p>
+        <p className={`mt-2 text-sm leading-relaxed text-ink-500 ${wide ? 'line-clamp-4' : 'line-clamp-2'}`}>{room.description}</p>
 
-        <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-navy-300">
+        <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500">
           {facts.map((f) => (
             <li key={f} className="flex items-center gap-1.5">
               <span className="h-1 w-1 rounded-full bg-gold-400" aria-hidden="true" />
@@ -55,7 +56,7 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
             </li>
           ))}
         </ul>
-        {amenities.length > 0 && <p className="mt-2 text-xs text-navy-300">In the room: {amenities.join(' · ')}</p>}
+        {amenities.length > 0 && <p className="mt-2 text-xs text-ink-500">In the room: {amenities.join(' · ')}</p>}
 
         {offer && (
           <p className="mt-4 text-sm font-medium text-green-800">
@@ -64,10 +65,10 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
         )}
 
         <div className="min-h-6 flex-1" aria-hidden="true" />
-        <div className="flex items-end justify-between gap-3 border-t border-navy-700 pt-5">
+        <div className="flex items-end justify-between gap-3 border-t border-sand-300 pt-5">
           {stay?.quote ? (
             <div>
-              <span className="block text-xs text-navy-400">
+              <span className="block text-xs text-ink-400">
                 {stay.quote.nights} night{stay.quote.nights === 1 ? '' : 's'}, including GST
               </span>
               <Price inr={stay.quote.total} className="text-xl" />
@@ -76,12 +77,12 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
               )}
             </div>
           ) : stay?.soldOut ? (
-            <p className="text-sm font-medium text-navy-300">Fully booked for your dates</p>
+            <p className="text-sm font-medium text-ink-500">Fully booked for your dates</p>
           ) : stay?.tooSmall ? (
-            <p className="text-sm font-medium text-navy-300">Fits up to {room.capacity} guests</p>
+            <p className="text-sm font-medium text-ink-500">Fits up to {room.capacity} guests</p>
           ) : (
             <div>
-              <span className="block text-xs text-navy-400">from</span>
+              <span className="block text-xs text-ink-400">from</span>
               <Price inr={room.price_per_night} suffix="+ GST / night" className="text-xl" />
             </div>
           )}
@@ -89,7 +90,7 @@ export default function RoomCard({ room, size = 'large', heading: Heading = 'h3'
             {bookable && (
               <OpenBookingButton
                 roomTypeId={room.id}
-                className="relative z-10 rounded-full bg-ocean-500 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-ocean-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-300 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
+                className="relative z-10 rounded-full bg-ocean-500 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-ocean-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-300 focus-visible:ring-offset-2 focus-visible:ring-offset-sand-100"
               >
                 Book<span className="sr-only"> {room.name}</span>
               </OpenBookingButton>

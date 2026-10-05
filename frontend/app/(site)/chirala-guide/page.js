@@ -36,7 +36,7 @@ export default async function ChiralaGuidePage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
       <PageHeader eyebrow="Chirala guide" title="Around Chirala">
-        <p className="mt-4 max-w-3xl text-lg text-navy-300">
+        <p className="mt-4 max-w-3xl text-lg text-ink-500">
           A coastal town in Andhra Pradesh’s Bapatla district, Chirala is known for its weavers and its{' '}
           <Link href="/gallery?c=beach" className={inlineLink}>long, quiet beaches</Link>. Here is what to see beyond the
           resort, once you have settled into <Link href="/rooms" className={inlineLink}>your room</Link>.
@@ -48,8 +48,8 @@ export default async function ChiralaGuidePage() {
         {PLACES.map((p) => (
           <section key={p.name} className="card flex flex-col p-6">
             <p className="eyebrow">{p.kind}</p>
-            <h2 className="mt-1 font-serif text-2xl font-semibold text-navy-50">{p.name}</h2>
-            <p className="mt-2 flex-1 leading-relaxed text-navy-300">{p.text}</p>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-ink-900">{p.name}</h2>
+            <p className="mt-2 flex-1 leading-relaxed text-ink-500">{p.text}</p>
             <a
               href={askHref(p)}
               {...(askIsWhatsApp ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
@@ -61,23 +61,23 @@ export default async function ChiralaGuidePage() {
         ))}
       </div>
 
-      <section className="mt-14 rounded-2xl border border-navy-700 bg-navy-900 p-8">
-        <h2 className="font-serif text-2xl font-semibold text-navy-50">How to get here</h2>
+      <section className="mt-14 rounded-2xl border border-sand-300 bg-sand-100 p-8">
+        <h2 className="font-serif text-2xl font-semibold text-ink-900">How to get here</h2>
         <GettingHereList className="mt-4" />
         <div className="mt-6 flex flex-wrap gap-3">
-          <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-gold">Get directions</a>
+          <a href={directionsUrl(contact)} target="_blank" rel="noopener noreferrer" className="btn-primary">Get directions</a>
           <Link href="/contact" className="btn-outline">Ask us about transfers</Link>
         </div>
       </section>
 
       <section className="mt-14 text-center">
-        <h2 className="font-serif text-2xl font-semibold text-navy-50">Planning a visit?</h2>
-        <p className="mx-auto mt-2 max-w-xl text-navy-300">
+        <h2 className="font-serif text-2xl font-semibold text-ink-900">Planning a visit?</h2>
+        <p className="mx-auto mt-2 max-w-xl text-ink-500">
           After a day out, dinner is at <Link href="/dining" className={inlineLink}>our restaurant</Link> — coastal Andhra
           cooking and the day’s catch.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <OpenBookingButton className="btn-gold">Check availability</OpenBookingButton>
+          <OpenBookingButton className="btn-primary">Check availability</OpenBookingButton>
           <Link href="/rooms" className="btn-outline">See the rooms</Link>
         </div>
       </section>

@@ -25,7 +25,7 @@ export default function PayStep() {
   if (!hold) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-navy-400">No booking in progress.</p>
+        <p className="text-sm text-ink-400">No booking in progress.</p>
         <button type="button" onClick={() => goTo('stay')} className="btn-outline">Start a booking</button>
       </div>
     );
@@ -35,11 +35,11 @@ export default function PayStep() {
     return (
       <div className="space-y-4 text-center">
         <p className="eyebrow">Hold Expired</p>
-        <h2 className="font-serif text-2xl font-semibold text-navy-50">Your room hold has expired</h2>
-        <p className="text-sm text-navy-400">
+        <h2 className="font-serif text-2xl font-semibold text-ink-900">Your room hold has expired</h2>
+        <p className="text-sm text-ink-400">
           Nothing was charged. Your dates and details are still here — just pick a room again.
         </p>
-        <button type="button" onClick={releaseHold} className="btn-gold">Choose a room again</button>
+        <button type="button" onClick={releaseHold} className="btn-primary">Choose a room again</button>
       </div>
     );
   }
@@ -54,10 +54,10 @@ export default function PayStep() {
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Step 4 of 4</p>
-        <h2 className="mt-1 font-serif text-2xl font-semibold text-navy-50">Payment</h2>
+        <h2 className="mt-1 font-serif text-2xl font-semibold text-ink-900">Payment</h2>
         {minutes !== null && (
-          <p className="mt-1 text-sm text-navy-400">
-            Room held for <span className="font-semibold text-navy-50 [font-variant-numeric:tabular-nums]">{minutes}:{String(seconds).padStart(2, '0')}</span>
+          <p className="mt-1 text-sm text-ink-400">
+            Room held for <span className="font-semibold text-ink-900 [font-variant-numeric:tabular-nums]">{minutes}:{String(seconds).padStart(2, '0')}</span>
           </p>
         )}
       </div>
@@ -65,8 +65,8 @@ export default function PayStep() {
       {pick ? (
         <StaySummary total={amount} />
       ) : (
-        <div className="rounded-xl border border-navy-700 bg-navy-900 p-5">
-          <p className="text-sm text-navy-300">Total to pay</p>
+        <div className="rounded-xl border border-sand-300 bg-sand-100 p-5">
+          <p className="text-sm text-ink-500">Total to pay</p>
           <p className="price mt-1 text-3xl">{inr(amount)}</p>
         </div>
       )}
@@ -75,13 +75,13 @@ export default function PayStep() {
 
       {canSimulate && (
         <div className="space-y-2">
-          <p className="text-center text-xs text-navy-400">
+          <p className="text-center text-xs text-ink-400">
             No live payment gateway is connected yet — simulate a successful payment to send this booking to the
             resort for confirmation.
           </p>
           <button
             type="button" onClick={confirmMock} disabled={status === 'paying'}
-            className="btn-gold w-full disabled:opacity-60"
+            className="btn-primary w-full disabled:opacity-60"
           >
             {status === 'paying' ? 'Confirming...' : 'Simulate Successful Payment'}
           </button>
@@ -95,17 +95,17 @@ export default function PayStep() {
       {!hold.mock && (
         <button
           type="button" onClick={resumePayment} disabled={status === 'paying'}
-          className="btn-gold w-full disabled:opacity-60"
+          className="btn-primary w-full disabled:opacity-60"
         >
           {status === 'paying' ? 'Waiting for payment...' : `Pay ${inr(amount)}`}
         </button>
       )}
 
-      <p className="text-center text-xs text-navy-400">
+      <p className="text-center text-xs text-ink-400">
         The resort confirms within 24 hours. If it can&apos;t, you are refunded in full automatically.
       </p>
 
-      <button type="button" onClick={reset} className="w-full text-center text-xs text-navy-400 hover:underline">
+      <button type="button" onClick={reset} className="w-full text-center text-xs text-ink-400 hover:underline">
         Start over
       </button>
     </div>

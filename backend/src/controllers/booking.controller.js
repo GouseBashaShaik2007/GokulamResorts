@@ -7,6 +7,7 @@ const normalizePhone = (p) => String(p).trim().replace(/(?!^\+)[^\d]/g, '');
 
 // GET /api/availability?checkIn&checkOut&roomTypeId&guests
 // Real room numbers that are free for the dates, grouped by type, with prices.
+// For a stay starting today, only rooms housekeeping has passed.
 const getAvailability = asyncHandler(async (req, res) => {
   const { checkIn, checkOut, roomTypeId, guests } = req.query;
   const types = await bookings.availability({
@@ -14,6 +15,7 @@ const getAvailability = asyncHandler(async (req, res) => {
     checkOut,
     roomTypeId: roomTypeId ? Number(roomTypeId) : null,
     guests: guests ? Number(guests) : 1,
+    liveOnly: true,
   });
   res.json({ success: true, types });
 });

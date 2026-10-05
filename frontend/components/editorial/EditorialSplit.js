@@ -27,7 +27,7 @@ export default function EditorialSplit({
 
       <Reveal
         as="div"
-        className={`relative z-10 -mt-8 mx-4 flex flex-col justify-center rounded-2xl border border-navy-700/60 bg-navy-900 p-8 shadow-lg shadow-black/20 sm:p-10 lg:mx-0 lg:mt-0 ${
+        className={`relative z-10 -mt-8 mx-4 flex flex-col justify-center rounded-2xl border border-sand-300/60 bg-sand-100 p-8 shadow-lg shadow-black/20 sm:p-10 lg:mx-0 lg:mt-0 ${
           isRight ? 'lg:order-1' : 'lg:order-2'
         } ${overlap ? (isRight ? 'lg:-mr-20 lg:rounded-r-none' : 'lg:-ml-20 lg:rounded-l-none') : ''}`}
       >

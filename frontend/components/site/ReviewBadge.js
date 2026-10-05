@@ -4,7 +4,7 @@ import { REVIEWS } from '@/lib/site';
 export default function ReviewBadge({ className = '', tone = 'light' }) {
   const g = REVIEWS?.google;
   if (!g?.rating) return null;
-  const color = tone === 'dark' ? 'bg-black/45 text-white' : 'bg-navy-900 text-navy-100 border border-navy-700';
+  const color = tone === 'dark' ? 'bg-black/45 text-white' : 'bg-sand-100 text-ink-800 border border-sand-300';
   return (
     <a
       href={g.url || '#reviews'}

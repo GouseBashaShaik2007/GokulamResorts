@@ -39,7 +39,7 @@ export default function MenuSections({ sections, quantityOf, onOpen }) {
 
   return (
     <>
-      <div className="sticky top-[var(--nav-h)] z-30 -mx-4 border-b border-navy-700 bg-navy-950/95 px-4 backdrop-blur sm:mx-0">
+      <div className="sticky top-[var(--nav-h)] z-30 -mx-4 border-b border-sand-300 bg-sand-50/95 px-4 backdrop-blur sm:mx-0">
         <div ref={tabsRef} className="flex gap-2 overflow-x-auto py-3 [scrollbar-width:none]" role="navigation" aria-label="Menu categories">
           {sections.map((c) => (
             <button
@@ -48,7 +48,7 @@ export default function MenuSections({ sections, quantityOf, onOpen }) {
               data-tab={c.id}
               aria-current={active === c.id ? 'true' : undefined}
               onClick={() => jumpTo(c.id)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${active === c.id ? 'bg-ocean-500 text-white' : 'bg-navy-800 text-navy-200 hover:bg-navy-700'}`}
+              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${active === c.id ? 'bg-ocean-500 text-white' : 'bg-sand-200 text-ink-700 hover:bg-sand-300'}`}
             >
               {c.name}
             </button>
@@ -58,7 +58,7 @@ export default function MenuSections({ sections, quantityOf, onOpen }) {
 
       {sections.map((c) => (
         <section key={c.id} data-cat={c.id} ref={(el) => { sectionRefs.current[c.id] = el; }} className="pt-10">
-          <h2 className="mb-5 font-serif text-3xl font-semibold text-navy-50">{c.name}</h2>
+          <h2 className="mb-5 font-serif text-3xl font-semibold text-ink-900">{c.name}</h2>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {c.items.map((item) => (
               <MenuItemCard key={item.id} item={item} inCart={quantityOf(item.id)} onOpen={() => onOpen(item)} />

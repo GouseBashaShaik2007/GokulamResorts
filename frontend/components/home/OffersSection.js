@@ -12,12 +12,12 @@ export default function OffersSection({ offers }) {
         {offers.map((offer) => (
           <div key={offer.id} className="card flex flex-col p-6">
             <p className="text-sm font-semibold text-green-800">{offerSaving(offer)} per night</p>
-            <h3 className="mt-1 font-serif text-2xl font-semibold text-navy-50">{offer.name}</h3>
-            <p className="mt-2 flex-1 text-sm text-navy-300">
+            <h3 className="mt-1 font-serif text-2xl font-semibold text-ink-900">{offer.name}</h3>
+            <p className="mt-2 flex-1 text-sm text-ink-500">
               {offer.room_type || 'Every room type'} · stays {offerDates(offer)}. Taken off the price automatically
               when you book those nights.
             </p>
-            <OpenBookingButton roomTypeId={offer.room_type_id} className="btn-gold mt-5">Check availability</OpenBookingButton>
+            <OpenBookingButton roomTypeId={offer.room_type_id} className="btn-primary mt-5">Check availability</OpenBookingButton>
           </div>
         ))}
       </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api, { withAdminAuth } from '../../lib/api';
+import api from '../../lib/api';
 import { inr, fmtDate, todayIST, errMsg } from '../../lib/bookingUi';
 import { gstRateFor, withGst } from '../../lib/gst';
 import { useConfirm } from '../ui/Confirm';
@@ -41,18 +41,18 @@ function DiscountPreview({ roomTypeId, discountType, value, types }) {
           const { id, name, original, discounted } = line(room);
           const newSlab = gstRateFor(discounted) !== gstRateFor(original);
           return (
-            <li key={id} className="text-navy-100">
+            <li key={id} className="text-ink-800">
               {name}: {inr(original)} → <span className="font-semibold text-gold-600">{inr(discounted)}</span> per night
-              <span className="block text-xs text-navy-300">
+              <span className="block text-xs text-ink-500">
                 Guest pays {inr(withGst(discounted))} a night with {gstRateFor(discounted)}% GST, instead of {inr(withGst(original))}.
-                {newSlab && <strong className="font-semibold text-navy-100"> GST drops from {gstRateFor(original)}% to {gstRateFor(discounted)}% at this price.</strong>}
+                {newSlab && <strong className="font-semibold text-ink-800"> GST drops from {gstRateFor(original)}% to {gstRateFor(discounted)}% at this price.</strong>}
               </span>
             </li>
           );
         })}
       </ul>
       {!roomTypeId && rooms.length > 2 && (
-        <p className="mt-1 text-xs text-navy-500">+ {rooms.length - 2} more room type(s), same discount.</p>
+        <p className="mt-1 text-xs text-ink-300">+ {rooms.length - 2} more room type(s), same discount.</p>
       )}
     </div>
   );
@@ -76,8 +76,8 @@ function overlapping(form, rows, editingId) {
 const OFFER_STATE = {
   Live: 'bg-green-500/15 text-green-700',
   Scheduled: 'bg-blue-400/10 text-blue-700',
-  Ended: 'bg-navy-700 text-navy-300',
-  Off: 'bg-navy-700 text-navy-300',
+  Ended: 'bg-sand-300 text-ink-500',
+  Off: 'bg-sand-300 text-ink-500',
 };
 
 // Where an offer stands today (resort calendar): its switch, then its dates.
@@ -100,11 +100,11 @@ export default function OffersManager() {
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    api.get('/admin/offers', withAdminAuth()).then((r) => setRows(r.data.offers)).catch((err) => setError(errMsg(err, 'Could not load offers')));
+    api.get('/admin/offers').then((r) => setRows(r.data.offers)).catch((err) => setError(errMsg(err, 'Could not load offers')));
   }, []);
   useEffect(() => {
     load();
-    api.get('/admin/rooms', withAdminAuth()).then((r) => setTypes(r.data.rooms)).catch((err) => setError(errMsg(err, 'Could not load room types')));
+    api.get('/admin/rooms').then((r) => setTypes(r.data.rooms)).catch((err) => setError(errMsg(err, 'Could not load room types')));
   }, [load]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -136,10 +136,10 @@ export default function OffersManager() {
     const payload = { ...form, roomTypeId: form.roomTypeId ? Number(form.roomTypeId) : null, value: Number(form.value) };
     try {
       if (editing) {
-        await api.put(`/admin/offers/${editing.id}`, payload, withAdminAuth());
+        await api.put(`/admin/offers/${editing.id}`, payload);
         toast(`“${form.name}” updated.`);
       } else {
-        await api.post('/admin/offers', payload, withAdminAuth());
+        await api.post('/admin/offers', payload);
         toast(`“${form.name}” added.`);
       }
       stopEditing();
@@ -152,7 +152,7 @@ export default function OffersManager() {
 
   const toggle = async (p) => {
     try {
-      await api.put(`/admin/offers/${p.id}`, { isActive: !p.is_active }, withAdminAuth());
+      await api.put(`/admin/offers/${p.id}`, { isActive: !p.is_active });
       toast(`“${p.name}” turned ${p.is_active ? 'off' : 'on'}.`);
     } catch (err) {
       toast(errMsg(err, `Could not turn “${p.name}” ${p.is_active ? 'off' : 'on'}`), { tone: 'error' });
@@ -169,7 +169,7 @@ export default function OffersManager() {
     });
     if (!ok) return;
     try {
-      await api.delete(`/admin/offers/${p.id}`, withAdminAuth());
+      await api.delete(`/admin/offers/${p.id}`);
       toast(`“${p.name}” deleted.`);
       if (editing?.id === p.id) stopEditing();
     } catch (err) {
@@ -181,8 +181,8 @@ export default function OffersManager() {
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr]">
       <form id="offer-form" onSubmit={submit} className="card scroll-mt-24 space-y-3 self-start p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">{editing ? `Edit offer: ${editing.name}` : 'New offer'}</h2>
-        <p className="text-xs text-navy-400">
+        <h2 className="font-serif text-xl font-bold text-ink-900">{editing ? `Edit offer: ${editing.name}` : 'New offer'}</h2>
+        <p className="text-xs text-ink-400">
           Applies per night to new bookings and extensions. When two offers cover the same night, the bigger
           discount wins (they don&apos;t stack). Existing bookings keep their price. Guests see live offers on
           the home page, the room cards and each room&apos;s page.
@@ -237,22 +237,22 @@ export default function OffersManager() {
         </div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <div className="flex gap-3">
-          <button className="btn-gold flex-1">{editing ? 'Save changes' : 'Add offer'}</button>
+          <button className="btn-primary flex-1">{editing ? 'Save changes' : 'Add offer'}</button>
           {editing && <button type="button" onClick={stopEditing} className="btn-outline">Cancel</button>}
         </div>
       </form>
 
       <div className="card p-6">
-        <h2 className="font-serif text-xl font-bold text-navy-50">Offers</h2>
+        <h2 className="font-serif text-xl font-bold text-ink-900">Offers</h2>
         <div className="mt-4 space-y-2">
           {rows.map((p) => (
-            <div key={p.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border border-navy-700 bg-navy-800 px-4 py-3 ${offerState(p, today) === 'Live' || offerState(p, today) === 'Scheduled' ? '' : 'opacity-60'}`}>
+            <div key={p.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sand-300 bg-sand-200 px-4 py-3 ${offerState(p, today) === 'Live' || offerState(p, today) === 'Scheduled' ? '' : 'opacity-60'}`}>
               <div>
-                <p className="font-medium text-navy-50">
+                <p className="font-medium text-ink-900">
                   <span className={`mr-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${OFFER_STATE[offerState(p, today)]}`}>{offerState(p, today)}</span>
                   {p.name} · {p.discount_type === 'percent' ? `${Number(p.value)}% off` : `${inr(p.value)} off`}/night
                 </p>
-                <p className="text-xs text-navy-400">
+                <p className="text-xs text-ink-400">
                   {p.room_type || 'All room types'} · {fmtDate(p.start_date)} – {fmtDate(p.end_date)} · {p.reason}
                 </p>
               </div>
@@ -260,7 +260,7 @@ export default function OffersManager() {
                 <button onClick={() => startEditing(p)} className="rounded-lg border border-gold-500/50 px-3 py-1 text-xs text-gold-600 hover:bg-gold-500/10">
                   Edit
                 </button>
-                <button onClick={() => toggle(p)} className="rounded-lg border border-navy-600 px-3 py-1 text-xs text-navy-200 hover:bg-navy-700">
+                <button onClick={() => toggle(p)} className="rounded-lg border border-sand-400 px-3 py-1 text-xs text-ink-700 hover:bg-sand-300">
                   {p.is_active ? 'Turn off' : 'Turn on'}
                 </button>
                 <button onClick={() => remove(p)} className="rounded-lg border border-red-500/50 px-3 py-1 text-xs text-red-700 hover:bg-red-500/10">
@@ -269,7 +269,7 @@ export default function OffersManager() {
               </div>
             </div>
           ))}
-          {rows.length === 0 && <p className="text-sm text-navy-400">No offers yet.</p>}
+          {rows.length === 0 && <p className="text-sm text-ink-400">No offers yet.</p>}
         </div>
       </div>
     </div>

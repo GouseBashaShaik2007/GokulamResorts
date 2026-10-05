@@ -11,14 +11,14 @@ function LookupHelp() {
   const wa = whatsappUrl('', contact);
   const tel = telHref(contact);
   return (
-    <aside className="space-y-3 text-sm text-navy-300 lg:pt-10">
-      <h2 className="font-serif text-xl font-semibold text-navy-50">What you can do here</h2>
+    <aside className="space-y-3 text-sm text-ink-500 lg:pt-10">
+      <h2 className="font-serif text-xl font-semibold text-ink-900">What you can do here</h2>
       <p>See whether your booking is confirmed, check your dates, room number and what you paid, track a refund, and get directions.</p>
       <p>
         To change dates or cancel, contact the resort{wa ? ' on WhatsApp' : ''} at{' '}
         {tel ? <a className="text-ocean-600 underline" href={tel}>{contact.phone}</a> : <a className="text-ocean-600 underline" href={`mailto:${contact.email}`}>{contact.email}</a>}.
       </p>
-      <p className="text-navy-400">Your reference is in the SMS / WhatsApp we sent after booking.</p>
+      <p className="text-ink-400">Your reference is in the SMS / WhatsApp we sent after booking.</p>
     </aside>
   );
 }
@@ -39,8 +39,8 @@ export default function LookupForm({ initialRef = '', initialPhone = '', intro =
     <div className="grid gap-10 lg:grid-cols-[3fr_2fr]">
       <div className="card p-8">
         <p className="eyebrow">My Booking</p>
-        <h1 className="mt-2 font-serif text-3xl font-semibold text-navy-50">Find your booking</h1>
-        {intro && <p className="mt-2 text-sm text-navy-300">{intro}</p>}
+        <h1 className="mt-2 font-serif text-3xl font-semibold text-ink-900">Find your booking</h1>
+        {intro && <p className="mt-2 text-sm text-ink-500">{intro}</p>}
         <form
           className="mt-6 space-y-4"
           onSubmit={(e) => {
@@ -59,12 +59,12 @@ export default function LookupForm({ initialRef = '', initialPhone = '', intro =
           {error && (
             <div role="alert" className="text-sm">
               <p className="text-red-700">{error}</p>
-              <p className="mt-1 text-xs text-navy-400">
+              <p className="mt-1 text-xs text-ink-400">
                 Check the reference (it looks like GKL-7F3K2) and use the mobile number the booking was made with, with its country code.
               </p>
             </div>
           )}
-          <button disabled={loading} className="btn-gold w-full disabled:opacity-60">{loading ? 'Looking up…' : 'Show my booking'}</button>
+          <button disabled={loading} className="btn-primary w-full disabled:opacity-60">{loading ? 'Looking up…' : 'Show my booking'}</button>
         </form>
       </div>
       <LookupHelp />

@@ -57,13 +57,16 @@ export async function getMenuByCategory(options) {
 
 /**
  * Whether `key` is the one printed on a QR code: pass { table, key } for a
- * table's code, or just { key } for the restaurant counter's. Ordering is only
+ * table's code, { room, key } for a hotel room's, or just { key } for the
+ * restaurant counter's. Ordering is only
  * offered to people who scanned a code, so anything else — no key, a guessed
  * one, or the API being unreachable — is a "no".
  */
-export async function hasOrderAccess({ table, key }) {
+export async function hasOrderAccess({ table, room, key }) {
   if (!key) return false;
-  const query = new URLSearchParams(table ? { type: 'table', table: String(table), k: key } : { type: 'counter', k: key });
+  const query = new URLSearchParams(
+    table ? { type: 'table', table: String(table), k: key } : room ? { type: 'room', room: String(room), k: key } : { type: 'counter', k: key }
+  );
   return (await getJson(`/order-access?${query}`, { fresh: true }))?.valid === true;
 }
 

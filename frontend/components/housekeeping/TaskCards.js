@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { JOB_STATUS_STYLE, PRIORITY_STYLE, TASK_STATUS_STYLE } from '@/lib/cleaningStyles';
 import { TASK_CHECKLIST, useChecklist } from '@/lib/cleaningChecklists';
+import ReportIssue from './ReportIssue';
 import { Badge, fmtTime } from './shared';
 
 // The cards on a housekeeper's or inspector's screen: one per room.
@@ -49,7 +50,7 @@ function ActionLabel({ action }) {
 // they are found first on a long list; Normal rooms keep the quiet badge.
 const PRIORITY_BAND = { VIP: 'bg-gold-600 text-white', High: 'bg-red-700 text-white' };
 
-function RoomHeader({ task }) {
+export function RoomHeader({ task }) {
   const band = PRIORITY_BAND[task.priority];
   return (
     <>
@@ -60,8 +61,8 @@ function RoomHeader({ task }) {
       )}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="font-serif text-3xl font-bold text-navy-50">{task.unit_number}</p>
-          <p className="text-xs text-navy-400">
+          <p className="font-serif text-3xl font-bold text-ink-900">{task.unit_number}</p>
+          <p className="text-xs text-ink-400">
             {task.room_type}
             {task.floor ? ` · Floor ${task.floor}` : ''} · {REASON_LABEL[task.job_reason]}
           </p>
@@ -86,13 +87,13 @@ export function CleaningTaskCard({ task, onAction, busy }) {
   return (
     <div className="card p-5">
       <RoomHeader task={task} />
-      {task.job_notes && <p className="mt-2 text-sm italic text-navy-300">Note: {task.job_notes}</p>}
+      {task.job_notes && <p className="mt-2 text-sm italic text-ink-500">Note: {task.job_notes}</p>}
       {task.failure_reason && (
         <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">
           <span className="font-semibold">Redo — inspector said:</span> {task.failure_reason}
         </p>
       )}
-      <div className="mt-3 flex items-center gap-2 text-xs text-navy-400">
+      <div className="mt-3 flex items-center gap-2 text-xs text-ink-400">
         <Badge className={TASK_STATUS_STYLE[task.status]}>{task.status === 'InProgress' ? 'In progress' : task.status}</Badge>
         {task.start_time && <span>Started {fmtTime(task.start_time)}</span>}
       </div>
@@ -100,14 +101,14 @@ export function CleaningTaskCard({ task, onAction, busy }) {
       {/* The standard for this task: every line ticked before it can be completed. */}
       {task.status === 'InProgress' && checklist.length > 0 && (
         <fieldset className="mt-4">
-          <legend className="text-xs font-semibold uppercase tracking-wider text-navy-400">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-ink-400">
             Checklist ({checklist.filter((item) => ticked.includes(item)).length} of {checklist.length})
           </legend>
           <div className="mt-2 space-y-2">
             {checklist.map((item) => (
               <label
                 key={item}
-                className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-base ${ticked.includes(item) ? 'border-green-700/50 bg-green-500/10 text-navy-50' : 'border-navy-600 text-navy-100'}`}
+                className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-base ${ticked.includes(item) ? 'border-green-700/50 bg-green-500/10 text-ink-900' : 'border-sand-400 text-ink-800'}`}
               >
                 <input type="checkbox" className="h-5 w-5 accent-green-700" checked={ticked.includes(item)} onChange={() => toggle(item)} />
                 {item}
@@ -140,42 +141,99 @@ export function CleaningTaskCard({ task, onAction, busy }) {
         )}
       </div>
       {task.status === 'InProgress' && !allDone && (
-        <p className="mt-2 text-center text-xs text-navy-400">Tick every line of the checklist to complete this room.</p>
+        <p className="mt-2 text-center text-xs text-ink-400">Tick every line of the checklist to complete this room.</p>
       )}
+      {/* A broken tap, a stain, something left behind: straight to the manager. */}
+      <div className="mt-4 border-t border-sand-300 pt-3 text-center">
+        <ReportIssue task={task} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sending a room back: which task failed, and what needs fixing. Used by the
+ * inspector's card and the manager's board. `onSubmit({ failedTasks, failureReason })`
+ * saves it; `onCancel` closes the form.
+ */
+export function RejectForm({ busy, onSubmit, onCancel }) {
+  const [failed, setFailed] = useState([]);
+  const [reason, setReason] = useState('');
+
+  const toggleFailed = (type) => setFailed((f) => (f.includes(type) ? f.filter((t) => t !== type) : [...f, type]));
+
+  return (
+    <div className="mt-4 space-y-3 rounded-xl border border-red-500/40 bg-red-500/5 p-4">
+      <p className="text-sm font-medium text-ink-800">Which task failed?</p>
+      <div className="flex gap-3">
+        {['Bedding', 'Toiletry'].map((type) => (
+          <label key={type} className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border py-3 text-sm ${failed.includes(type) ? 'border-red-400 bg-red-500/10 text-red-800' : 'border-sand-400 text-ink-700'}`}>
+            <input type="checkbox" className="accent-red-400" checked={failed.includes(type)} onChange={() => toggleFailed(type)} />
+            {type}
+          </label>
+        ))}
+      </div>
+      {/* The cleaner's own checklist, so the note can name exactly what was missed. */}
+      {failed.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {failed.flatMap((type) => TASK_CHECKLIST[type] || []).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setReason((r) => (r.trim() ? `${r.trim()}, ${item.toLowerCase()}` : item))}
+              className="rounded-full border border-sand-400 px-3 py-1 text-xs text-ink-700 hover:border-red-400"
+            >
+              + {item}
+            </button>
+          ))}
+        </div>
+      )}
+      <textarea
+        rows={3}
+        className="input-field text-sm"
+        aria-label="What needs fixing"
+        placeholder="What needs fixing? (required)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      <div className="flex gap-3">
+        <button type="button" onClick={onCancel} className="flex-1 rounded-xl border border-sand-400 py-3 text-sm text-ink-700">
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={busy || failed.length === 0 || reason.trim().length < 3}
+          onClick={() => onSubmit({ failedTasks: failed, failureReason: reason })}
+          className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          Send back
+        </button>
+      </div>
     </div>
   );
 }
 
 export function InspectionCard({ task, onAction, busy }) {
   const [rejecting, setRejecting] = useState(false);
-  const [failed, setFailed] = useState([]);
-  const [reason, setReason] = useState('');
   const ready = task.job_status === 'Inspection';
 
-  const toggleFailed = (type) => setFailed((f) => (f.includes(type) ? f.filter((t) => t !== type) : [...f, type]));
-
-  const submitReject = async () => {
-    const ok = await onAction(task, 'reject', { failedTasks: failed, failureReason: reason });
-    if (ok) {
-      setRejecting(false);
-      setFailed([]);
-      setReason('');
-    }
+  const submitReject = async (body) => {
+    if (await onAction(task, 'reject', body)) setRejecting(false);
   };
 
   return (
     <div className={`card p-5 ${ready ? 'border-gold-500/60' : 'opacity-75'}`}>
       <RoomHeader task={task} />
-      {task.job_notes && <p className="mt-2 text-sm italic text-navy-300">Note: {task.job_notes}</p>}
+      {task.job_notes && <p className="mt-2 text-sm italic text-ink-500">Note: {task.job_notes}</p>}
 
       <div className="mt-3 space-y-1.5">
         {(task.cleaning_tasks || []).map((c) => (
           <div key={c.id} className="flex items-center justify-between text-sm">
-            <span className="text-navy-300">
-              {c.type} <span className="text-navy-500">· {c.assigned_staff_name || 'unassigned'}</span>
+            <span className="text-ink-500">
+              {c.type} <span className="text-ink-300">· {c.assigned_staff_name || 'unassigned'}</span>
             </span>
             <span className="flex items-center gap-2">
-              {c.end_time && <span className="text-xs text-navy-400">{fmtTime(c.start_time)}–{fmtTime(c.end_time)}</span>}
+              {c.end_time && <span className="text-xs text-ink-400">{fmtTime(c.start_time)}–{fmtTime(c.end_time)}</span>}
               <Badge className={TASK_STATUS_STYLE[c.status]}>{c.status === 'InProgress' ? 'In progress' : c.status}</Badge>
             </span>
           </div>
@@ -183,7 +241,7 @@ export function InspectionCard({ task, onAction, busy }) {
       </div>
 
       {!ready && (
-        <p className="mt-4 text-sm text-navy-400">
+        <p className="mt-4 text-sm text-ink-400">
           <Badge className={JOB_STATUS_STYLE[task.job_status]}>{task.job_status}</Badge>
           <span className="ml-2">Waiting for cleaning to finish</span>
         </p>
@@ -200,52 +258,11 @@ export function InspectionCard({ task, onAction, busy }) {
         </div>
       )}
 
-      {ready && rejecting && (
-        <div className="mt-4 space-y-3 rounded-xl border border-red-500/40 bg-red-500/5 p-4">
-          <p className="text-sm font-medium text-navy-100">Which task failed?</p>
-          <div className="flex gap-3">
-            {['Bedding', 'Toiletry'].map((type) => (
-              <label key={type} className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border py-3 text-sm ${failed.includes(type) ? 'border-red-400 bg-red-500/10 text-red-800' : 'border-navy-600 text-navy-200'}`}>
-                <input type="checkbox" className="accent-red-400" checked={failed.includes(type)} onChange={() => toggleFailed(type)} />
-                {type}
-              </label>
-            ))}
-          </div>
-          {/* The cleaner's own checklist, so the note can name exactly what was missed. */}
-          {failed.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {failed.flatMap((type) => TASK_CHECKLIST[type] || []).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setReason((r) => (r.trim() ? `${r.trim()}, ${item.toLowerCase()}` : item))}
-                  className="rounded-full border border-navy-600 px-3 py-1 text-xs text-navy-200 hover:border-red-400"
-                >
-                  + {item}
-                </button>
-              ))}
-            </div>
-          )}
-          <textarea
-            rows={3}
-            className="input-field text-sm"
-            aria-label="What needs fixing"
-            placeholder="What needs fixing? (required)"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-          <div className="flex gap-3">
-            <button onClick={() => setRejecting(false)} className="flex-1 rounded-xl border border-navy-600 py-3 text-sm text-navy-200">
-              Cancel
-            </button>
-            <button
-              disabled={busy || failed.length === 0 || reason.trim().length < 3}
-              onClick={submitReject}
-              className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              Send back
-            </button>
-          </div>
+      {ready && rejecting && <RejectForm busy={busy} onSubmit={submitReject} onCancel={() => setRejecting(false)} />}
+      {/* Rejecting is for cleaning that needs redoing; this is for what cleaning can't fix. */}
+      {ready && (
+        <div className="mt-4 border-t border-sand-300 pt-3 text-center">
+          <ReportIssue task={task} />
         </div>
       )}
     </div>

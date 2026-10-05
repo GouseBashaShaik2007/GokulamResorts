@@ -67,10 +67,10 @@ function ConfirmDialog({ request, onDone }) {
         tabIndex={-1}
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-navy-700 bg-navy-950 p-6 text-left shadow-2xl focus:outline-none"
+        className="w-full max-w-md rounded-2xl border border-sand-300 bg-sand-50 p-6 text-left shadow-2xl focus:outline-none"
       >
-        <h2 id="confirm-title" className="font-serif text-xl font-semibold text-navy-50">{title}</h2>
-        {body && <p id="confirm-body" className="mt-2 text-sm leading-relaxed text-navy-300">{body}</p>}
+        <h2 id="confirm-title" className="font-serif text-xl font-semibold text-ink-900">{title}</h2>
+        {body && <p id="confirm-body" className="mt-2 text-sm leading-relaxed text-ink-500">{body}</p>}
 
         {input && (
           <div className="mt-4">
@@ -89,7 +89,7 @@ function ConfirmDialog({ request, onDone }) {
                 setError('');
               }}
             />
-            {input.hint && !error && <p className="mt-1 text-xs text-navy-400">{input.hint}</p>}
+            {input.hint && !error && <p className="mt-1 text-xs text-ink-400">{input.hint}</p>}
             {error && <p role="alert" className="mt-1 text-sm text-red-700">{error}</p>}
           </div>
         )}
@@ -104,7 +104,7 @@ function ConfirmDialog({ request, onDone }) {
             className={
               danger
                 ? 'inline-flex items-center justify-center rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2'
-                : 'btn-gold px-5 py-2 text-sm'
+                : 'btn-primary px-5 py-2 text-sm'
             }
           >
             {confirmLabel}

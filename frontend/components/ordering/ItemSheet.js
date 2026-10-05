@@ -32,11 +32,11 @@ export default function ItemSheet({ item, onAdd, onClose }) {
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2">
             <VegMark veg={item.is_veg} className="mt-1.5" />
-            <h2 className="font-serif text-2xl font-semibold text-navy-50">{item.name}</h2>
+            <h2 className="font-serif text-2xl font-semibold text-ink-900">{item.name}</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-navy-300 hover:bg-navy-800">✕</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-ink-500 hover:bg-sand-200">✕</button>
         </div>
-        {item.description && <p className="text-navy-300">{item.description}</p>}
+        {item.description && <p className="text-ink-500">{item.description}</p>}
         <DishInfo item={item} className="text-sm" />
         <p className="price text-xl">{inr(item.price)}</p>
 
@@ -45,7 +45,7 @@ export default function ItemSheet({ item, onAdd, onClose }) {
             <legend className="label">Spice level</legend>
             <div className="mt-1 grid grid-cols-3 gap-2">
               {SPICE.map((s) => (
-                <label key={s.value} className={`cursor-pointer rounded-xl border py-2 text-center text-sm ${spice === s.value ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-navy-700 text-navy-200'}`}>
+                <label key={s.value} className={`cursor-pointer rounded-xl border py-2 text-center text-sm ${spice === s.value ? 'border-ocean-500 bg-ocean-500 text-white' : 'border-sand-300 text-ink-700'}`}>
                   <input type="radio" name="spice" value={s.value} checked={spice === s.value} onChange={() => setSpice(s.value)} className="sr-only" />
                   {s.label}
                 </label>
@@ -60,15 +60,15 @@ export default function ItemSheet({ item, onAdd, onClose }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-full border border-navy-700">
-            <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} className="h-11 w-11 text-xl text-navy-100" aria-label="One less">−</button>
-            <span className="w-8 text-center font-semibold text-navy-50" aria-live="polite">{qty}</span>
-            <button type="button" onClick={() => setQty((q) => Math.min(20, q + 1))} className="h-11 w-11 text-xl text-navy-100" aria-label="One more">+</button>
+          <div className="flex items-center rounded-full border border-sand-300">
+            <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} className="h-11 w-11 text-xl text-ink-800" aria-label="One less">−</button>
+            <span className="w-8 text-center font-semibold text-ink-900" aria-live="polite">{qty}</span>
+            <button type="button" onClick={() => setQty((q) => Math.min(20, q + 1))} className="h-11 w-11 text-xl text-ink-800" aria-label="One more">+</button>
           </div>
           <button
             type="button"
             onClick={() => onAdd({ quantity: qty, spiceLevel: item.spice_adjustable ? spice : null, notes })}
-            className="btn-gold flex-1"
+            className="btn-primary flex-1"
           >
             Add {qty} · {inr(item.price * qty)}
           </button>

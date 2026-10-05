@@ -8,12 +8,12 @@ export default function SiteError({ reset }) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-24 text-center sm:px-6">
       <PageHeader eyebrow="Something went wrong" title="This page didn’t load">
-        <p className="mt-4 text-navy-300">
+        <p className="mt-4 text-ink-500">
           It&apos;s a problem on our side, not yours. Please try again in a moment.
         </p>
       </PageHeader>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <button type="button" onClick={() => reset()} className="btn-gold">Try again</button>
+        <button type="button" onClick={() => reset()} className="btn-primary">Try again</button>
         <Link href="/contact" className="btn-outline">Contact us</Link>
       </div>
     </div>

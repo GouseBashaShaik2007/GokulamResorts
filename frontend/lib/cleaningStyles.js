@@ -6,7 +6,7 @@ export const JOB_STATUS_STYLE = {
   Ready: 'bg-green-500/10 text-green-700',
 };
 export const TASK_STATUS_STYLE = {
-  Pending: 'bg-navy-700 text-navy-200',
+  Pending: 'bg-sand-300 text-ink-700',
   InProgress: 'bg-blue-400/10 text-blue-700',
   Paused: 'bg-orange-400/10 text-orange-700',
   Completed: 'bg-green-500/10 text-green-700',
@@ -15,5 +15,5 @@ export const TASK_STATUS_STYLE = {
 export const PRIORITY_STYLE = {
   VIP: 'bg-gold-600 text-white',
   High: 'bg-red-500/20 text-red-700',
-  Normal: 'bg-navy-700 text-navy-200',
+  Normal: 'bg-sand-300 text-ink-700',
 };

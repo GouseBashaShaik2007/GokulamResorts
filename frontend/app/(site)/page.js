@@ -23,7 +23,7 @@ export default async function HomePage() {
       {/* About, in one line */}
       <section className="mx-auto max-w-3xl px-4 pb-10 pt-16 text-center sm:px-6">
         <Reveal>
-          <p className="font-serif text-2xl font-medium leading-snug text-navy-100 sm:text-3xl">
+          <p className="font-serif text-2xl font-medium leading-snug text-ink-800 sm:text-3xl">
             A small beachfront resort on the Chirala coast — sea-facing rooms, unhurried days and warm Andhra
             hospitality.
           </p>
@@ -36,7 +36,7 @@ export default async function HomePage() {
         {rooms.length > 0 ? (
           <RoomSlider rooms={rooms} offers={offers} />
         ) : (
-          <p className="card p-8 text-center text-navy-300">
+          <p className="card p-8 text-center text-ink-500">
             Rooms are not available to view right now. Please try again shortly, or{' '}
             <Link href="/contact" className="font-semibold text-ocean-600 underline">contact us</Link>.
           </p>

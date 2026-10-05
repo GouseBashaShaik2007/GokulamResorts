@@ -152,8 +152,11 @@ async function releaseExpiredPaymentHolds(client, roomUnitId = null) {
 /**
  * Rooms free for [checkIn, checkOut), grouped by room type with a price quote.
  * roomTypeId narrows to one type; guests filters by capacity.
+ * liveOnly (the guest site): for a stay starting today, leaves out rooms
+ * housekeeping has not passed yet — nobody could be checked into them. Later
+ * arrivals are not affected: the room will have been cleaned by then.
  */
-async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, allowPast = false }) {
+async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, allowPast = false, liveOnly = false }) {
   const today = await localToday();
   if (!allowPast) validateDates(today, checkIn, checkOut);
   else if (checkOut <= checkIn) throw new ApiError(400, 'Check-out must be after check-in');
@@ -164,6 +167,7 @@ async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, 
      FROM room_units ru JOIN rooms r ON r.id = ru.room_type_id
      WHERE ru.is_active AND r.is_active AND r.capacity >= $3
        AND ($4::int IS NULL OR r.id = $4)
+       AND NOT ($6::boolean AND $1::date = $7::date AND ru.status <> 'Ready')
        AND NOT EXISTS (
          SELECT 1 FROM bookings b
          WHERE b.room_unit_id = ru.id AND b.status = ANY($5)
@@ -171,7 +175,7 @@ async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, 
            AND daterange(b.check_in, b.check_out) && daterange($1::date, $2::date)
        )
      ORDER BY r.price_per_night, ru.unit_number`,
-    [checkIn, checkOut, guests, roomTypeId, BLOCKING]
+    [checkIn, checkOut, guests, roomTypeId, BLOCKING, liveOnly, today]
   );
 
   const byType = new Map();
@@ -209,7 +213,7 @@ async function createBooking(input, { source, actor, payment = null }) {
 
   return tx(async (client, after) => {
     const { rows: units } = await client.query(
-      `SELECT ru.id, ru.unit_number, ru.is_active, ru.room_type_id, r.capacity, r.is_active AS type_active
+      `SELECT ru.id, ru.unit_number, ru.is_active, ru.status, ru.room_type_id, r.capacity, r.is_active AS type_active
        FROM room_units ru JOIN rooms r ON r.id = ru.room_type_id WHERE ru.id = $1 FOR UPDATE OF ru`,
       [roomUnitId]
     );
@@ -221,13 +225,18 @@ async function createBooking(input, { source, actor, payment = null }) {
 
     const today = await localToday(client);
     validateDates(today, checkIn, checkOut);
+    const online = source === 'online';
+    // Same rule as availability's liveOnly: a room housekeeping has not passed
+    // is not sold online for tonight. The front desk still can (a walk-in may wait).
+    if (online && String(checkIn).slice(0, 10) === today && unit.status !== 'Ready') {
+      throw new ApiError(409, `Room ${unit.unit_number} is still being prepared for today. Please choose another room.`);
+    }
     await releaseExpiredPaymentHolds(client, unit.id);
 
     const quote = await quoteNights(client, unit.room_type_id, checkIn, checkOut);
     const price = priceStay({ nights: quote.nightsDetail });
     const { total } = price;
     const creator = actorColumns(actor);
-    const online = source === 'online';
 
     // Reference codes are random — collision odds are astronomically low
     // (32^5 combinations), but retry a couple of times just in case.

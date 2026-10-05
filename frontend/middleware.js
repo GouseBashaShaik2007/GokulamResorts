@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 
 // Server-side gate for the staff surfaces. Runs before any page renders, so
-// an unauthenticated hit on /admin (etc.) gets redirected to its login page
-// immediately instead of the page rendering, then discovering client-side
-// that there's no token and flashing blank. See app/(staff)/_lib/session.js
-// for what the cookie is (and isn't) — it's a UX signal only; every API
-// route still independently verifies the real JWT server-side regardless of
-// this cookie.
+// someone who isn't signed in and opens /admin (etc.) is sent to its login
+// page at once, instead of the page rendering empty and only then finding
+// out. See app/(staff)/_lib/session.js for what the marker cookie is (and
+// isn't) — a convenience only; the real sign-in is a separate cookie that the
+// API checks on every request, whatever this marker says.
 const SECTIONS = [
   { prefix: '/admin', login: '/admin/login', cookie: 'gokulam_admin_session' },
   { prefix: '/kitchen', login: '/kitchen/login', cookie: 'gokulam_kitchen_session' },

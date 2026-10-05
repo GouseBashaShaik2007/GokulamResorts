@@ -67,13 +67,13 @@ export default function BookingSlideOver() {
             aria-modal="true"
             aria-label="Book a room"
             tabIndex={-1}
-            className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col overflow-y-auto border-l border-navy-700/60 bg-navy-950 shadow-2xl focus:outline-none sm:max-w-xl"
+            className="fixed inset-y-0 right-0 z-[70] flex w-full flex-col overflow-y-auto border-l border-sand-300/60 bg-sand-50 shadow-2xl focus:outline-none sm:max-w-xl"
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
           >
-            <div className="flex items-center justify-between gap-4 border-b border-navy-700 px-6 py-4">
+            <div className="flex items-center justify-between gap-4 border-b border-sand-300 px-6 py-4">
               <ol className="flex flex-1 items-start gap-2" aria-label="Booking steps">
                 {STEPS.map((s, i) => {
                   const done = i < activeIndex;
@@ -82,8 +82,8 @@ export default function BookingSlideOver() {
                   const canGoBack = done && !hold;
                   const label = (
                     <>
-                      <span className={`block h-1.5 rounded-full transition-colors ${i <= activeIndex ? 'bg-ocean-500' : 'bg-navy-700'}`} />
-                      <span className={`mt-1.5 block text-[0.7rem] ${current ? 'font-semibold text-navy-50' : 'text-navy-400'}`}>{s.label}</span>
+                      <span className={`block h-1.5 rounded-full transition-colors ${i <= activeIndex ? 'bg-ocean-500' : 'bg-sand-300'}`} />
+                      <span className={`mt-1.5 block text-[0.7rem] ${current ? 'font-semibold text-ink-900' : 'text-ink-400'}`}>{s.label}</span>
                     </>
                   );
                   return (
@@ -101,14 +101,14 @@ export default function BookingSlideOver() {
               </ol>
               <button
                 type="button" onClick={requestClose} aria-label="Close booking panel"
-                className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-navy-50"
+                className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-ink-500 hover:bg-sand-200 hover:text-ink-900"
               >
                 <span aria-hidden="true">✕</span>
               </button>
             </div>
 
             {hold && step !== 'pay' && (
-              <div className="border-b border-navy-700 bg-gold-500/5 px-6 py-2 text-xs text-gold-600">
+              <div className="border-b border-sand-300 bg-gold-500/5 px-6 py-2 text-xs text-gold-600">
                 You have a room on hold — return to Payment to finish.
               </div>
             )}

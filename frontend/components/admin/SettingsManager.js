@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import api, { withAdminAuth } from '../../lib/api';
+import api from '../../lib/api';
 import { useToast } from '@/components/ui/Toast';
 import { errMsg } from '../../lib/bookingUi';
 import { CONTACT } from '../../lib/site';
@@ -42,7 +42,7 @@ function ResortDetailsCard({ settings, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      const res = await api.put('/admin/settings', form, withAdminAuth());
+      const res = await api.put('/admin/settings', form);
       onSaved(res.data.settings);
       toast('Resort details saved. The site shows them within a minute.');
     } catch (err) {
@@ -55,8 +55,8 @@ function ResortDetailsCard({ settings, onSaved }) {
   return (
     <form onSubmit={submit} className="card space-y-4 p-6">
       <div>
-        <h2 className="font-serif text-xl font-bold text-navy-50">Resort Details</h2>
-        <p className="text-sm text-navy-400">
+        <h2 className="font-serif text-xl font-bold text-ink-900">Resort Details</h2>
+        <p className="text-sm text-ink-400">
           Shown to guests across the site, within a minute of saving. Nothing is filled in yet unless you see it typed below.
         </p>
       </div>
@@ -73,7 +73,7 @@ function ResortDetailsCard({ settings, onSaved }) {
               value={form[f.key]}
               onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
             />
-            {f.hint && <p className="mt-1 text-xs text-navy-400">{f.hint}</p>}
+            {f.hint && <p className="mt-1 text-xs text-ink-400">{f.hint}</p>}
           </div>
         ))}
       </div>
@@ -83,7 +83,7 @@ function ResortDetailsCard({ settings, onSaved }) {
           The API server is running an older version that can&apos;t store these yet. Restart it, then reload this page.
         </p>
       )}
-      <button type="submit" disabled={saving || !ready} className="btn-gold px-5 py-2 text-sm disabled:opacity-60">
+      <button type="submit" disabled={saving || !ready} className="btn-primary px-5 py-2 text-sm disabled:opacity-60">
         {saving ? 'Saving…' : 'Save details'}
       </button>
     </form>
@@ -104,7 +104,7 @@ function SiteAddressCard({ settings, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      const res = await api.put('/admin/settings', { siteUrl: draft }, withAdminAuth());
+      const res = await api.put('/admin/settings', { siteUrl: draft });
       onSaved(res.data.settings);
       toast('Site address saved.');
     } catch (err) {
@@ -116,8 +116,8 @@ function SiteAddressCard({ settings, onSaved }) {
 
   return (
     <form onSubmit={submit} className="card space-y-3 p-6">
-      <h2 className="font-serif text-xl font-bold text-navy-50">Website Address</h2>
-      <p className="text-sm text-navy-400">
+      <h2 className="font-serif text-xl font-bold text-ink-900">Website Address</h2>
+      <p className="text-sm text-ink-400">
         The address guests type to reach the site, starting with https://. It goes into every printed QR code, so it
         is never guessed from your browser — leave it empty (QR printing stays off) until the real address is live.
       </p>
@@ -131,9 +131,9 @@ function SiteAddressCard({ settings, onSaved }) {
         value={draft}
         onChange={(e) => setDraft(e.target.value.trim())}
       />
-      {siteUrl && <p className="text-xs text-navy-400">Currently: <code>{siteUrl}</code></p>}
+      {siteUrl && <p className="text-xs text-ink-400">Currently: <code>{siteUrl}</code></p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <button type="submit" disabled={saving} className="btn-gold px-5 py-2 text-sm disabled:opacity-60">
+      <button type="submit" disabled={saving} className="btn-primary px-5 py-2 text-sm disabled:opacity-60">
         {saving ? 'Saving…' : 'Save address'}
       </button>
     </form>
@@ -147,7 +147,7 @@ export default function SettingsManager() {
 
   useEffect(() => {
     api
-      .get('/admin/settings', withAdminAuth())
+      .get('/admin/settings')
       .then((res) => setSettings(res.data.settings))
       .catch(() => setError('Could not load settings. Please reload the page.'));
   }, []);
@@ -157,7 +157,7 @@ export default function SettingsManager() {
       {error && <p role="alert" className="card p-4 text-sm text-red-700">{error}</p>}
       <ResortDetailsCard settings={settings} onSaved={setSettings} />
       <SiteAddressCard settings={settings} onSaved={setSettings} />
-      <p className="text-sm text-navy-400">
+      <p className="text-sm text-ink-400">
         Looking for kitchen PINs? Everyone who signs in is now under{' '}
         <Link href="/admin/staff" className="font-semibold text-ocean-600 underline">Staff</Link>.
       </p>

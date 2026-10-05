@@ -18,7 +18,7 @@ export default function StayStep() {
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Step 1 of 4</p>
-        <h2 className="mt-1 font-serif text-2xl font-semibold text-navy-50">Dates &amp; Guests</h2>
+        <h2 className="mt-1 font-serif text-2xl font-semibold text-ink-900">Dates &amp; Guests</h2>
       </div>
 
       <div role="group" aria-labelledby="stay-dates-label">
@@ -54,7 +54,7 @@ export default function StayStep() {
 
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
 
-      <button type="button" onClick={handleContinue} disabled={!datesValid} className="btn-gold w-full disabled:opacity-60">
+      <button type="button" onClick={handleContinue} disabled={!datesValid} className="btn-primary w-full disabled:opacity-60">
         Check Availability
       </button>
     </div>

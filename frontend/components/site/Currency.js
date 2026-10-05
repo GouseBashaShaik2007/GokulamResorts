@@ -69,9 +69,9 @@ export function Price({ inr, suffix, className = '', approxClassName = '' }) {
   return (
     <span className={className}>
       <span className="price">{inrText(inr)}</span>
-      {suffix && <span className="ml-1 text-[0.8em] font-normal text-navy-400">{suffix}</span>}
+      {suffix && <span className="ml-1 text-[0.8em] font-normal text-ink-400">{suffix}</span>}
       {converted && (
-        <span className={`ml-2 whitespace-nowrap text-[0.75em] font-normal text-navy-400 ${approxClassName}`} title="Approximate — you are charged in Indian rupees">
+        <span className={`ml-2 whitespace-nowrap text-[0.75em] font-normal text-ink-400 ${approxClassName}`} title="Approximate — you are charged in Indian rupees">
           {converted}
         </span>
       )}
@@ -89,7 +89,7 @@ export function Approx({ inr, className = '' }) {
   const meta = CURRENCIES.find((c) => c.code === currency);
   if (currency === 'INR' || !rates?.rates?.[currency]) return null;
   return (
-    <span className={`ml-1.5 whitespace-nowrap text-[0.85em] text-navy-400 ${className}`} title="Approximate — you are charged in Indian rupees">
+    <span className={`ml-1.5 whitespace-nowrap text-[0.85em] text-ink-400 ${className}`} title="Approximate — you are charged in Indian rupees">
       ≈ {meta.symbol}{Math.round(Number(inr) * rates.rates[currency]).toLocaleString('en-US')}
     </span>
   );
@@ -99,19 +99,19 @@ export function CurrencySwitcher({ className = '' }) {
   const { currency, rates, setCurrency } = useCurrency();
   if (!rates) return null;
   return (
-    <label className={`flex items-center gap-1 text-xs text-navy-300 ${className}`}>
+    <label className={`flex items-center gap-1 text-xs text-ink-500 ${className}`}>
       <span className="sr-only">Currency</span>
       <select
         value={currency}
         onChange={(e) => setCurrency(e.target.value)}
-        className="rounded-full border border-navy-700 bg-transparent px-2 py-1 text-xs text-navy-100 focus:border-ocean-400 focus:outline-none"
+        className="rounded-full border border-sand-300 bg-transparent px-2 py-1 text-xs text-ink-800 focus:border-ocean-400 focus:outline-none"
         title="Approximate prices — bookings are charged in Indian rupees"
       >
         {CURRENCIES.map((c) => (
           <option key={c.code} value={c.code}>{c.label}</option>
         ))}
       </select>
-      {currency !== 'INR' && <span className="hidden text-[0.65rem] text-navy-400 xl:inline">Approximate</span>}
+      {currency !== 'INR' && <span className="hidden text-[0.65rem] text-ink-400 xl:inline">Approximate</span>}
     </label>
   );
 }

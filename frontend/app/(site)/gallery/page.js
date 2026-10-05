@@ -33,7 +33,7 @@ export default async function GalleryPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
       <PageHeader eyebrow="Gallery" title="A look around">
-        <p className="mt-4 max-w-2xl text-navy-300">The rooms, the beach, the table and the celebrations. Tap any photo to see it full screen.</p>
+        <p className="mt-4 max-w-2xl text-ink-500">The rooms, the beach, the table and the celebrations. Tap any photo to see it full screen.</p>
       </PageHeader>
       <div className="mt-10">
         <GalleryGrid roomPhotos={roomPhotos} />

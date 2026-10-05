@@ -32,7 +32,7 @@ const tableNumberField = (name) => body(name).isString().matches(/^[1-9]\d{0,2}$
 router.get(
   '/order-access',
   accessLimiter,
-  [query('type').isIn(['table', 'counter']), query('table').optional().matches(/^[1-9]\d{0,2}$/), query('k').isString().isLength({ min: 1, max: 40 })],
+  [query('type').isIn(['table', 'counter', 'kiosk', 'room']), query('table').optional().matches(/^[1-9]\d{0,2}$/), query('room').optional().matches(/^[A-Za-z0-9-]{1,20}$/), query('k').isString().isLength({ min: 1, max: 40 })],
   validate,
   checkAccess
 );
@@ -41,7 +41,9 @@ router.post(
   '/food-orders',
   orderLimiter,
   [
-    body('orderType').isIn(['table', 'kiosk']).withMessage('orderType must be "table" or "kiosk"'),
+    // 'kiosk' is still accepted as the counter's older name (see the controller).
+    body('orderType').isIn(['table', 'counter', 'room', 'kiosk']).withMessage('orderType must be "table", "counter" or "room"'),
+    body('roomNumber').optional({ nullable: true, checkFalsy: true }).isString().matches(/^[A-Za-z0-9-]{1,20}$/).withMessage('Unknown room'),
     body('accessKey').optional({ nullable: true }).isString().isLength({ max: 40 }),
     tableNumberField('tableNumber').optional({ nullable: true, checkFalsy: true }),
     body('customerName').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 150 }),

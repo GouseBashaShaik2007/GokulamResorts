@@ -11,7 +11,7 @@ export default function AdminDashboardLayout({ children }) {
 
   return (
     // .admin-shell: white inputs and a steady scrollbar gutter — see globals.css.
-    <div className="admin-shell min-h-screen bg-navy-950 lg:flex">
+    <div className="admin-shell min-h-screen bg-sand-50 lg:flex">
       <AdminSidebar email={profile?.email || ''} onSignOut={signOut} />
 
       <div className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-10">{children}</div>

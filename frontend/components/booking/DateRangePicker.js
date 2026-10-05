@@ -23,8 +23,8 @@ function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, tabS
 
   return (
     <div className="w-full">
-      <p className="mb-3 text-center font-serif text-sm font-semibold text-navy-50">{formatMonthLabel(monthStart)}</p>
-      <div className="grid grid-cols-7 gap-y-1 text-center text-[0.65rem] uppercase text-navy-500">
+      <p className="mb-3 text-center font-serif text-sm font-semibold text-ink-900">{formatMonthLabel(monthStart)}</p>
+      <div className="grid grid-cols-7 gap-y-1 text-center text-[0.65rem] uppercase text-ink-300">
         {WEEKDAY_LABELS.map((w, i) => (
           <span key={i}>{w}</span>
         ))}
@@ -55,10 +55,16 @@ function Month({ monthStart, checkInDate, checkOutDate, hoverDate, minDate, tabS
               onClick={() => onPick(date)}
               onMouseEnter={() => onHover(date)}
               onFocus={() => onHover(date)}
+              // One look per state, never two colour classes competing on one day:
+              // picked (check-in / check-out), closed, or open.
               className={`relative flex h-9 items-center justify-center text-sm transition-colors ${
                 !inMonth ? 'invisible' : ''
-              } ${disabled ? `cursor-not-allowed text-navy-700 ${full && !past ? 'line-through' : ''}` : 'text-navy-100 hover:bg-navy-800'} ${
-                isStart || isEnd ? 'z-10 rounded-full bg-ocean-500 font-semibold text-white hover:bg-ocean-500' : ''
+              } ${disabled ? 'cursor-not-allowed' : ''} ${
+                isStart || isEnd
+                  ? 'z-10 rounded-full bg-ocean-500 font-semibold text-white'
+                  : disabled
+                    ? `text-sand-300 ${full && !past ? 'line-through' : ''}`
+                    : 'text-ink-800 hover:bg-sand-200'
               } ${inRange ? 'bg-gold-500/15' : ''}`}
             >
               {date.getDate()}
@@ -216,10 +222,10 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-full bg-transparent text-left text-sm text-navy-50"
+        className="flex items-center gap-2 rounded-full bg-transparent text-left text-sm text-ink-900"
       >
         <span aria-hidden>📅</span>
-        <span className={checkInDate ? 'text-navy-50' : 'text-navy-400'}>{label}</span>
+        <span className={checkInDate ? 'text-ink-900' : 'text-ink-400'}>{label}</span>
       </button>
 
       <AnimatePresence>
@@ -230,7 +236,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
             exit={{ opacity: 0, y: dropDirection === 'up' ? 8 : -8, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             // Solid, not frosted: over a page of text a see-through calendar is hard to read.
-            className={`absolute z-50 w-[19rem] rounded-2xl border border-navy-700 bg-navy-950 p-4 shadow-2xl sm:w-[38rem] ${
+            className={`absolute z-50 w-[19rem] rounded-2xl border border-sand-300 bg-sand-50 p-4 shadow-2xl sm:w-[38rem] ${
               dropDirection === 'up' ? 'bottom-full mb-3' : 'top-full mt-3'
             } ${align === 'right' ? 'left-0 lg:left-auto lg:right-0' : 'left-0'}`}
           >
@@ -238,7 +244,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
               <button
                 type="button"
                 onClick={() => setViewMonth((m) => addMonths(m, -1))}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-gold-600"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-ink-500 hover:bg-sand-200 hover:text-gold-600"
                 aria-label="Previous month"
               >
                 ‹
@@ -247,7 +253,7 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
               <button
                 type="button"
                 onClick={() => setViewMonth((m) => addMonths(m, 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-navy-300 hover:bg-navy-800 hover:text-gold-600"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-ink-500 hover:bg-sand-200 hover:text-gold-600"
                 aria-label="Next month"
               >
                 ›
@@ -282,11 +288,11 @@ export default function DateRangePicker({ checkIn, checkOut, onChange, minDateIS
               </div>
             </div>
             <p className="sr-only">Use the arrow keys to move between days and Enter to choose.</p>
-            {fullSet.size > 0 && <p className="mt-3 text-xs text-navy-400"><span className="line-through">12</span> = fully booked for this room type</p>}
+            {fullSet.size > 0 && <p className="mt-3 text-xs text-ink-400"><span className="line-through">12</span> = fully booked for this room type</p>}
 
             {checkInDate && (
-              <div className="mt-3 flex items-center justify-between border-t border-navy-700 pt-3">
-                <p className="text-xs text-navy-400">
+              <div className="mt-3 flex items-center justify-between border-t border-sand-300 pt-3">
+                <p className="text-xs text-ink-400">
                   {checkOutDate ? `${formatShort(checkInDate)} → ${formatShort(checkOutDate)}` : 'Now pick your check-out date'}
                 </p>
                 <button

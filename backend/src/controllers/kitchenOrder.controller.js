@@ -2,6 +2,7 @@ const { query } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
 const { emitFoodUpdate } = require('../realtime');
+const { refundIfPaidOnline, syncCashOnDelivery, assertNotRefunded } = require('../services/foodOrders.service');
 
 const ACTIVE_STATUSES = ['new', 'preparing', 'ready'];
 const ALL_STATUSES = ['new', 'preparing', 'ready', 'served', 'cancelled'];
@@ -9,8 +10,8 @@ const ALL_STATUSES = ['new', 'preparing', 'ready', 'served', 'cancelled'];
 // GET /api/kitchen/orders — active orders, oldest first (FIFO for the kitchen)
 const listActiveOrders = asyncHandler(async (req, res) => {
   const { rows: orders } = await query(
-    `SELECT id, order_type, table_number, customer_name, customer_phone, notes,
-            total_amount, status, created_at, updated_at
+    `SELECT id, order_type, table_number, room_number, customer_name, customer_phone, notes,
+            total_amount, status, created_at, updated_at, payment_method, (paid_at IS NOT NULL) AS paid
      FROM food_orders
      WHERE status = ANY($1)
      ORDER BY created_at ASC`,
@@ -50,6 +51,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   if (!ALL_STATUSES.includes(status)) {
     throw new ApiError(400, `status must be one of: ${ALL_STATUSES.join(', ')}`);
   }
+  await assertNotRefunded(id, status);
 
   const { rows } = await query(
     `UPDATE food_orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING id, status`,
@@ -60,8 +62,14 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Order not found');
   }
 
+  // An order paid on the kiosk is refunded the way it was paid; `refund` tells the screen.
+  const actor = { type: 'kitchen', id: req.kitchen?.sub ?? null };
+  const refund = status === 'cancelled' ? await refundIfPaidOnline(rows[0].id, actor) : null;
+  // A room order paid in cash is paid at the door: delivering it records the cash (`cash` tells the screen).
+  const cash = await syncCashOnDelivery(rows[0].id, status, actor);
+
   emitFoodUpdate('order_status', { orderId: rows[0].id, status: rows[0].status });
-  res.json({ success: true, order: rows[0] });
+  res.json({ success: true, order: rows[0], refund, cash });
 });
 
 // GET /api/kitchen/requests — tables waiting for a person or for the bill, oldest first.

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api, { withAdminAuth } from '../../lib/api';
+import api from '../../lib/api';
 import { errMsg, inr } from '../../lib/bookingUi';
 import { useToast } from '@/components/ui/Toast';
 import RoomFormPanel from './rooms/RoomFormPanel';
@@ -22,7 +22,7 @@ export default function RoomsManager() {
 
   const loadRooms = useCallback(async () => {
     try {
-      const res = await api.get('/admin/rooms', withAdminAuth());
+      const res = await api.get('/admin/rooms');
       setRooms(res.data.rooms);
       setError('');
     } catch (err) {
@@ -45,7 +45,7 @@ export default function RoomsManager() {
 
   const restore = async (room) => {
     try {
-      await api.put(`/admin/rooms/${room.id}`, { isActive: true }, withAdminAuth());
+      await api.put(`/admin/rooms/${room.id}`, { isActive: true });
       toast(`${room.name} is back on the site.`);
       loadRooms();
     } catch (err) {
@@ -58,27 +58,27 @@ export default function RoomsManager() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-navy-400">{rooms.length} room type{rooms.length === 1 ? '' : 's'}</p>
-        <button onClick={openAdd} className="btn-gold px-4 py-2 text-sm">+ Add room</button>
+        <p className="text-sm text-ink-400">{rooms.length} room type{rooms.length === 1 ? '' : 's'}</p>
+        <button onClick={openAdd} className="btn-primary px-4 py-2 text-sm">+ Add room</button>
       </div>
 
       {error && <p role="alert" className="mb-4 text-sm text-red-700">{error}</p>}
 
       <div className="space-y-3">
         {rooms.map((room) => (
-          <div key={room.id} className={`flex flex-wrap items-center gap-4 rounded-xl border border-navy-700 bg-navy-900 p-4 ${room.is_active ? '' : 'opacity-70'}`}>
+          <div key={room.id} className={`flex flex-wrap items-center gap-4 rounded-xl border border-sand-300 bg-sand-100 p-4 ${room.is_active ? '' : 'opacity-70'}`}>
             {room.images?.[0] ? (
               <img src={room.images[0]} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
             ) : (
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-navy-600 text-[10px] text-navy-400">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-sand-400 text-[10px] text-ink-400">
                 No photo
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-navy-50">
+              <p className="truncate font-medium text-ink-900">
                 {room.name} {!room.is_active && <span className="ml-2 text-xs text-red-700">(not on the site)</span>}
               </p>
-              <p className="text-sm text-navy-400">
+              <p className="text-sm text-ink-400">
                 {inr(room.price_per_night)} / night · {room.units_count} room{room.units_count === 1 ? '' : 's'} · Up to {room.capacity} guests
               </p>
             </div>
@@ -98,7 +98,7 @@ export default function RoomsManager() {
             </div>
           </div>
         ))}
-        {rooms.length === 0 && <p className="text-navy-400">No rooms yet — add your first one.</p>}
+        {rooms.length === 0 && <p className="text-ink-400">No rooms yet — add your first one.</p>}
       </div>
 
       <RoomFormPanel open={panelOpen} onClose={() => setPanelOpen(false)} editingRoom={editingRoom} onSaved={loadRooms} />

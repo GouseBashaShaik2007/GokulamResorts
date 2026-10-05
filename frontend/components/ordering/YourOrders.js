@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { inr } from '@/lib/bookingUi';
-import { GUEST_ORDER_STATUS } from '@/lib/foodOrders';
+import { guestStatusLabel } from '@/lib/foodOrders';
 import { recentOrderTokens } from '@/lib/myOrders';
 
 const REFRESH_MS = 30000;
@@ -38,25 +38,32 @@ export default function YourOrders({ cartKey, confirmationHref, minOrders = 1, c
   }, [cartKey]);
 
   if (orders.length < minOrders) return null;
-  const total = orders.filter((o) => o.status !== 'cancelled').reduce((sum, o) => sum + Number(o.total_amount), 0);
+  const live = orders.filter((o) => o.status !== 'cancelled');
+  const total = live.reduce((sum, o) => sum + Number(o.total_amount), 0);
+  // What is still to pay, once the counter has started recording payments.
+  const toPay = live.filter((o) => !o.paid).reduce((sum, o) => sum + Number(o.total_amount), 0);
+  const somePaid = live.some((o) => o.paid);
 
   return (
-    <section aria-label="Your orders from this phone" className={`rounded-2xl border border-navy-700 bg-navy-900 px-5 py-4 text-left ${className}`}>
+    <section aria-label="Your orders from this phone" className={`rounded-2xl border border-sand-300 bg-sand-100 px-5 py-4 text-left ${className}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-navy-50">Ordered from this phone</h2>
-        <p className="text-sm text-navy-300">So far: <span className="price">{inr(total)}</span></p>
+        <h2 className="text-sm font-semibold text-ink-900">Ordered from this phone</h2>
+        <p className="text-sm text-ink-500">
+          So far: <span className="price">{inr(total)}</span>
+          {somePaid && (toPay > 0 ? <> · <span className="font-semibold text-ink-900">{inr(toPay)}</span> still to pay</> : ' · all paid')}
+        </p>
       </div>
       <ul className="mt-2 flex flex-wrap gap-2">
         {orders.map((o) => (
           <li key={o.token}>
             <Link
               href={confirmationHref(o.token)}
-              className="flex items-center gap-2 rounded-full border border-navy-700 bg-navy-950 px-3 py-1.5 text-sm text-navy-100 hover:border-ocean-400"
+              className="flex items-center gap-2 rounded-full border border-sand-300 bg-sand-50 px-3 py-1.5 text-sm text-ink-800 hover:border-ocean-400"
             >
               <span className="font-medium">#{o.id}</span>
-              <span className="text-navy-300">{o.items.reduce((n, i) => n + i.quantity, 0)} item{o.items.reduce((n, i) => n + i.quantity, 0) === 1 ? '' : 's'}</span>
+              <span className="text-ink-500">{o.items.reduce((n, i) => n + i.quantity, 0)} item{o.items.reduce((n, i) => n + i.quantity, 0) === 1 ? '' : 's'}</span>
               <span className={o.status === 'cancelled' ? 'text-red-700' : o.status === 'ready' ? 'font-semibold text-green-700' : 'text-ocean-600'}>
-                {GUEST_ORDER_STATUS[o.status] || o.status}
+                {guestStatusLabel(o)}
               </span>
             </Link>
           </li>

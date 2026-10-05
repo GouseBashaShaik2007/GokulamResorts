@@ -44,7 +44,7 @@ export default function ShareRoom({ name, path, className = '' }) {
     <button
       type="button"
       onClick={share}
-      className={`no-print inline-flex items-center gap-2 rounded-full border border-navy-700 px-4 py-2 text-sm font-medium text-navy-100 transition-colors hover:border-ocean-400 hover:text-ocean-600 ${className}`}
+      className={`no-print inline-flex items-center gap-2 rounded-full border border-sand-300 px-4 py-2 text-sm font-medium text-ink-800 transition-colors hover:border-ocean-400 hover:text-ocean-600 ${className}`}
     >
       <Icon name="share" className="h-4 w-4" />
       Share this room

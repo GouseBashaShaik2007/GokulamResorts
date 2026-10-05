@@ -1,13 +1,13 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import api, { TOKEN_KEYS, withKitchenAuth } from '@/lib/api';
-import { errMsg } from '@/lib/bookingUi';
+import api from '@/lib/api';
+import { errMsg, inr } from '@/lib/bookingUi';
 import useStaffSession from '../_lib/useStaffSession';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 import VegMark from '@/components/ui/VegMark';
-import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, ORDER_TYPE_LABEL, PREVIOUS_ORDER_STATUS, splitOrderNotes } from '@/lib/foodOrders';
+import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, ORDER_TYPE_LABEL, PREVIOUS_ORDER_STATUS, orderTitle, paidOnline, splitOrderNotes } from '@/lib/foodOrders';
 import useCleaningSocket from '@/lib/useCleaningSocket';
 
 // Kitchen wall display. Deliberately its own high-contrast dark look (not the
@@ -27,12 +27,18 @@ const RED_MIN = 20;
 const COOK_NOW_MAX = 8;
 
 const STATUS_ACTION_LABEL = { new: 'Start preparing', preparing: 'Mark ready', ready: 'Mark served' };
+// A room order leaves the kitchen for the room's door; if it was not paid
+// online, the cash is collected there, and pressing this records it.
+const actionLabel = (order) => {
+  if (order.status !== 'ready' || !order.room_number) return STATUS_ACTION_LABEL[order.status];
+  return order.paid ? 'Delivered' : `Delivered, ${inr(order.total_amount)} cash collected`;
+};
 // What a table asked for from its ordering page.
 const REQUEST_LABEL = { staff: 'is calling for staff', bill: 'wants the bill' };
 const COLUMN_ACCENT = { new: 'text-sky-300', preparing: 'text-violet-300', ready: 'text-emerald-300' };
 
-// "Table 7", or the name a counter order was placed under.
-const whoFor = (order) => (order.table_number ? `Table ${order.table_number}` : order.customer_name || `Order ${order.id}`);
+// "Table 7", the name a counter order was placed under, or "Order 47" for the kiosk.
+const whoFor = orderTitle;
 
 let audioCtx = null;
 // Must first run inside a user gesture (Start shift) for browsers to allow sound.
@@ -218,10 +224,11 @@ const OrderCard = memo(function OrderCard({ order, mins, onAdvance, onCancel }) 
       <header className="flex items-start justify-between gap-3">
         <div>
           <p className="text-2xl font-bold leading-tight text-white">
-            {order.table_number ? `Table ${order.table_number}` : order.customer_name || 'Walk-in'}
+            {whoFor(order)}
           </p>
           <p className="mt-1 text-sm text-neutral-400">
             #{order.id} · {ORDER_TYPE_LABEL[order.order_type] || order.order_type} order
+            {(paidOnline(order) || (order.room_number && order.paid)) && ' · paid'}
             {/* Up here, well away from the big button a thumb is aiming for. */}
             <button onClick={() => onCancel(order)} className="ml-3 rounded px-1 text-sm text-red-300 underline underline-offset-2">
               Cancel order
@@ -256,9 +263,22 @@ const OrderCard = memo(function OrderCard({ order, mins, onAdvance, onCancel }) 
         <p className="mt-3 rounded-lg bg-yellow-300 px-3 py-2 text-base font-semibold text-neutral-950">Note: {notes}</p>
       )}
 
+      {/* A room order that was not paid online is paid at the door: whoever carries it must know. */}
+      {order.room_number && !order.paid && (
+        <p className="mt-4 rounded-lg bg-amber-400 px-3 py-2 text-center text-lg font-bold text-neutral-950">Collect {inr(order.total_amount)} in cash at the door</p>
+      )}
+      {isReady && order.room_number && (
+        <p className="mt-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-center text-lg font-bold text-emerald-300">Take to Room {order.room_number}</p>
+      )}
+
+      {/* Nobody at the kiosk gave a name: the customer is listening for this number. */}
+      {isReady && order.order_type === 'kiosk' && (
+        <p className="mt-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-center text-lg font-bold text-emerald-300">Call out number {order.id}</p>
+      )}
+
       {NEXT_ORDER_STATUS[order.status] && (
         <button onClick={() => onAdvance(order)} className="mt-5 w-full rounded-xl bg-white py-4 text-lg font-bold text-neutral-950 active:scale-[0.98]">
-          {STATUS_ACTION_LABEL[order.status]}
+          {actionLabel(order)}
         </button>
       )}
     </article>
@@ -292,7 +312,7 @@ export default function KitchenPage() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const res = await api.get('/kitchen/orders', withKitchenAuth());
+      const res = await api.get('/kitchen/orders');
       const fetched = res.data.orders;
       const maxId = fetched.reduce((max, o) => Math.max(max, o.id), 0);
       if (lastMaxOrderId.current > 0 && maxId > lastMaxOrderId.current) {
@@ -316,7 +336,7 @@ export default function KitchenPage() {
   // orders matter more, and loadOrders reports a lost connection.
   const loadRequests = useCallback(async () => {
     try {
-      const res = await api.get('/kitchen/requests', withKitchenAuth());
+      const res = await api.get('/kitchen/requests');
       const fetched = res.data.requests;
       const maxId = fetched.reduce((max, r) => Math.max(max, r.id), 0);
       if (maxId > lastMaxRequestId.current) {
@@ -338,7 +358,7 @@ export default function KitchenPage() {
 
   // Live: the API says "something changed" the moment an order is placed,
   // cancelled or moved on, or a table calls — and the board reloads.
-  const live = useCleaningSocket(TOKEN_KEYS.kitchen, () => loggedIn && load(), 'food:update');
+  const live = useCleaningSocket('kitchen', () => loggedIn && load(), 'food:update');
 
   useEffect(() => {
     if (!loggedIn) return undefined;
@@ -350,7 +370,7 @@ export default function KitchenPage() {
   const completeRequest = async (request) => {
     setRequests((list) => list.filter((r) => r.id !== request.id));
     try {
-      await api.patch(`/kitchen/requests/${request.id}/done`, {}, withKitchenAuth());
+      await api.patch(`/kitchen/requests/${request.id}/done`, {});
     } catch (err) {
       // 404 = someone else already marked it done, which is fine.
       if (err?.response?.status !== 404) setError(errMsg(err, 'Could not update that request.'));
@@ -366,12 +386,24 @@ export default function KitchenPage() {
 
   const updateStatus = async (order, status, { undoable = true } = {}) => {
     try {
-      await api.patch(`/kitchen/orders/${order.id}/status`, { status }, withKitchenAuth());
+      const res = await api.patch(`/kitchen/orders/${order.id}/status`, { status });
       loadOrders();
+      // A cancelled kiosk order was paid on the screen: say where the money went.
+      const refund = res.data?.refund;
+      if (refund) {
+        toast(
+          refund.status === 'failed'
+            ? `${whoFor(order)} is cancelled, but the ${inr(refund.amount)} refund could not be started. Tell the manager: it has to be refunded by hand.`
+            : `${whoFor(order)} is cancelled. ${inr(refund.amount)} is being refunded to the customer.`,
+          { tone: refund.status === 'failed' ? 'error' : 'info', duration: 12000 }
+        );
+      }
       // One tap moves a ticket on (and "served" takes it off the board), so a
       // slip of the thumb can be put back for a few seconds.
       if (undoable && PREVIOUS_ORDER_STATUS[status] === order.status) {
-        toast(`${whoFor(order)}: ${ORDER_STATUS_LABEL[status]}`, {
+        // Delivering a room order that was to be paid in cash has just recorded that cash.
+        const cash = res.data?.cash;
+        toast(cash ? `${whoFor(order)}: delivered, ${inr(cash.collected)} cash recorded` : `${whoFor(order)}: ${ORDER_STATUS_LABEL[status]}`, {
           tone: 'info',
           duration: 8000,
           action: { label: 'Undo', onClick: () => updateStatus(order, order.status, { undoable: false }) },
@@ -390,7 +422,9 @@ export default function KitchenPage() {
   const cancelOrder = useCallback(async (o) => {
     const ok = await latest.current.ask({
       title: `Cancel order #${o.id}?`,
-      body: 'It leaves the board and the guest sees it as cancelled.',
+      body: paidOnline(o)
+        ? `It leaves the board. It was paid online, so ${inr(o.total_amount)} is refunded to the customer automatically.`
+        : 'It leaves the board and the guest sees it as cancelled.',
       confirmLabel: 'Cancel order',
       cancelLabel: 'Keep order',
       danger: true,

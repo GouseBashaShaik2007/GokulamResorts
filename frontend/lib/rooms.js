@@ -44,8 +44,38 @@ export function groupAmenities(room) {
   return AMENITY_GROUP_ORDER.map((title) => ({ title, items: groups[title] })).filter((g) => g.items.length > 0);
 }
 
-/** Whether the room's amenities say breakfast comes with the price. */
-export const includesBreakfast = (room) => (room?.amenities || []).some((name) => /breakfast/i.test(name));
+/**
+ * Whether breakfast comes with the price: what the manager recorded for the
+ * room (Admin → Rooms), or, until that is set, whether its amenities mention it.
+ */
+export const includesBreakfast = (room) =>
+  typeof room?.breakfast_included === 'boolean' ? room.breakfast_included : (room?.amenities || []).some((name) => /breakfast/i.test(name));
+
+/**
+ * The room details a manager has recorded, as sentences for the room page:
+ * extra bed, smoking, wheelchair access. A detail not yet recorded is left out.
+ * `money(amount)` formats a rupee amount.
+ */
+export function roomPolicies(room, money) {
+  const lines = [];
+  if (room?.extra_bed_available === true) {
+    // The charge: an amount, 0 for "no charge", or not recorded at all.
+    const charge = room.extra_bed_charge === null || room.extra_bed_charge === undefined ? null : Number(room.extra_bed_charge);
+    const offer =
+      charge === null
+        ? 'An extra bed can be added. Ask about the charge'
+        : charge > 0
+          ? `An extra bed can be added for ${money(charge)} a night. Ask`
+          : 'An extra bed can be added at no charge. Ask';
+    lines.push(`${offer} when you book, or at the front desk.`);
+  }
+  if (room?.extra_bed_available === false) lines.push('Extra beds are not available in this room.');
+  if (room?.smoking_allowed === false) lines.push('This is a non-smoking room.');
+  if (room?.smoking_allowed === true) lines.push('Smoking is allowed in this room.');
+  if (room?.wheelchair_accessible === true) lines.push('This room is wheelchair accessible.');
+  if (room?.wheelchair_accessible === false) lines.push('This room is not wheelchair accessible.');
+  return lines;
+}
 
 // "Sea View", "Corner Sea View", "Panoramic Sea View" -> "Sea"; "Garden View" -> "Garden".
 export const viewGroup = (label) => {

@@ -21,7 +21,7 @@ export default function OrderingLayout({ children }) {
           </a>
           <OrderingHeader />
           <main id="content" className="flex-1">{children}</main>
-          <footer className="border-t border-navy-700 px-4 py-5 text-center text-xs text-navy-400">
+          <footer className="border-t border-sand-300 px-4 py-5 text-center text-xs text-ink-400">
             Gokulam Resorts, Chirala Beach · Need a hand? Any member of our staff can take your order.
           </footer>
         </div>

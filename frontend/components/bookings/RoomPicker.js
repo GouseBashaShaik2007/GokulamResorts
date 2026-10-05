@@ -9,7 +9,7 @@ import { inr } from '../../lib/bookingUi';
 export default function RoomPicker({ types, selectedId, onSelect, showType = true, renderTypeHeader }) {
   if (!types) return null;
   if (types.length === 0) {
-    return <p className="rounded-lg bg-navy-800 p-4 text-sm text-navy-300">No rooms are free for these dates. Try different dates.</p>;
+    return <p className="rounded-lg bg-sand-200 p-4 text-sm text-ink-500">No rooms are free for these dates. Try different dates.</p>;
   }
 
   return (
@@ -18,9 +18,9 @@ export default function RoomPicker({ types, selectedId, onSelect, showType = tru
         <div key={roomType.id}>
           {renderTypeHeader?.(roomType)}
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-            {showType && <p className="font-medium text-navy-50">{roomType.name}</p>}
-            <p className="text-sm text-navy-300">
-              {quote.promo > 0 && <span className="mr-2 text-navy-500 line-through">{inr(quote.base)}</span>}
+            {showType && <p className="font-medium text-ink-900">{roomType.name}</p>}
+            <p className="text-sm text-ink-500">
+              {quote.promo > 0 && <span className="mr-2 text-ink-300 line-through">{inr(quote.base)}</span>}
               <span className="price">{inr(quote.total)}</span> for {quote.nights} night{quote.nights > 1 ? 's' : ''}
               {quote.promo > 0 && <span className="ml-2 rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-700">{quote.promoDetails[0].name}</span>}
             </p>
@@ -34,12 +34,12 @@ export default function RoomPicker({ types, selectedId, onSelect, showType = tru
                   key={u.id}
                   onClick={() => onSelect(u, roomType, quote)}
                   className={`rounded-xl border px-3 py-2.5 text-left transition ${
-                    selected ? 'border-gold-400 bg-gold-500/10 ring-1 ring-gold-400' : 'border-navy-700 bg-navy-800 hover:border-navy-500'
+                    selected ? 'border-gold-400 bg-gold-500/10 ring-1 ring-gold-400' : 'border-sand-300 bg-sand-200 hover:border-ink-300'
                   }`}
                   aria-pressed={selected}
                 >
-                  <span className="block font-serif text-lg font-bold text-navy-50">{u.unitNumber}</span>
-                  <span className="block text-xs text-navy-300">
+                  <span className="block font-serif text-lg font-bold text-ink-900">{u.unitNumber}</span>
+                  <span className="block text-xs text-ink-500">
                     {u.view || roomType.name}
                     {u.floor ? ` · Floor ${u.floor}` : ''}
                   </span>

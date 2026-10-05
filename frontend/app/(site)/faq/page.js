@@ -19,7 +19,7 @@ export default async function FaqPage() {
 
       <FaqList sections={faqs} />
 
-      <p className="mt-12 text-navy-300">
+      <p className="mt-12 text-ink-500">
         Something else? <Link href="/contact" className="text-ocean-600 underline">Contact us</Link>.
       </p>
 

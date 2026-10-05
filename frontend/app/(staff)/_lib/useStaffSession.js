@@ -2,28 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api, { TOKEN_KEYS } from '@/lib/api';
+import api from '@/lib/api';
 import { clearSignedIn } from './session';
 
-// Where each staff tool keeps the signed-in person's name and role (the admin
-// has none: the manager's email is read from the token itself).
-export const PROFILE_KEYS = { kitchen: 'gokulam_kitchen_staff', staff: 'gokulam_staff_profile' };
+// Who is signed in to each staff tool, as the page knows it: a name, a role,
+// an email — never the sign-in itself, which is a cookie scripts cannot read.
+export const PROFILE_KEYS = { admin: 'gokulam_admin_profile', kitchen: 'gokulam_kitchen_staff', staff: 'gokulam_staff_profile' };
 const LOGIN_PATHS = { admin: '/admin/login', kitchen: '/kitchen/login', staff: '/staff/login' };
-
-function readProfile(section, token) {
-  if (section === 'admin') {
-    // Cosmetic only — a malformed token still fails on the first API call.
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return { email: payload.email || '' };
-  }
-  return JSON.parse(window.localStorage.getItem(PROFILE_KEYS[section]) || 'null');
-}
+// Where sign-in tokens used to be kept, before they moved into cookies.
+const OLD_TOKEN_KEYS = { admin: 'gokulam_admin_token', kitchen: 'gokulam_kitchen_token', staff: 'gokulam_staff_token' };
 
 /**
- * The client-side half of a staff page's sign-in check. middleware.js has
- * already sent anyone without the session cookie to the login page; this
- * covers what it can't see — a token that is missing or has expired, an
- * account switched off mid-shift, or the wrong role for this screen.
+ * The page's half of a staff screen's sign-in check. middleware.js has already
+ * sent anyone without the "signed in" marker to the login page; this covers
+ * what it can't see — a sign-in that has expired, an account switched off
+ * mid-shift, or the wrong role for this screen.
  *
  *   const { ready, profile, signOut } = useStaffSession('staff', { redirectFor: (p) => p?.role === 'FrontDesk' && '/frontdesk' });
  *
@@ -37,27 +30,24 @@ export default function useStaffSession(section, { redirectFor } = {}) {
   const [ready, setReady] = useState(false);
 
   const signOut = useCallback(() => {
-    window.localStorage.removeItem(TOKEN_KEYS[section]);
-    if (PROFILE_KEYS[section]) window.localStorage.removeItem(PROFILE_KEYS[section]);
+    // Ask the API to drop its cookie; whatever it answers, this browser forgets the person.
+    api.post(`/${section}/logout`).catch(() => {});
+    window.localStorage.removeItem(PROFILE_KEYS[section]);
+    window.localStorage.removeItem(OLD_TOKEN_KEYS[section]);
     clearSignedIn(section);
     router.replace(LOGIN_PATHS[section]);
   }, [router, section]);
 
   useEffect(() => {
-    const token = window.localStorage.getItem(TOKEN_KEYS[section]);
-    if (!token) {
-      signOut();
-      return undefined;
-    }
     let found = null;
     try {
-      found = readProfile(section, token);
+      found = JSON.parse(window.localStorage.getItem(PROFILE_KEYS[section]) || 'null');
     } catch {
-      // unreadable profile — cosmetic for admin and kitchen, a sign-out for staff (the role is needed)
-      if (section === 'staff') {
-        signOut();
-        return undefined;
-      }
+      // unreadable — treated as not signed in
+    }
+    if (!found) {
+      signOut();
+      return undefined;
     }
     const elsewhere = redirectFor?.(found);
     if (elsewhere) {

@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api, { TOKEN_KEYS, authFor } from '../../lib/api';
+import api, { deskAs } from '../../lib/api';
 import useCleaningSocket, { LiveBadge, StaleNotice } from '../../lib/useCleaningSocket';
 import { StatusBadge, inr, fmtDate, fmtDateTime, errMsg } from '../../lib/bookingUi';
 import BookingDetail from './BookingDetail';
 import BookingSearch from './BookingSearch';
 import CounterBookingForm from './CounterBookingForm';
+import FoodPayments from './FoodPayments';
 import RoomBoard from './RoomBoard';
 
 // What still stands between an arriving guest and a check-in, as small flags,
@@ -26,13 +27,13 @@ function BookingRow({ b, onOpen, hint, showBlockers }) {
   return (
     <button
       onClick={() => onOpen(b.id)}
-      className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-navy-700 bg-navy-800 px-4 py-3 text-left transition hover:border-navy-500"
+      className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-sand-300 bg-sand-200 px-4 py-3 text-left transition hover:border-ink-300"
     >
       <span className="flex items-center gap-3">
-        <span className="w-12 font-serif text-xl font-bold text-navy-50">{b.unit_number}</span>
+        <span className="w-12 font-serif text-xl font-bold text-ink-900">{b.unit_number}</span>
         <span>
-          <span className="block font-medium text-navy-50">{b.guest_name}</span>
-          <span className="block text-xs text-navy-400">
+          <span className="block font-medium text-ink-900">{b.guest_name}</span>
+          <span className="block text-xs text-ink-400">
             #{b.id} · {fmtDate(b.check_in)} → {fmtDate(b.check_out)} · {b.adults + b.children} guest{b.adults + b.children > 1 ? 's' : ''}
           </span>
         </span>
@@ -51,13 +52,13 @@ function BookingRow({ b, onOpen, hint, showBlockers }) {
 function Group({ title, note, items, empty, onOpen, hint, accent, showBlockers }) {
   return (
     <section>
-      <h3 className={`text-sm font-semibold uppercase tracking-wider ${note ? '' : 'mb-2'} ${accent || 'text-navy-300'}`}>
-        {title} <span className="text-navy-400">({items.length})</span>
+      <h3 className={`text-sm font-semibold uppercase tracking-wider ${note ? '' : 'mb-2'} ${accent || 'text-ink-500'}`}>
+        {title} <span className="text-ink-400">({items.length})</span>
       </h3>
-      {note && <p className="mb-2 mt-0.5 text-sm text-navy-300">{note}</p>}
+      {note && <p className="mb-2 mt-0.5 text-sm text-ink-500">{note}</p>}
       <div className="space-y-2">
         {items.map((b) => <BookingRow key={b.id} b={b} onOpen={onOpen} hint={hint?.(b)} showBlockers={showBlockers} />)}
-        {items.length === 0 && <p className="text-sm text-navy-400">{empty}</p>}
+        {items.length === 0 && <p className="text-sm text-ink-400">{empty}</p>}
       </div>
     </section>
   );
@@ -65,15 +66,18 @@ function Group({ title, note, items, empty, onOpen, hint, accent, showBlockers }
 
 const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** mode: 'desk' (FrontDesk staff token) or 'admin' (manager token). */
+/** mode: 'desk' (signed in as front desk staff) or 'admin' (signed in as the manager). */
 export default function DeskBoard({ mode }) {
-  const auth = authFor(mode);
-  const tokenKey = mode === 'admin' ? TOKEN_KEYS.admin : TOKEN_KEYS.staff;
+  const auth = deskAs(mode);
+  const section = mode === 'admin' ? 'admin' : 'staff'; // whose sign-in the live connection uses
   const [view, setView] = useState('today');
   const [data, setData] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
+  // Food orders, for taking payment: null until loaded.
+  const [foodOrders, setFoodOrders] = useState(null);
+  const [foodError, setFoodError] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -85,21 +89,39 @@ export default function DeskBoard({ mode }) {
     }
   }, [auth]);
 
+  const loadFood = useCallback(async () => {
+    try {
+      const res = await api.get('/desk/food-orders', auth());
+      setFoodOrders(res.data.orders);
+      setFoodError('');
+    } catch (err) {
+      setFoodError(errMsg(err, 'Could not load the food orders'));
+    }
+  }, [auth]);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadFood();
+  }, [load, loadFood]);
+  // New orders and payments arrive live; a slow check covers a dropped connection.
+  const foodLive = useCleaningSocket(section, loadFood, 'food:update');
+  useEffect(() => {
+    const id = setInterval(() => document.visibilityState === 'visible' && loadFood(), foodLive ? 60000 : 15000);
+    return () => clearInterval(id);
+  }, [loadFood, foodLive]);
+  const unpaidFood = foodOrders ? foodOrders.filter((o) => !o.paid_at).length : 0;
 
   const refresh = useCallback(() => {
     load();
     setRefreshKey((k) => k + 1);
   }, [load]);
-  const live = useCleaningSocket(tokenKey, refresh, 'booking:update');
+  const live = useCleaningSocket(section, refresh, 'booking:update');
 
   const tab = (key, label) => (
     <button
       onClick={() => setView(key)}
       aria-pressed={view === key}
-      className={`rounded-full px-4 py-1.5 text-sm ${view === key ? 'bg-ocean-500 font-medium text-white' : 'bg-navy-800 text-navy-200'}`}
+      className={`rounded-full px-4 py-1.5 text-sm ${view === key ? 'bg-ocean-500 font-medium text-white' : 'bg-sand-200 text-ink-700'}`}
     >
       {label}
     </button>
@@ -114,12 +136,13 @@ export default function DeskBoard({ mode }) {
         <div className="flex flex-wrap gap-2">
           {tab('today', 'Today')}
           {tab('rooms', 'Rooms')}
+          {tab('food', unpaidFood > 0 ? `Food orders (${unpaidFood} to pay)` : 'Food orders')}
           {tab('search', 'Find booking')}
         </div>
         <div className="flex items-center gap-4">
           <LiveBadge live={live} />
           {/* An action, not a view — so it is a button, set apart from the tabs. */}
-          <button type="button" onClick={() => setView('new')} className="btn-gold px-4 py-2 text-sm">+ Walk-in booking</button>
+          <button type="button" onClick={() => setView('new')} className="btn-primary px-4 py-2 text-sm">+ Walk-in booking</button>
         </div>
       </div>
       <StaleNotice live={live} onRefresh={refresh} />
@@ -128,9 +151,9 @@ export default function DeskBoard({ mode }) {
       {view === 'today' && data && (
         <div className="space-y-8">
           {/* The day in one line: what a desk needs before anything else. */}
-          <p className="font-serif text-2xl font-semibold text-navy-50">
+          <p className="font-serif text-2xl font-semibold text-ink-900">
             {new Date(`${today}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-            <span className="mt-1 block font-sans text-sm font-normal text-navy-300">
+            <span className="mt-1 block font-sans text-sm font-normal text-ink-500">
               {count(data.arrivals.length, 'arrival')} · {count(data.departures.length, 'departure')} · {data.inHouse.length} in house
               {data.tomorrowArrivals ? ` · ${data.tomorrowArrivals.length} arriving tomorrow` : ''}
             </span>
@@ -147,7 +170,7 @@ export default function DeskBoard({ mode }) {
               accent="text-gold-600"
               items={data.awaitingApproval}
               onOpen={setOpenId}
-              hint={(b) => <span className="text-xs text-navy-400">auto-cancels {fmtDateTime(b.hold_expires_at)}</span>}
+              hint={(b) => <span className="text-xs text-ink-400">auto-cancels {fmtDateTime(b.hold_expires_at)}</span>}
             />
           )}
           {data.pendingRefunds.length > 0 && (
@@ -156,7 +179,7 @@ export default function DeskBoard({ mode }) {
               <div className="space-y-2">
                 {data.pendingRefunds.map((r) => (
                   <button key={r.id} onClick={() => setOpenId(r.booking_id)} className="flex w-full justify-between rounded-xl border border-gold-500/30 bg-gold-500/5 px-4 py-3 text-left text-sm">
-                    <span className="text-navy-100">#{r.booking_id} · {r.guest_name} · Room {r.unit_number}</span>
+                    <span className="text-ink-800">#{r.booking_id} · {r.guest_name} · Room {r.unit_number}</span>
                     <span className="font-semibold text-gold-600">{inr(r.amount)} · {r.method.toUpperCase()}</span>
                   </button>
                 ))}
@@ -207,7 +230,9 @@ export default function DeskBoard({ mode }) {
         />
       )}
 
-      {view === 'rooms' && <RoomBoard auth={auth} onOpen={setOpenId} refreshKey={refreshKey} />}
+      {view === 'rooms' && <RoomBoard auth={auth} onOpen={setOpenId} onChanged={load} refreshKey={refreshKey} />}
+
+      {view === 'food' && <FoodPayments orders={foodOrders} error={foodError} auth={auth} mode={mode} onChanged={loadFood} />}
 
       {view === 'search' && <BookingSearch auth={auth} onOpen={setOpenId} refreshKey={refreshKey} />}
 

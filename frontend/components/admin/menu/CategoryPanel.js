@@ -33,7 +33,7 @@ export default function CategoryPanel({ categories, onSave, onHide, onRestore })
 
   return (
     <div className="card p-6">
-      <h2 className="font-serif text-xl font-bold text-navy-50">{editing ? `Edit category: ${editing.name}` : 'Categories'}</h2>
+      <h2 className="font-serif text-xl font-bold text-ink-900">{editing ? `Edit category: ${editing.name}` : 'Categories'}</h2>
       <form onSubmit={submit} className="mt-4 flex flex-wrap gap-3">
         <input
           aria-label="Category name"
@@ -48,14 +48,14 @@ export default function CategoryPanel({ categories, onSave, onHide, onRestore })
           value={form.sortOrder}
           onChange={(e) => setForm((p) => ({ ...p, sortOrder: e.target.value }))}
         />
-        <button type="submit" className="btn-gold px-4">{editing ? 'Save' : 'Add'}</button>
+        <button type="submit" className="btn-primary px-4">{editing ? 'Save' : 'Add'}</button>
         {editing && <button type="button" onClick={reset} className="btn-outline px-4">Cancel</button>}
       </form>
 
       <div className="mt-4 space-y-2">
         {categories.map((c) => (
-          <div key={c.id} className="flex items-center justify-between rounded-lg border border-navy-700 bg-navy-800 p-3">
-            <span className="text-navy-50">
+          <div key={c.id} className="flex items-center justify-between rounded-lg border border-sand-300 bg-sand-200 p-3">
+            <span className="text-ink-900">
               {c.name} {!c.is_active && <span className="ml-2 text-xs text-red-700">(hidden)</span>}
             </span>
             <div className="flex gap-2">
@@ -80,7 +80,7 @@ export default function CategoryPanel({ categories, onSave, onHide, onRestore })
             </div>
           </div>
         ))}
-        {categories.length === 0 && <p className="text-navy-400">No categories yet.</p>}
+        {categories.length === 0 && <p className="text-ink-400">No categories yet.</p>}
       </div>
     </div>
   );

@@ -1,17 +1,16 @@
 const jwt = require('jsonwebtoken');
 const { query } = require('../db/pool');
 const { ApiError } = require('./errorHandler');
+const { tokenFor } = require('../utils/session');
 
-// Protects /api/staff/* routes (except /staff/login).
-// Expects: Authorization: Bearer <jwt>
+// Protects /api/staff/* routes (except the sign-in ones).
+// The sign-in travels in the gk_staff cookie (see utils/session.js).
 // Re-checks the staff row on every request so deactivating someone in the
 // admin panel cuts off their access immediately, not when the token expires.
 async function staffAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const [scheme, token] = header.split(' ');
-
-  if (scheme !== 'Bearer' || !token) {
-    return next(new ApiError(401, 'Missing or malformed Authorization header'));
+  const token = tokenFor(req, 'staff');
+  if (!token) {
+    return next(new ApiError(401, 'Please sign in'));
   }
 
   let payload;

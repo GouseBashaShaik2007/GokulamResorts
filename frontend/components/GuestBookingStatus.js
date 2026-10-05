@@ -60,7 +60,7 @@ export default function GuestBookingStatus({ initialRef = '', initialPhone = '',
     return (
       <div className="space-y-4">
         <BookingSummary b={booking} justBooked={justBooked} />
-        <button type="button" onClick={() => setBooking(null)} className="no-print text-sm text-navy-400 underline">Look up another booking</button>
+        <button type="button" onClick={() => setBooking(null)} className="no-print text-sm text-ink-400 underline">Look up another booking</button>
       </div>
     );
   }

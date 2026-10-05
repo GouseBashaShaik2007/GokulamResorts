@@ -54,10 +54,10 @@ export default function FloatingBookingBar() {
         onClick={handleCheck}
         className="glass flex w-full max-w-sm items-center justify-between gap-3 rounded-full px-5 py-3 text-left sm:hidden"
       >
-        <span className="text-sm text-navy-100">
+        <span className="text-sm text-ink-800">
           {datesValid ? formatRange(stay.checkIn, stay.checkOut) : 'Select dates'} · {guests} guest{guests > 1 ? 's' : ''}
         </span>
-        <span className="btn-gold px-4 py-1.5 text-xs">Check</span>
+        <span className="btn-primary px-4 py-1.5 text-xs">Check</span>
       </button>
 
       {/* Desktop / tablet: inline fields with the connected date-range picker */}
@@ -70,26 +70,26 @@ export default function FloatingBookingBar() {
             minDateISO={todayIST()}
             dropDirection="up"
           />
-          <div className="hidden items-center gap-2 border-l border-navy-700 pl-3 md:flex">
-            <label className="flex flex-col text-xs text-navy-400">
+          <div className="hidden items-center gap-2 border-l border-sand-300 pl-3 md:flex">
+            <label className="flex flex-col text-xs text-ink-400">
               Adults
               <input
                 type="number" min={1} max={10} value={stay.adults} onChange={setField('adults')}
                 onBlur={() => stay.adults === '' && setStay({ adults })}
-                className="w-12 rounded bg-transparent text-sm text-navy-50 focus:outline-none focus-visible:ring-1 focus-visible:ring-ocean-400"
+                className="w-12 rounded bg-transparent text-sm text-ink-900 focus:outline-none focus-visible:ring-1 focus-visible:ring-ocean-400"
               />
             </label>
-            <label className="flex flex-col text-xs text-navy-400">
+            <label className="flex flex-col text-xs text-ink-400">
               Children
               <input
                 type="number" min={0} max={6} value={stay.children} onChange={setField('children')}
                 onBlur={() => stay.children === '' && setStay({ children: kids })}
-                className="w-12 rounded bg-transparent text-sm text-navy-50 focus:outline-none focus-visible:ring-1 focus-visible:ring-ocean-400"
+                className="w-12 rounded bg-transparent text-sm text-ink-900 focus:outline-none focus-visible:ring-1 focus-visible:ring-ocean-400"
               />
             </label>
           </div>
         </div>
-        <button type="button" onClick={handleCheck} className="btn-gold whitespace-nowrap px-5 py-2 text-sm">
+        <button type="button" onClick={handleCheck} className="btn-primary whitespace-nowrap px-5 py-2 text-sm">
           Check Availability
         </button>
       </div>

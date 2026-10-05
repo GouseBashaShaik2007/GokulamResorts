@@ -27,8 +27,8 @@ export default function RoomStep() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="eyebrow">Step 2 of 4</p>
-          <h2 className="mt-1 font-serif text-2xl font-semibold text-navy-50">Choose Your Room</h2>
-          <p className="mt-1 text-sm text-navy-400">
+          <h2 className="mt-1 font-serif text-2xl font-semibold text-ink-900">Choose Your Room</h2>
+          <p className="mt-1 text-sm text-ink-400">
             {formatRange(stay.checkIn, stay.checkOut)} · {guests} guest{guests > 1 ? 's' : ''}
           </p>
         </div>
@@ -43,7 +43,7 @@ export default function RoomStep() {
         </button>
       )}
 
-      {loading && <p className="text-sm text-navy-400">Checking availability...</p>}
+      {loading && <p className="text-sm text-ink-400">Checking availability...</p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
 
       {!loading && !error && (

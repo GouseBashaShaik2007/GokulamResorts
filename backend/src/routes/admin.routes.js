@@ -7,6 +7,7 @@ const adminAuth = require('../middleware/adminAuth');
 const { ApiError } = require('../middleware/errorHandler');
 const {
   login,
+  logout,
   addRoom,
   updateRoom,
   deleteRoom,
@@ -30,7 +31,8 @@ const {
 const hk = require('../controllers/housekeeping.controller');
 const mgr = require('../controllers/adminBooking.controller');
 const kitchenStaff = require('../controllers/kitchenStaff.controller');
-const { PRIORITIES, STAFF_ROLES } = require('../services/cleaning.service');
+const issues = require('../controllers/roomIssue.controller');
+const { PRIORITIES, STAFF_ROLES, CLEANING_TYPES } = require('../services/cleaning.service');
 const { isObviousPin } = require('../utils/pins');
 const { ALLOWED_TYPES: ALLOWED_IMAGE_TYPES } = require('../services/publicImage.service');
 
@@ -61,9 +63,20 @@ router.post(
   validate,
   login
 );
+router.post('/logout', logout);
 
-// Everything below requires a valid admin JWT.
+// Everything below requires a manager's sign-in.
 router.use(adminAuth);
+
+// Room details guests ask about: true, false, or null for "not stated".
+const yesNoOrUnset = (field) => body(field).optional({ values: 'null' }).isBoolean().withMessage(`${field} must be true, false or null`).toBoolean();
+const roomDetailFields = [
+  yesNoOrUnset('breakfastIncluded'),
+  yesNoOrUnset('extraBedAvailable'),
+  body('extraBedCharge').optional({ values: 'null' }).isFloat({ min: 0, max: 100000 }).withMessage('The extra bed charge must be a number, 0 or more').toFloat(),
+  yesNoOrUnset('smokingAllowed'),
+  yesNoOrUnset('wheelchairAccessible'),
+];
 
 router.post(
   '/add-room',
@@ -77,6 +90,7 @@ router.post(
     body('bedType').optional({ nullable: true }).isString(),
     body('amenities').optional().isArray(),
     body('images').optional().isArray(),
+    ...roomDetailFields,
   ],
   validate,
   addRoom
@@ -84,7 +98,7 @@ router.post(
 
 router.get('/rooms', listAllRooms);
 
-router.put('/rooms/:id', [param('id').isInt({ min: 1 })], validate, updateRoom);
+router.put('/rooms/:id', [param('id').isInt({ min: 1 }), ...roomDetailFields], validate, updateRoom);
 
 router.delete('/rooms/:id', [param('id').isInt({ min: 1 })], validate, deleteRoom);
 
@@ -233,6 +247,11 @@ router.post(
 
 // ----- Housekeeping -----
 
+// PINs anyone would try first (0000, 1234) are refused, for staff as for cooks.
+const EASY_PIN = 'That PIN is too easy to guess. Avoid repeats (0000) and runs (1234).';
+const staffPinField = (field) =>
+  field.matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits').custom((pin) => !isObviousPin(pin)).withMessage(EASY_PIN);
+
 router.get('/staff', hk.listStaff);
 
 router.post(
@@ -241,7 +260,8 @@ router.post(
     body('name').trim().notEmpty(),
     body('phone').trim().isLength({ min: 7, max: 20 }).withMessage('A valid phone number is required'),
     body('role').isIn(STAFF_ROLES).withMessage(`role must be one of: ${STAFF_ROLES.join(', ')}`),
-    body('password').isString().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('password').optional({ checkFalsy: true }).isString().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    staffPinField(body('pin').optional({ checkFalsy: true })),
   ],
   validate,
   hk.addStaff
@@ -254,9 +274,21 @@ router.put(
     body('name').optional().trim().notEmpty(),
     body('isActive').optional().isBoolean(),
     body('password').optional({ checkFalsy: true }).isString().isLength({ min: 6 }),
+    // A PIN to set, or null to remove it (the person then signs in with their password).
+    staffPinField(body('pin').optional({ values: 'null' })),
   ],
   validate,
   hk.updateStaff
+);
+
+// Problems housekeeping reported from a room.
+router.get('/room-issues', [query('status').optional().isIn(['open', 'resolved', 'all'])], validate, issues.list);
+router.get('/room-issues/:id/photo-url', [param('id').isInt({ min: 1 })], validate, issues.photoUrl);
+router.post(
+  '/room-issues/:id/resolve',
+  [param('id').isInt({ min: 1 }), body('note').optional({ checkFalsy: true }).isString().trim().isLength({ max: 500 })],
+  validate,
+  issues.resolve
 );
 
 router.get('/room-units', hk.listRoomUnits);
@@ -319,6 +351,25 @@ router.patch(
   [param('id').isInt({ min: 1 }), body('priority').isIn(PRIORITIES)],
   validate,
   hk.updateJobPriority
+);
+
+// The manager approving or sending back a room in the inspector's place.
+router.post(
+  '/cleaning/jobs/:id/approve',
+  [param('id').isInt({ min: 1 }), body('force').optional().isBoolean()],
+  validate,
+  hk.approveJob
+);
+router.post(
+  '/cleaning/jobs/:id/reject',
+  [
+    param('id').isInt({ min: 1 }),
+    body('failedTasks').isArray({ min: 1, max: 2 }).withMessage('Pick at least one failed task'),
+    body('failedTasks.*').isIn(CLEANING_TYPES),
+    body('failureReason').isString().trim().isLength({ min: 3, max: 1000 }).withMessage('A failure reason is required'),
+  ],
+  validate,
+  hk.rejectJob
 );
 
 router.post('/cleaning/run-nightly', hk.runNightly);

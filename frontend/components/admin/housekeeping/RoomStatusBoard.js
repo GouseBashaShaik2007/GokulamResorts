@@ -35,8 +35,8 @@ export default function RoomStatusBoard({ units, filter, onFilterStatus }) {
   return (
     <div className="card p-4">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Rooms at a glance</p>
-        <div className="flex flex-wrap gap-3 text-xs text-navy-400">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Rooms at a glance</p>
+        <div className="flex flex-wrap gap-3 text-xs text-ink-400">
           {Object.entries(TILE_COLOR).map(([status, color]) => (
             <span key={status} className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
@@ -48,7 +48,7 @@ export default function RoomStatusBoard({ units, filter, onFilterStatus }) {
       <div className="space-y-3">
         {floors.map(({ floor, rooms }) => (
           <div key={floor} className="grid gap-2 sm:grid-cols-[6rem_1fr] sm:items-start">
-            <p className="pt-3 text-xs font-medium text-navy-400">{floorLabel(floor)}</p>
+            <p className="pt-3 text-xs font-medium text-ink-400">{floorLabel(floor)}</p>
             <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
         {rooms.map((u) => (
           <button
@@ -58,8 +58,8 @@ export default function RoomStatusBoard({ units, filter, onFilterStatus }) {
             aria-label={`Room ${u.unit_number}, ${u.status}`}
             aria-pressed={filter === u.status}
             className={`flex h-11 flex-col items-center justify-center rounded-lg text-xs font-bold leading-tight transition ${
-              u.status === 'Dirty' ? 'text-navy-50' : 'text-white' // white is unreadable on the amber tile
-            } ${filter === u.status ? 'ring-2 ring-offset-2 ring-offset-navy-950' : ''}`}
+              u.status === 'Dirty' ? 'text-ink-900' : 'text-white' // white is unreadable on the amber tile
+            } ${filter === u.status ? 'ring-2 ring-offset-2 ring-offset-sand-50' : ''}`}
             style={{ backgroundColor: TILE_COLOR[u.status], ...(filter === u.status ? { '--tw-ring-color': TILE_COLOR[u.status] } : {}) }}
           >
             {u.unit_number}

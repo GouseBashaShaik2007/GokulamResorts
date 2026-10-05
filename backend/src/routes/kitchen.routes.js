@@ -3,7 +3,7 @@ const { body, param } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const validate = require('../middleware/validate');
 const kitchenAuth = require('../middleware/kitchenAuth');
-const { login } = require('../controllers/kitchenAuth.controller');
+const { listCooks, login, logout } = require('../controllers/kitchenAuth.controller');
 const { listActiveOrders, updateOrderStatus, listRequests, completeRequest } = require('../controllers/kitchenOrder.controller');
 
 const router = Router();
@@ -19,9 +19,18 @@ const loginLimiter = rateLimit({
   message: { success: false, message: 'Too many wrong PINs. Please wait 15 minutes and try again.' },
 });
 
-router.post('/login', loginLimiter, [body('pin').matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits')], validate, login);
+// The sign-in screen: tap your name, then type your PIN.
+router.get('/cooks', listCooks);
+router.post(
+  '/login',
+  loginLimiter,
+  [body('staffId').isInt({ min: 1 }).withMessage('Choose your name first').toInt(), body('pin').matches(/^\d{4,6}$/).withMessage('PIN must be 4-6 digits')],
+  validate,
+  login
+);
+router.post('/logout', logout);
 
-// Everything below requires a valid kitchen JWT.
+// Everything below requires a kitchen sign-in.
 router.use(kitchenAuth);
 
 router.get('/orders', listActiveOrders);

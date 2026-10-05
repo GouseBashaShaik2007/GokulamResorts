@@ -8,7 +8,8 @@ import ShareRoom from '@/components/site/ShareRoom';
 import Icon from '@/components/ui/Icon';
 import PageHeader from '@/components/ui/PageHeader';
 import { jsonLd } from '@/lib/jsonLd';
-import { groupAmenities, includesBreakfast, realPhotos, roomPath, sqftToM2 } from '@/lib/rooms';
+import { inr } from '@/lib/bookingUi';
+import { groupAmenities, includesBreakfast, realPhotos, roomPath, roomPolicies, sqftToM2 } from '@/lib/rooms';
 import { getContact, getOffers, getRoomBySlug, getRooms } from '@/lib/server-api';
 import { offersForRoom } from '@/lib/offers';
 import { SITE_URL } from '@/lib/site';
@@ -30,11 +31,11 @@ export async function generateMetadata({ params }) {
 
 function Feature({ icon, label, value }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-navy-700 px-4 py-3">
+    <div className="flex items-center gap-3 rounded-xl border border-sand-300 px-4 py-3">
       <Icon name={icon} className="h-6 w-6 text-ocean-500" />
       <div>
-        <p className="text-xs text-navy-400">{label}</p>
-        <p className="text-sm font-medium text-navy-50">{value}</p>
+        <p className="text-xs text-ink-400">{label}</p>
+        <p className="text-sm font-medium text-ink-900">{value}</p>
       </div>
     </div>
   );
@@ -85,11 +86,11 @@ export default async function RoomPage({ params }) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <TrackRoomView room={room} />
-      <nav className="mb-4 text-sm text-navy-400" aria-label="Breadcrumb">
+      <nav className="mb-4 text-sm text-ink-400" aria-label="Breadcrumb">
         <ol className="flex flex-wrap items-center gap-1.5">
           <li><Link href="/rooms" className="hover:text-ocean-500">Rooms &amp; Suites</Link></li>
           <li aria-hidden="true">/</li>
-          <li className="text-navy-200" aria-current="page">{room.name}</li>
+          <li className="text-ink-700" aria-current="page">{room.name}</li>
         </ol>
       </nav>
 
@@ -100,7 +101,7 @@ export default async function RoomPage({ params }) {
       <div className="mt-10 grid gap-x-10 gap-y-8 lg:grid-cols-[1fr_24rem]">
         <Reveal as="div" className="lg:col-start-1">
           <PageHeader eyebrow="Chirala Beach" title={room.name}>
-            <p className="mt-6 max-w-2xl leading-relaxed text-navy-300">{room.description}</p>
+            <p className="mt-6 max-w-2xl leading-relaxed text-ink-500">{room.description}</p>
             <ShareRoom name={room.name} path={roomPath(room)} className="mt-5" />
           </PageHeader>
         </Reveal>
@@ -118,7 +119,7 @@ export default async function RoomPage({ params }) {
           </div>
 
           {/* The question most guests ask first, answered in a sentence of its own. */}
-          <p className="mt-8 rounded-xl bg-navy-900 px-4 py-3 text-sm text-navy-100">
+          <p className="mt-8 rounded-xl bg-sand-100 px-4 py-3 text-sm text-ink-800">
             {includesBreakfast(room) ? (
               <><strong className="font-semibold">Breakfast is included</strong> in the room price.</>
             ) : (
@@ -131,12 +132,12 @@ export default async function RoomPage({ params }) {
 
           {room.amenities?.length > 0 && (
             <>
-              <h2 className="mt-10 font-serif text-2xl font-semibold text-navy-50">What you get</h2>
+              <h2 className="mt-10 font-serif text-2xl font-semibold text-ink-900">What you get</h2>
               <div className="mt-4 grid gap-x-8 gap-y-6 sm:grid-cols-2">
                 {groupAmenities(room).map((group) => (
                   <div key={group.title}>
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-navy-400">{group.title}</h3>
-                    <ul className="mt-2 space-y-1.5 text-sm text-navy-200">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-400">{group.title}</h3>
+                    <ul className="mt-2 space-y-1.5 text-sm text-ink-700">
                       {group.items.map((a) => (
                         <li key={a} className="flex items-center gap-2">
                           <span className="text-ocean-500" aria-hidden="true">✓</span>
@@ -150,8 +151,8 @@ export default async function RoomPage({ params }) {
             </>
           )}
 
-          <h2 className="mt-10 font-serif text-2xl font-semibold text-navy-50">Good to know</h2>
-          <ul className="mt-4 space-y-2 text-sm text-navy-200">
+          <h2 className="mt-10 font-serif text-2xl font-semibold text-ink-900">Good to know</h2>
+          <ul className="mt-4 space-y-2 text-sm text-ink-700">
             {(contact.checkInTime || contact.checkOutTime) && (
               <li>
                 {[contact.checkInTime && `Check-in from ${contact.checkInTime}`, contact.checkOutTime && `check-out by ${contact.checkOutTime}`].filter(Boolean).join(', ')}.
@@ -162,6 +163,12 @@ export default async function RoomPage({ params }) {
               number when you book. Each is listed with its floor and view, so you can take the one you prefer, or
               rooms next to each other when you travel as a group.
             </li>
+            <li>
+              Up to {room.capacity} guest{room.capacity === 1 ? '' : 's'}, counting adults and children together.
+            </li>
+            {roomPolicies(room, inr).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
             <li>Bring a photo ID (Aadhaar, passport or driving licence) for every adult; the front desk checks it at check-in.</li>
             <li>You pay in full online. The resort confirms within 24 hours — if it can&apos;t, you are refunded in full automatically.</li>
             <li>Bookings cancelled before check-in are refunded. If you don&apos;t arrive, the payment is not refunded.</li>

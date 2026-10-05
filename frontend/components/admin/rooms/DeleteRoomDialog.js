@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import api, { withAdminAuth } from '../../../lib/api';
+import api from '../../../lib/api';
 import useModal from '../../../lib/useModal';
 import { errMsg } from '../../../lib/bookingUi';
 import { useToast } from '@/components/ui/Toast';
@@ -19,7 +19,7 @@ export default function DeleteRoomDialog({ room, onClose, onDeleted }) {
     setDeleting(true);
     setError('');
     try {
-      await api.delete(`/admin/rooms/${room.id}`, withAdminAuth());
+      await api.delete(`/admin/rooms/${room.id}`);
       onDeleted();
       onClose();
       toast(`${room.name} removed from the site`);
@@ -32,9 +32,9 @@ export default function DeleteRoomDialog({ room, onClose, onDeleted }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-label={`Remove ${room.name}`} tabIndex={-1} className="w-full max-w-md rounded-2xl border border-red-500/30 bg-navy-950 p-6 focus:outline-none">
-        <h2 className="font-serif text-lg font-bold text-navy-50">Remove &quot;{room.name}&quot;?</h2>
-        <p className="mt-2 text-sm text-navy-300">
+      <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-label={`Remove ${room.name}`} tabIndex={-1} className="w-full max-w-md rounded-2xl border border-red-500/30 bg-sand-50 p-6 focus:outline-none">
+        <h2 className="font-serif text-lg font-bold text-ink-900">Remove &quot;{room.name}&quot;?</h2>
+        <p className="mt-2 text-sm text-ink-500">
           This removes it from public listings. Past bookings for this room type are kept. Type the room name to
           confirm.
         </p>

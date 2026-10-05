@@ -29,7 +29,7 @@ export default function RoomSlider({ rooms, offers = [] }) {
     setIndex(atEnd ? cards.length - 1 : nearest);
   };
 
-  const arrow = 'hidden h-11 w-11 items-center justify-center rounded-full border border-navy-700 bg-navy-950 text-xl text-navy-100 hover:border-ocean-400 md:flex';
+  const arrow = 'hidden h-11 w-11 items-center justify-center rounded-full border border-sand-300 bg-sand-50 text-xl text-ink-800 hover:border-ocean-400 md:flex';
 
   return (
     <div className="relative">
@@ -52,7 +52,7 @@ export default function RoomSlider({ rooms, offers = [] }) {
         ))}
       </div>
       {rooms.length > 1 && (
-        <p className="mt-1 text-center text-xs font-medium text-navy-400 [font-variant-numeric:tabular-nums] md:hidden" aria-hidden="true">
+        <p className="mt-1 text-center text-xs font-medium text-ink-400 [font-variant-numeric:tabular-nums] md:hidden" aria-hidden="true">
           {index + 1} / {rooms.length} · swipe for more
         </p>
       )}

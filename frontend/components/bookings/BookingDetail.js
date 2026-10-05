@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api, { authFor } from '../../lib/api';
+import api, { deskAs } from '../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { printRegistrationCard } from '../../lib/registrationCard';
 import { CONTACT } from '../../lib/site';
@@ -17,7 +17,7 @@ import { StaySection, GuestSection, MoneySection, DocumentsSection, HistorySecti
  * rejects, cancels, discounts and can open ID files).
  */
 export default function BookingDetail({ bookingId, mode, onClose, onChanged, refreshKey }) {
-  const auth = authFor(mode);
+  const auth = deskAs(mode);
   const isAdmin = mode === 'admin';
   const ask = useConfirm();
   const [b, setB] = useState(null);
@@ -91,7 +91,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
   if (!b) {
     return (
       <Shell onClose={onClose}>
-        <p className="p-6 text-navy-300">{error || 'Loading…'}</p>
+        <p className="p-6 text-ink-500">{error || 'Loading…'}</p>
       </Shell>
     );
   }
@@ -140,15 +140,15 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
     <Shell onClose={onClose}>
       <div className="flex items-start justify-between gap-3 px-6 pt-6">
         <div>
-          <p className="text-xs text-navy-400">
+          <p className="text-xs text-ink-400">
             Booking #{b.id} · {b.source === 'online' ? 'Online' : 'Counter'} · {fmtDateTime(b.created_at)}
           </p>
-          <h2 className="mt-1 font-serif text-2xl font-bold text-navy-50">{b.guest_name}</h2>
+          <h2 className="mt-1 font-serif text-2xl font-bold text-ink-900">{b.guest_name}</h2>
           <div className="mt-2">
             <StatusBadge status={b.status} />
           </div>
         </div>
-        <button onClick={onClose} className="rounded-full border border-navy-600 px-3 py-1 text-navy-300 hover:text-navy-50" aria-label="Close">
+        <button onClick={onClose} className="rounded-full border border-sand-400 px-3 py-1 text-ink-500 hover:text-ink-900" aria-label="Close">
           ✕
         </button>
       </div>
@@ -159,12 +159,12 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             Waiting for manager approval — auto-cancels with full refund at {fmtDateTime(b.hold_expires_at)}.
           </p>
         )}
-        {b.close_reason && <p className="mt-3 rounded-lg bg-navy-800 px-3 py-2 text-sm text-navy-200">Reason: {b.close_reason}</p>}
+        {b.close_reason && <p className="mt-3 rounded-lg bg-sand-200 px-3 py-2 text-sm text-ink-700">Reason: {b.close_reason}</p>}
         {notice && <p role="status" className="mt-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-700">{notice}</p>}
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         {checkInNeeds.length > 0 && (
-          <ul className="mt-4 grid gap-1.5 rounded-xl border border-navy-700 p-3 text-sm sm:grid-cols-2" aria-label="Before check-in">
+          <ul className="mt-4 grid gap-1.5 rounded-xl border border-sand-300 p-3 text-sm sm:grid-cols-2" aria-label="Before check-in">
             {checkInNeeds.map((need) => (
               <li key={need.label} className={`flex items-center gap-2 ${need.ok ? 'text-green-700' : 'font-medium text-red-700'}`}>
                 <span aria-hidden="true">{need.ok ? '✓' : '✕'}</span>
@@ -201,12 +201,12 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             </button>
           )}
           {staying && (
-            <button disabled={busy} onClick={() => open('upload')} className={`${btn} border border-navy-600 text-navy-100`}>
+            <button disabled={busy} onClick={() => open('upload')} className={`${btn} border border-sand-400 text-ink-800`}>
               + Guest ID
             </button>
           )}
           {staying && (
-            <button disabled={busy} onClick={() => open('extend')} className={`${btn} border border-navy-600 text-navy-100`}>
+            <button disabled={busy} onClick={() => open('extend')} className={`${btn} border border-sand-400 text-ink-800`}>
               Extend stay
             </button>
           )}
@@ -216,7 +216,7 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
             </button>
           )}
           {['confirmed', 'checked_in', 'checked_out'].includes(b.status) && (
-            <button type="button" onClick={printCard} className={`${btn} border border-navy-600 text-navy-100`}>
+            <button type="button" onClick={printCard} className={`${btn} border border-sand-400 text-ink-800`}>
               Print registration card
             </button>
           )}

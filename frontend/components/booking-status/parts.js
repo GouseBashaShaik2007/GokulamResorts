@@ -58,8 +58,8 @@ export function StayProgress({ status }) {
     <ol className="grid grid-cols-4 gap-2" aria-label="Booking progress">
       {STEPS.map((s, i) => (
         <li key={s.key} className="text-center" aria-current={i === at ? 'step' : undefined}>
-          <span className={`mx-auto block h-1.5 rounded-full ${i <= at ? 'bg-ocean-500' : 'bg-navy-700'}`} />
-          <span className={`mt-2 block text-xs ${i === at ? 'font-semibold text-navy-50' : 'text-navy-400'}`}>{s.label}</span>
+          <span className={`mx-auto block h-1.5 rounded-full ${i <= at ? 'bg-ocean-500' : 'bg-sand-300'}`} />
+          <span className={`mt-2 block text-xs ${i === at ? 'font-semibold text-ink-900' : 'text-ink-400'}`}>{s.label}</span>
         </li>
       ))}
     </ol>
@@ -90,7 +90,7 @@ export function CopyButton({ text }) {
     }
   };
   return (
-    <button type="button" onClick={copy} className="no-print rounded-full border border-navy-700 px-2.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ocean-600 hover:border-ocean-400">
+    <button type="button" onClick={copy} className="no-print rounded-full border border-sand-300 px-2.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ocean-600 hover:border-ocean-400">
       <span aria-live="polite">{copied ? 'Copied' : 'Copy'}</span>
     </button>
   );
