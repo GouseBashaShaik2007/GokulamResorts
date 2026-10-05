@@ -52,7 +52,7 @@ const list = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT ri.id, ri.kind, ri.description, ri.status, ri.created_at, ri.resolved_at, ri.resolution_note,
             (ri.photo_key IS NOT NULL) AS has_photo,
-            ru.unit_number, ru.floor, r.name AS room_type, s.name AS reported_by, s.role AS reported_by_role
+            ri.room_unit_id, ru.unit_number, ru.floor, r.name AS room_type, s.name AS reported_by, s.role AS reported_by_role
      FROM room_issues ri
      JOIN room_units ru ON ru.id = ri.room_unit_id
      JOIN rooms r ON r.id = ru.room_type_id

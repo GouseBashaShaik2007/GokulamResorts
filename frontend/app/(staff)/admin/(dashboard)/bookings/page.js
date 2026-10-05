@@ -14,7 +14,7 @@ export default function AdminBookingsPage() {
         <PageHeader size="section" eyebrow="Front Desk" title="Bookings" />
         <div className="flex gap-2">
           {[
-            ['list', 'List / Approvals'],
+            ['list', 'List'],
             ['calendar', 'Calendar'],
           ].map(([key, label]) => (
             <button

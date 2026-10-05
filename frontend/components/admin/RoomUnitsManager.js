@@ -85,7 +85,8 @@ function EditUnit({ unit, roomTypes, onClose, onSaved }) {
 
 /**
  * Admin → Rooms → Room numbers: the physical rooms (101, 102…) of each room
- * type. Guests pick one of these by number when they book.
+ * type. A guest books a room type: one of these is held for the booking, and
+ * the front desk gives it (or another) to the guest at check-in.
  */
 export default function RoomUnitsManager() {
   const toast = useToast();

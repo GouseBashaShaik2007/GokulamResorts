@@ -41,13 +41,15 @@ router.post(
   '/food-orders',
   orderLimiter,
   [
-    // 'kiosk' is still accepted as the counter's older name (see the controller).
-    body('orderType').isIn(['table', 'counter', 'room', 'kiosk']).withMessage('orderType must be "table", "counter" or "room"'),
-    body('roomNumber').optional({ nullable: true, checkFalsy: true }).isString().matches(/^[A-Za-z0-9-]{1,20}$/).withMessage('Unknown room'),
+    // Only the counter's orders are placed here now. 'kiosk' is still accepted
+    // as the counter's older name; 'table' and 'room' are let through so that
+    // the controller can tell a page opened before the change, in plain
+    // words, to reload and pay online.
+    body('orderType').isIn(['table', 'counter', 'room', 'kiosk']).withMessage('orderType must be "counter"'),
     body('accessKey').optional({ nullable: true }).isString().isLength({ max: 40 }),
-    tableNumberField('tableNumber').optional({ nullable: true, checkFalsy: true }),
     body('customerName').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 150 }),
-    body('customerPhone').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 20 }),
+    // Order messages go to this number by SMS.
+    body('customerPhone').optional({ nullable: true, checkFalsy: true }).isString().matches(/^\+?[0-9][0-9 -]{5,18}$/).withMessage('Enter a valid phone number'),
     body('notes').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 1000 }),
     body('items').isArray({ min: 1 }).withMessage('items must be a non-empty array'),
     body('items.*.menuItemId').isInt({ min: 1 }),

@@ -7,7 +7,7 @@ import useStaffSession from '../_lib/useStaffSession';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 import VegMark from '@/components/ui/VegMark';
-import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, ORDER_TYPE_LABEL, PREVIOUS_ORDER_STATUS, orderTitle, paidOnline, splitOrderNotes } from '@/lib/foodOrders';
+import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, PREVIOUS_ORDER_STATUS, orderTitle, orderWithNumber, paidOnline, readyInstruction, splitOrderNotes } from '@/lib/foodOrders';
 import useCleaningSocket from '@/lib/useCleaningSocket';
 
 // Kitchen wall display. Deliberately its own high-contrast dark look (not the
@@ -27,8 +27,9 @@ const RED_MIN = 20;
 const COOK_NOW_MAX = 8;
 
 const STATUS_ACTION_LABEL = { new: 'Start preparing', preparing: 'Mark ready', ready: 'Mark served' };
-// A room order leaves the kitchen for the room's door; if it was not paid
-// online, the cash is collected there, and pressing this records it.
+// An order for a room leaves the kitchen for the room's door. Room orders are
+// paid online now; one from before that, placed as "cash at the door", is
+// still collected there, and pressing this records the cash.
 const actionLabel = (order) => {
   if (order.status !== 'ready' || !order.room_number) return STATUS_ACTION_LABEL[order.status];
   return order.paid ? 'Delivered' : `Delivered, ${inr(order.total_amount)} cash collected`;
@@ -37,8 +38,8 @@ const actionLabel = (order) => {
 const REQUEST_LABEL = { staff: 'is calling for staff', bill: 'wants the bill' };
 const COLUMN_ACCENT = { new: 'text-sky-300', preparing: 'text-violet-300', ready: 'text-emerald-300' };
 
-// "Table 7", the name a counter order was placed under, or "Order 47" for the kiosk.
-const whoFor = orderTitle;
+// An order in a line of text: "#47 · Table 7", "#48 · Kiosk · Pickup" (worded in lib/foodOrders.js).
+const whoFor = orderWithNumber;
 
 let audioCtx = null;
 // Must first run inside a user gesture (Start shift) for browsers to allow sound.
@@ -223,12 +224,14 @@ const OrderCard = memo(function OrderCard({ order, mins, onAdvance, onCancel }) 
       )}
       <header className="flex items-start justify-between gap-3">
         <div>
+          {/* What the order is and where it goes: "Table 4", "Kiosk · Pickup", "Kiosk · Room 101"… */}
           <p className="text-2xl font-bold leading-tight text-white">
-            {whoFor(order)}
+            {orderTitle(order)}
           </p>
           <p className="mt-1 text-sm text-neutral-400">
-            #{order.id} · {ORDER_TYPE_LABEL[order.order_type] || order.order_type} order
-            {(paidOnline(order) || (order.room_number && order.paid)) && ' · paid'}
+            <span className="text-lg font-bold text-neutral-100">#{order.id}</span>
+            {order.customer_name && ` · ${order.customer_name}`}
+            {order.paid && ' · paid'}
             {/* Up here, well away from the big button a thumb is aiming for. */}
             <button onClick={() => onCancel(order)} className="ml-3 rounded px-1 text-sm text-red-300 underline underline-offset-2">
               Cancel order
@@ -263,17 +266,13 @@ const OrderCard = memo(function OrderCard({ order, mins, onAdvance, onCancel }) 
         <p className="mt-3 rounded-lg bg-yellow-300 px-3 py-2 text-base font-semibold text-neutral-950">Note: {notes}</p>
       )}
 
-      {/* A room order that was not paid online is paid at the door: whoever carries it must know. */}
+      {/* An older room order placed as "cash at the door": whoever carries it must know. */}
       {order.room_number && !order.paid && (
         <p className="mt-4 rounded-lg bg-amber-400 px-3 py-2 text-center text-lg font-bold text-neutral-950">Collect {inr(order.total_amount)} in cash at the door</p>
       )}
-      {isReady && order.room_number && (
-        <p className="mt-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-center text-lg font-bold text-emerald-300">Take to Room {order.room_number}</p>
-      )}
-
-      {/* Nobody at the kiosk gave a name: the customer is listening for this number. */}
-      {isReady && order.order_type === 'kiosk' && (
-        <p className="mt-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-center text-lg font-bold text-emerald-300">Call out number {order.id}</p>
+      {/* Ready: take it to its table or room, or call the customer to the counter. */}
+      {isReady && (
+        <p className="mt-4 rounded-lg bg-emerald-500/15 px-3 py-2 text-center text-lg font-bold text-emerald-300">{readyInstruction(order)}</p>
       )}
 
       {NEXT_ORDER_STATUS[order.status] && (
@@ -388,7 +387,7 @@ export default function KitchenPage() {
     try {
       const res = await api.patch(`/kitchen/orders/${order.id}/status`, { status });
       loadOrders();
-      // A cancelled kiosk order was paid on the screen: say where the money went.
+      // A cancelled order that had been paid online (the kiosk, a table, a room): say where the money went.
       const refund = res.data?.refund;
       if (refund) {
         toast(
@@ -401,7 +400,7 @@ export default function KitchenPage() {
       // One tap moves a ticket on (and "served" takes it off the board), so a
       // slip of the thumb can be put back for a few seconds.
       if (undoable && PREVIOUS_ORDER_STATUS[status] === order.status) {
-        // Delivering a room order that was to be paid in cash has just recorded that cash.
+        // Delivering an older room order that was to be paid in cash has just recorded that cash.
         const cash = res.data?.cash;
         toast(cash ? `${whoFor(order)}: delivered, ${inr(cash.collected)} cash recorded` : `${whoFor(order)}: ${ORDER_STATUS_LABEL[status]}`, {
           tone: 'info',

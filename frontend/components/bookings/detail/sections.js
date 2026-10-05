@@ -10,6 +10,8 @@ import { METHODS, Row, Section } from './parts';
 
 const ACTION_LABEL = {
   booking_created: 'Booking created',
+  booking_confirmed: 'Confirmed (paid online)',
+  invoice_issued: 'GST invoice issued',
   payment_captured: 'Online payment received',
   payment_recorded: 'Payment recorded',
   payment_window_expired: 'Payment window expired',
@@ -29,6 +31,7 @@ const ACTION_LABEL = {
   id_purged: 'ID file deleted (retention)',
   checked_in: 'Checked in',
   stay_extended: 'Stay extended',
+  room_changed: 'Moved to another room',
   checked_out: 'Checked out',
   no_show: 'Marked no-show',
 };
@@ -182,6 +185,7 @@ export function HistorySection({ b }) {
               <span className="text-ink-400"> · {e.actor_name}</span>
               {e.details?.reason && <span className="text-ink-400"> — {e.details.reason}</span>}
               {e.action === 'stay_extended' && <span className="text-ink-400"> — to {fmtDate(e.details.to)}</span>}
+              {e.action === 'room_changed' && <span className="text-ink-400"> — {e.details.from} to {e.details.to}</span>}
               {e.details?.amount && ['refund_initiated', 'payment_recorded', 'payment_captured'].includes(e.action) && (
                 <span className="text-ink-400"> — {inr(e.details.amount)}</span>
               )}

@@ -214,8 +214,7 @@ export default function TableQrCodes() {
           <h3 className="no-print mt-8 font-serif text-lg font-bold text-ink-900">Hotel rooms</h3>
           <p className="no-print mt-1 max-w-3xl text-sm text-ink-400">
             One code for each room in use, to leave in the room. Food ordered from it is brought to that room. The
-            guest pays online when ordering, or in cash at the door: delivering the order on the kitchen screen records
-            the cash.
+            guest pays online when ordering.
           </p>
           <div id="qr-print-rooms" className={`mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 print:grid-cols-3 ${printWhat === 'tables' ? 'print:hidden' : ''}`}>
             {rooms.map(({ room, key }) => (

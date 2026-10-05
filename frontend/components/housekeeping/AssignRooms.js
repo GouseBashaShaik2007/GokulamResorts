@@ -4,9 +4,10 @@ import { useState } from 'react';
 import api from '@/lib/api';
 import { errMsg } from '@/lib/bookingUi';
 import { JOB_STATUS_STYLE, TASK_STATUS_STYLE } from '@/lib/cleaningStyles';
+import { stayoverStatus } from '@/lib/stayovers';
 import { useToast } from '@/components/ui/Toast';
-import { RoomHeader } from './TaskCards';
-import { Badge, TASK_ROLES } from './shared';
+import { JobNote, RoomHeader } from './TaskCards';
+import { Badge, StayoverEnded, TASK_ROLES, taskStatusLabel } from './shared';
 
 // A task nobody is on yet (and that still has to be done).
 const unassigned = (task) => task && !task.assigned_staff_id && task.status !== 'Completed';
@@ -17,6 +18,8 @@ export const needsSomeone = (job) => TASK_ROLES.some(({ type }) => unassigned(jo
 function AssignCard({ job, team, onChanged }) {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+  // A stayover is shown in its own words: its room is occupied, not "Dirty".
+  const status = job.reason === 'stayover' ? stayoverStatus(job) : { label: job.status, style: JOB_STATUS_STYLE[job.status] };
 
   const assign = async (field, value) => {
     setBusy(true);
@@ -33,11 +36,12 @@ function AssignCard({ job, team, onChanged }) {
   return (
     <div className="card p-5">
       <RoomHeader task={{ ...job, job_reason: job.reason }} />
-      {job.notes && <p className="mt-2 text-sm italic text-ink-500">Note: {job.notes}</p>}
+      <JobNote source={job.source} notes={job.notes} />
       <p className="mt-3">
-        <Badge className={JOB_STATUS_STYLE[job.status]}>{job.status}</Badge>
+        <Badge className={status.style}>{status.label}</Badge>
       </p>
 
+      {/* One picker per task the job has: a stayover has no inspection, so no inspector. */}
       <div className="mt-4 space-y-3">
         {TASK_ROLES.map(({ type, role, field }) => {
           const task = job.tasks?.[type];
@@ -49,7 +53,7 @@ function AssignCard({ job, team, onChanged }) {
             <div key={type}>
               <div className="flex items-center justify-between gap-2">
                 <label htmlFor={`assign-${job.id}-${type}`} className="text-sm font-medium text-ink-700">{type}</label>
-                <Badge className={TASK_STATUS_STYLE[task.status]}>{task.status === 'InProgress' ? 'In progress' : task.status}</Badge>
+                <Badge className={TASK_STATUS_STYLE[task.status]}>{taskStatusLabel(task.status)}</Badge>
               </div>
               <select
                 id={`assign-${job.id}-${type}`}
@@ -70,19 +74,47 @@ function AssignCard({ job, team, onChanged }) {
   );
 }
 
+// Today's stayovers that are over: which rooms were serviced, and which were
+// not and why ("Do not disturb", the guest said no ...).
+function StayoversDone({ jobs }) {
+  if (jobs.length === 0) return null;
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
+        Stayovers finished today ({jobs.length})
+      </h2>
+      <ul className="card divide-y divide-sand-300 px-5">
+        {jobs.map((job) => (
+          <li key={job.id} className="flex items-baseline gap-4 py-3">
+            <span className="w-14 flex-none font-serif text-xl font-bold text-ink-900">{job.unit_number}</span>
+            <StayoverEnded job={job} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * The inspector's view of every room being cleaned: who is on the bedding,
- * the toiletries and the inspection, with a picker to change each. `jobs`:
- * open cleaning jobs with their tasks; `team`: active housekeeping staff;
- * `onChanged` reloads both.
+ * the toiletries and the inspection, with a picker to change each. A stayover
+ * (the guest is staying) is marked as one and has bedding and toiletries only.
+ * `jobs`: open cleaning jobs with their tasks; `team`: active housekeeping
+ * staff; `stayoversDone`: today's finished stayovers, listed with how each
+ * one ended; `onChanged` reloads them all.
  */
-export default function AssignRooms({ jobs, team, onChanged }) {
+export default function AssignRooms({ jobs, team, stayoversDone = [], onChanged }) {
   if (jobs.length === 0) {
     return (
-      <div className="card p-8 text-center">
-        <p className="text-lg text-ink-800">Nothing to assign</p>
-        <p className="mt-1 text-sm text-ink-400">Rooms appear here when a guest checks out or a manager marks a room dirty.</p>
-      </div>
+      <>
+        <div className="card mb-8 p-8 text-center">
+          <p className="text-lg text-ink-800">Nothing to assign</p>
+          <p className="mt-1 text-sm text-ink-400">
+            Rooms appear here when a guest checks out, when a manager marks a room dirty, and each morning for the rooms whose guests are staying.
+          </p>
+        </div>
+        <StayoversDone jobs={stayoversDone} />
+      </>
     );
   }
 
@@ -92,16 +124,21 @@ export default function AssignRooms({ jobs, team, onChanged }) {
     { title: 'Assigned', list: jobs.filter((j) => !needsSomeone(j)) },
   ];
 
-  return groups.map(({ title, list }) =>
-    list.length === 0 ? null : (
-      <section key={title} className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
-          {title} ({list.length})
-        </h2>
-        <div className="space-y-4">
-          {list.map((job) => <AssignCard key={job.id} job={job} team={team} onChanged={onChanged} />)}
-        </div>
-      </section>
-    )
+  return (
+    <>
+      {groups.map(({ title, list }) =>
+        list.length === 0 ? null : (
+          <section key={title} className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-500">
+              {title} ({list.length})
+            </h2>
+            <div className="space-y-4">
+              {list.map((job) => <AssignCard key={job.id} job={job} team={team} onChanged={onChanged} />)}
+            </div>
+          </section>
+        )
+      )}
+      <StayoversDone jobs={stayoversDone} />
+    </>
   );
 }

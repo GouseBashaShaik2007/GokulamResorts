@@ -19,8 +19,8 @@ const createOrder = asyncHandler(async (req, res) => {
 //
 // Razorpay's checkout success callback happens client-side and can be spoofed,
 // so we recompute the HMAC-SHA256 signature from order_id + payment_id with our
-// secret and compare in constant time. Only then is the payment recorded. The
-// booking becomes 'paid' and waits for the manager — it is NOT confirmed yet.
+// secret and compare in constant time. Only then is the payment recorded, and
+// that confirms the booking.
 const verifyPayment = asyncHandler(async (req, res) => {
   const { bookingId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
@@ -44,8 +44,8 @@ const verifyPayment = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message:
-      booking.status === 'paid'
-        ? 'Payment received. Your booking is waiting for confirmation from the resort.'
+      booking.status === 'confirmed'
+        ? 'Payment received. Your booking is confirmed.'
         : 'Payment received after the booking expired. It has been refunded in full.',
     bookingId: booking.id,
     status: booking.status,

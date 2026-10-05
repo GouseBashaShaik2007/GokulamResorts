@@ -9,16 +9,6 @@ const { isoDate } = require('../utils/dates');
 const manager = (req) => ({ type: 'admin', id: req.admin.sub });
 const id = (req) => Number(req.params.id);
 
-// POST /api/admin/bookings/:id/approve
-const approve = asyncHandler(async (req, res) => {
-  res.json({ success: true, booking: await bookings.approve(id(req), manager(req)) });
-});
-
-// POST /api/admin/bookings/:id/reject — { reason }: full refund
-const reject = asyncHandler(async (req, res) => {
-  res.json({ success: true, booking: await bookings.reject(id(req), req.body.reason, manager(req)) });
-});
-
 // POST /api/admin/bookings/:id/cancel — { reason }: full refund (before check-in)
 const cancel = asyncHandler(async (req, res) => {
   res.json({ success: true, booking: await bookings.cancel(id(req), req.body.reason, manager(req)) });
@@ -125,8 +115,6 @@ const deleteRateDiscount = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  approve,
-  reject,
   cancel,
   discount,
   documentUrl,

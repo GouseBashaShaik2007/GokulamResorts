@@ -1,7 +1,9 @@
 // The restaurant's self-ordering kiosk: a tablet on a stand, turned sideways,
-// where a customer picks dishes and pays on the same screen. It is not behind
-// a QR code: the tablet is set up once with a key from Admin → QR Codes, kept
-// on the device, and sent with every order it takes.
+// where a customer picks dishes, says what to do with the order (bring it to
+// their table, keep it for pickup, or bring it to their hotel room) and pays
+// on the same screen. It is not behind a QR code: the tablet is set up once
+// with a key from Admin → QR Codes, kept on the device, and sent with every
+// order it takes.
 
 /** Where the kiosk screen lives. */
 export const KIOSK_PATH = '/dine-in';
@@ -43,6 +45,46 @@ export function forgetKioskKey() {
     // nothing to forget
   }
 }
+
+// ---------- what to do with the order ----------
+//
+// Before paying, the customer chooses one of three. The choice is kept as
+// { mode, table, room }: `mode` is the API's serviceMode; `table` is set for
+// dine-in and `room` for a room drop.
+
+export const SERVICE_CHOICES = [
+  { mode: 'dine_in', title: 'Dine-in', hint: 'We bring it to your table' },
+  { mode: 'pickup', title: 'Pickup', hint: 'Collect it at the counter when your number is called' },
+  { mode: 'room', title: 'Room drop', hint: 'We bring it to your hotel room' },
+];
+
+/** Nothing chosen yet: how every new customer starts. */
+export const NO_SERVICE = { mode: null, table: null, room: null };
+
+/** True once the choice is complete: dine-in has its table, a room drop its room. */
+export const serviceChosen = (service) =>
+  service.mode === 'pickup' || (service.mode === 'dine_in' && Boolean(service.table)) || (service.mode === 'room' && Boolean(service.room));
+
+/** The choice in a few words, for the bar beside the Pay button: "Dine-in · Table 4". */
+export function serviceSummary(service) {
+  if (service.mode === 'dine_in') return service.table ? `Dine-in · Table ${service.table}` : 'Now choose your table';
+  if (service.mode === 'room') return service.room ? `Room drop · Room ${service.room}` : 'Now choose your room';
+  return service.mode === 'pickup' ? 'Pickup at the counter' : 'Choose one of the three';
+}
+
+/** What happens next, for the screen that shows the order number. */
+export function serviceNextStep(service) {
+  if (service?.mode === 'dine_in') return `We will bring it to Table ${service.table}.`;
+  if (service?.mode === 'room') return `We will bring it to Room ${service.room}.`;
+  return 'Wait for your number to be called at the counter.';
+}
+
+/** The part of POST /checkouts that says where the order goes. */
+export const serviceForApi = (service) => ({
+  serviceMode: service.mode,
+  ...(service.mode === 'dine_in' ? { tableNumber: service.table } : {}),
+  ...(service.mode === 'room' ? { roomNumber: service.room } : {}),
+});
 
 /** The dishes of one category that pass the filters, in menu order. */
 export function dishesFor(items, categoryId, { vegOnly = false, jainOnly = false } = {}) {

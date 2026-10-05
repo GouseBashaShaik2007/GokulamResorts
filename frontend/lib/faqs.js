@@ -13,12 +13,12 @@ const BASE_FAQS = [
       {
         slug: 'confirmation',
         q: 'Is my booking confirmed as soon as I pay?',
-        a: 'You pay the full amount online when you book. The resort then confirms your booking within 24 hours and you get an SMS / WhatsApp. If it can’t be confirmed in that time, your payment is refunded in full automatically.',
+        a: 'Yes. You pay the full amount online when you book, and the booking is confirmed as soon as the payment goes through. You get a booking reference straight away, and can look the booking up at any time with that reference and your mobile number.',
       },
       {
         slug: 'choose-room',
         q: 'Can I choose my room?',
-        a: 'Yes. After picking your dates you choose the exact room by number, for example 101 or 102, from the rooms that are free.',
+        a: 'You choose the room type. The front desk gives you your room number at check-in. If you would like a particular floor, or rooms next to each other for a group, write it in the special requests when you book and we will do our best.',
       },
       {
         slug: 'gst',

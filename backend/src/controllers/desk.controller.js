@@ -11,7 +11,7 @@ const { emitFoodUpdate, emitJobUpdate } = require('../realtime');
 
 const id = (req) => Number(req.params.id);
 
-// GET /api/desk/overview — arrivals, in-house, departures, approvals, refunds to pay out
+// GET /api/desk/overview — arrivals, in-house, departures (and who is late leaving), refunds to pay out
 const overview = asyncHandler(async (req, res) => {
   res.json({ success: true, ...(await bookings.deskOverview()) });
 });
@@ -100,6 +100,17 @@ const noShow = asyncHandler(async (req, res) => {
   res.json({ success: true, booking: await bookings.markNoShow(id(req), req.actor) });
 });
 
+// GET /api/desk/bookings/:id/move-options — the rooms this stay could move to
+const moveOptions = asyncHandler(async (req, res) => {
+  res.json({ success: true, ...(await bookings.moveOptions(id(req))) });
+});
+
+// POST /api/desk/bookings/:id/move — { roomUnitId, reason? }
+const move = asyncHandler(async (req, res) => {
+  const booking = await bookings.moveBooking(id(req), req.body.roomUnitId, req.actor, { reason: req.body.reason || null });
+  res.json({ success: true, booking });
+});
+
 // POST /api/desk/refunds/:id/complete — { method, reference }: counter refund paid out
 const completeRefund = asyncHandler(async (req, res) => {
   await bookings.completeManualRefund(id(req), req.body, req.actor);
@@ -114,7 +125,8 @@ const rooms = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT ru.id, ru.unit_number, ru.floor, ru.view_label, ru.status AS housekeeping, r.name AS room_type,
             stay.id AS booking_id, stay.reference, stay.guest_name, stay.status AS booking_status,
-            stay.check_in::text AS check_in, stay.check_out::text AS check_out
+            stay.check_in::text AS check_in, stay.check_out::text AS check_out,
+            block.id AS block_id, block.reason AS block_reason, block.end_date::text AS block_until
      FROM room_units ru
      JOIN rooms r ON r.id = ru.room_type_id
      LEFT JOIN LATERAL (
@@ -125,6 +137,12 @@ const rooms = asyncHandler(async (req, res) => {
        ORDER BY (b.status = 'checked_in') DESC, b.check_in
        LIMIT 1
      ) stay ON true
+     LEFT JOIN LATERAL (
+       SELECT rb.id, rb.reason, rb.end_date
+       FROM room_blocks rb
+       WHERE rb.room_unit_id = ru.id AND rb.start_date <= $1 AND (rb.end_date IS NULL OR rb.end_date > $1)
+       LIMIT 1
+     ) block ON true
      WHERE ru.is_active
      ORDER BY ru.unit_number`,
     [today]
@@ -136,7 +154,8 @@ const rooms = asyncHandler(async (req, res) => {
 // (or a manager) passes a cleaned room when no inspector is around to, so a
 // waiting guest can be checked in. Only once cleaning has finished.
 const approveCleaning = asyncHandler(async (req, res) => {
-  const { rows } = await query(`SELECT id FROM cleaning_jobs WHERE room_unit_id = $1 AND status <> 'Ready'`, [id(req)]);
+  // A stayover is not inspected, so it is never what is waiting here.
+  const { rows } = await query(`SELECT id FROM cleaning_jobs WHERE room_unit_id = $1 AND status <> 'Ready' AND reason <> 'stayover'`, [id(req)]);
   if (rows.length === 0) throw new ApiError(409, 'This room has no cleaning waiting for approval');
   const job = await cleaning.approveJob(rows[0].id, req.actor);
   await emitJobUpdate(job.id, 'inspection_approved');
@@ -151,7 +170,7 @@ const approveCleaning = asyncHandler(async (req, res) => {
 // so it is listed only once it has been paid (it counts towards the day's takings).
 const foodOrders = asyncHandler(async (req, res) => {
   const { rows: orders } = await query(
-    `SELECT id, order_type, table_number, room_number, customer_name, total_amount, status, created_at,
+    `SELECT id, order_type, service_mode, table_number, room_number, customer_name, total_amount, status, created_at,
             paid_at, payment_method, payment_reference
      FROM food_orders
      WHERE status <> 'cancelled'
@@ -221,7 +240,18 @@ const unpayFoodOrder = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/desk/bookings/:id/invoice — { billingName?, billingGstin? }
+// What the printed GST invoice needs. The booking gets its invoice number the
+// first time; asking again reprints the same invoice. Sending the billing
+// fields (even empty) sets or clears the company it is made out to.
+const invoice = asyncHandler(async (req, res) => {
+  const { billingName, billingGstin } = req.body;
+  const billing = billingName !== undefined || billingGstin !== undefined ? { name: billingName, gstin: billingGstin } : null;
+  res.json({ success: true, invoice: await bookings.invoice(id(req), billing, req.actor) });
+});
+
 module.exports = {
+  invoice,
   foodOrders,
   payFoodOrder,
   unpayFoodOrder,
@@ -239,5 +269,7 @@ module.exports = {
   extend,
   checkOut,
   noShow,
+  moveOptions,
+  move,
   completeRefund,
 };

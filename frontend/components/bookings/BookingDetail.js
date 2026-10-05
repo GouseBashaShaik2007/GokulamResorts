@@ -4,24 +4,31 @@ import { useCallback, useEffect, useState } from 'react';
 import api, { deskAs } from '../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { printRegistrationCard } from '../../lib/registrationCard';
+import { openInvoiceWindow, showInvoice } from '../../lib/gstInvoice';
 import { CONTACT } from '../../lib/site';
 import { StatusBadge, inr, fmtDate, fmtDateTime, nightsBetween, todayIST, errMsg } from '../../lib/bookingUi';
 import { Shell, btn } from './detail/parts';
 import { RejectCancelForm, DiscountForm, PaymentForm, ExtendForm, IdUploadForm } from './detail/forms';
 import { StaySection, GuestSection, MoneySection, DocumentsSection, HistorySection } from './detail/sections';
+import InvoiceForm from './detail/InvoiceForm';
+import MoveRoomForm from './detail/MoveRoomForm';
+import { untilLabel } from './RoomBlocks';
+
+// A booking can be given another room until the guest has left.
+const MOVABLE = ['paid', 'confirmed', 'checked_in'];
 
 /**
  * One booking, in a slide-over: what can be done with it now (buttons, and
  * the form each opens), then its stay, guest, money, IDs and history.
- * mode: 'desk' (front desk staff) or 'admin' (manager — also approves,
- * rejects, cancels, discounts and can open ID files).
+ * mode: 'desk' (front desk staff) or 'admin' (manager — also cancels,
+ * discounts and can open ID files).
  */
 export default function BookingDetail({ bookingId, mode, onClose, onChanged, refreshKey }) {
   const auth = deskAs(mode);
   const isAdmin = mode === 'admin';
   const ask = useConfirm();
   const [b, setB] = useState(null);
-  const [panel, setPanel] = useState(null); // which form is open: reject | cancel | discount | payment | extend | upload
+  const [panel, setPanel] = useState(null); // which form is open: cancel | discount | payment | extend | move | upload | invoice
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -109,11 +116,39 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
     { ok: due <= 0, label: due <= 0 ? 'Paid in full' : `Collect ${inr(due)}` },
     { ok: hasPrimary, label: hasPrimary ? 'Primary guest ID on file' : 'Add the primary guest’s ID' },
     { ok: b.room_status === 'Ready', label: b.room_status === 'Ready' ? 'Room ready' : `Room is ${String(b.room_status).toLowerCase()} — not ready yet` },
+    ...(b.roomBlock ? [{ ok: false, label: 'Room is out of order — move the booking' }] : []),
   ];
   const checkInBlocked = checkInNeeds.some((need) => !need.ok);
 
   const printCard = () => {
     if (!printRegistrationCard(b, resortAddress)) setError('The browser blocked the print window. Allow pop-ups for this site and try again.');
+  };
+
+  // The GST invoice. A browser only lets a page open a window while it is
+  // handling a click, so the window is opened first and filled when the
+  // invoice arrives. `billing`: { billingName, billingGstin }, both may be empty.
+  const printInvoice = async (billing) => {
+    const win = openInvoiceWindow();
+    if (!win) {
+      setError('The browser blocked the print window. Allow pop-ups for this site and try again.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await post('/invoice', billing);
+      const { invoice } = res.data;
+      // An invoice must carry the resort's address: if none is saved in Settings, the one the site shows is used.
+      showInvoice(win, { ...invoice, seller: { ...invoice.seller, address: invoice.seller.address || resortAddress } });
+      setPanel(null);
+      await load();
+    } catch (err) {
+      win.close();
+      setError(errMsg(err, 'Could not make the invoice'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const checkOut = async () => {
@@ -154,14 +189,14 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
       </div>
 
       <div className="px-6 pb-8">
-        {b.status === 'paid' && b.hold_expires_at && (
-          <p className="mt-3 rounded-lg bg-gold-500/10 px-3 py-2 text-sm text-gold-700">
-            Waiting for manager approval — auto-cancels with full refund at {fmtDateTime(b.hold_expires_at)}.
-          </p>
-        )}
         {b.close_reason && <p className="mt-3 rounded-lg bg-sand-200 px-3 py-2 text-sm text-ink-700">Reason: {b.close_reason}</p>}
         {notice && <p role="status" className="mt-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-700">{notice}</p>}
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {b.roomBlock && (
+          <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm text-red-800">
+            Room {b.unit_number} is out of order {untilLabel(b.roomBlock.end_date)}: {b.roomBlock.reason}. Move this booking to another room.
+          </p>
+        )}
 
         {checkInNeeds.length > 0 && (
           <ul className="mt-4 grid gap-1.5 rounded-xl border border-sand-300 p-3 text-sm sm:grid-cols-2" aria-label="Before check-in">
@@ -177,14 +212,6 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
 
         {/* ---------------- Actions ---------------- */}
         <div className="mt-4 flex flex-wrap gap-2">
-          {isAdmin && b.status === 'paid' && (
-            <>
-              <button disabled={busy} onClick={() => run(() => adminPost('/approve'), 'Approved — guest notified')} className={`${btn} bg-green-700 text-white`}>
-                Approve
-              </button>
-              <button disabled={busy} onClick={() => open('reject')} className={`${btn} border border-red-500/60 text-red-700`}>Reject</button>
-            </>
-          )}
           {b.status === 'confirmed' && (
             <button disabled={busy || checkInBlocked} onClick={() => run(() => post('/check-in'), 'Checked in')} className={`${btn} bg-ocean-500 text-white`}>
               Check in
@@ -210,6 +237,11 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
               Extend stay
             </button>
           )}
+          {MOVABLE.includes(b.status) && (
+            <button disabled={busy} onClick={() => open('move')} className={`${btn} border ${b.roomBlock ? 'border-red-500/60 text-red-700' : 'border-sand-400 text-ink-800'}`}>
+              Move room
+            </button>
+          )}
           {b.status === 'confirmed' && today >= b.check_in && (
             <button disabled={busy} onClick={markNoShow} className={`${btn} border border-orange-400/50 text-orange-700`}>
               No-show
@@ -218,6 +250,11 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
           {['confirmed', 'checked_in', 'checked_out'].includes(b.status) && (
             <button type="button" onClick={printCard} className={`${btn} border border-sand-400 text-ink-800`}>
               Print registration card
+            </button>
+          )}
+          {['confirmed', 'checked_in', 'checked_out'].includes(b.status) && (
+            <button type="button" disabled={busy} onClick={() => open('invoice')} className={`${btn} border border-sand-400 text-ink-800`}>
+              GST invoice
             </button>
           )}
           {isAdmin && ['paid', 'confirmed', 'checked_in'].includes(b.status) && (
@@ -233,18 +270,26 @@ export default function BookingDetail({ bookingId, mode, onClose, onChanged, ref
         </div>
 
         {/* ---------------- The form the pressed button opened ---------------- */}
-        {(panel === 'reject' || panel === 'cancel') && (
+        {panel === 'cancel' && (
           <RejectCancelForm
-            key={panel}
-            kind={panel}
+            kind="cancel"
             b={b}
             busy={busy}
-            onSubmit={(reason) => run(() => adminPost(`/${panel}`, { reason }), panel === 'reject' ? 'Rejected — refund initiated' : 'Cancelled — refund initiated')}
+            onSubmit={(reason) => run(() => adminPost('/cancel', { reason }), 'Cancelled — refund initiated')}
           />
         )}
+        {panel === 'invoice' && <InvoiceForm b={b} busy={busy} onSubmit={printInvoice} />}
         {panel === 'discount' && <DiscountForm busy={busy} onSubmit={(discount) => run(() => adminPost('/discount', discount), 'Discount applied')} />}
         {panel === 'payment' && <PaymentForm due={due} busy={busy} onSubmit={(payment) => run(() => post('/payments', payment), 'Payment recorded')} />}
         {panel === 'extend' && <ExtendForm b={b} busy={busy} onSubmit={(newCheckOut) => run(() => post('/extend', { checkOut: newCheckOut }), 'Stay extended — collect the new balance')} />}
+        {panel === 'move' && (
+          <MoveRoomForm
+            b={b}
+            auth={auth}
+            busy={busy}
+            onSubmit={(room, reason) => run(() => post('/move', { roomUnitId: room.id, reason }), `Moved to room ${room.unitNumber}`)}
+          />
+        )}
         {panel === 'upload' && (
           <IdUploadForm
             b={b}

@@ -5,34 +5,31 @@ import api from '@/lib/api';
 import { inr } from '@/lib/bookingUi';
 import PhoneInput from '../site/PhoneInput';
 
-// A hotel room pays one of two ways.
-const ROOM_PAYMENT = [
-  { value: 'online', title: 'Pay now', hint: 'UPI or card, on your phone' },
-  { value: 'cash', title: 'Cash', hint: 'When it arrives at your door' },
-];
-
 // What the main button says, and the line under it, for each kind of order.
-function wording({ type, room, payWith, order, total }) {
-  if (type === 'room' && payWith === 'online') {
+// A table and a hotel room pay now, by UPI or card on the guest's phone; the
+// counter's order is placed first and paid at the counter.
+function wording({ type, room, order, total }) {
+  if (order.paysOnline) {
     const busy = { opening: 'Opening the payment…', waiting: 'Waiting for your payment…', confirming: 'Checking your payment…' }[order.stage];
     return {
       button: busy || `Pay ${inr(total)} and order`,
-      note: `You pay now, and we bring it to Room ${room}.`,
+      note: `You pay now by UPI or card, and we bring it to ${type === 'room' ? `Room ${room}` : 'your table'}.`,
     };
   }
-  const button = order.status === 'placing' ? 'Placing order…' : `Place order · ${inr(total)}`;
-  if (type === 'room') return { button, note: `Please have ${inr(total)} ready in cash for when it arrives at Room ${room}.` };
-  return { button, note: `Pay at ${type === 'table' ? 'your table' : 'the counter'} — no online payment needed.` };
+  return {
+    button: order.status === 'placing' ? 'Placing order…' : `Place order · ${inr(total)}`,
+    note: 'Pay at the counter — no online payment needed.',
+  };
 }
 
 /**
- * The order so far, the guest's details and the Place order button.
+ * The order so far, the guest's details and the button that pays for it (a
+ * table, a hotel room) or places it (the counter).
  * `orderContext`: which QR code opened the page (lib/foodOrders.js).
  * `order`: from usePlaceOrder.
  */
 export default function CartSheet({ cart, orderContext, order, onClear, onClose }) {
   const { type } = orderContext;
-  const isRoom = type === 'room';
   const nameRequired = type === 'counter'; // a counter order is called out by name
   // "N orders ahead of you" instead of a guessed wait time.
   const [queue, setQueue] = useState(null);
@@ -42,7 +39,7 @@ export default function CartSheet({ cart, orderContext, order, onClear, onClose 
 
   const { form, setField } = order;
   const busy = order.status === 'placing' || order.status === 'paying';
-  const text = wording({ type, room: orderContext.roomId, payWith: order.payWith, order, total: cart.total });
+  const text = wording({ type, room: orderContext.roomId, order, total: cart.total });
 
   return (
     <form onSubmit={order.submit} className="flex min-h-full flex-col">
@@ -93,35 +90,15 @@ export default function CartSheet({ cart, orderContext, order, onClear, onClose 
               </p>
             )}
 
-            {isRoom && (
-              <fieldset className="pt-2" disabled={busy || Boolean(order.testPayment)}>
-                <legend className="label">How would you like to pay?</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {ROOM_PAYMENT.map((choice) => {
-                    const on = order.payWith === choice.value;
-                    return (
-                      <label
-                        key={choice.value}
-                        className={`cursor-pointer rounded-xl border-2 px-3 py-3 text-center focus-within:ring-2 focus-within:ring-ocean-300 ${on ? 'border-ocean-500 bg-ocean-50' : 'border-sand-300'}`}
-                      >
-                        <input type="radio" name="payWith" value={choice.value} checked={on} onChange={() => order.setPayWith(choice.value)} className="sr-only" />
-                        <span className="block font-semibold text-ink-900">{choice.title}</span>
-                        <span className="block text-xs text-ink-500">{choice.hint}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            )}
-
             <div className="space-y-3 pt-2">
               <div>
-                <label className="label" htmlFor="customerName">Name {nameRequired ? <span className="text-gold-600">*</span> : isRoom && '(optional)'}</label>
+                <label className="label" htmlFor="customerName">Name {nameRequired ? <span className="text-gold-600">*</span> : '(optional)'}</label>
                 <input id="customerName" className="input-field" value={form.customerName} required={nameRequired} onChange={(e) => setField('customerName', e.target.value)} />
               </div>
               <div>
                 <label className="label" htmlFor="customerPhone">Phone (optional)</label>
-                <PhoneInput id="customerPhone" value={form.customerPhone} onChange={(customerPhone) => setField('customerPhone', customerPhone)} />
+                <PhoneInput id="customerPhone" value={form.customerPhone} onChange={(customerPhone) => setField('customerPhone', customerPhone)} describedBy="customerPhoneHint" />
+                <p id="customerPhoneHint" className="mt-1 text-xs text-ink-400">To get your order number and updates by SMS.</p>
               </div>
               <div>
                 {/* Its own field so the kitchen sees it as a warning, not as an ordinary note. */}

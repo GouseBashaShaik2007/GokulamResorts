@@ -21,21 +21,30 @@ const REFUND_TEXT = {
   failed: 'Your payment could not be refunded automatically. Please speak to our staff: they will return it.',
 };
 
-// What the guest should do (or expect) at each stage.
+// What is still owed on an order that has not been paid. A counter order is
+// paid at the counter. A table's or a room's order is paid online when it is
+// placed, so only one from before that can be unpaid: our staff collect it.
+const stillToPay = (order) =>
+  order.table_number || order.room_number
+    ? `${inr(order.total_amount)} is still to be paid: please pay our staff.`
+    : `Pay ${inr(order.total_amount)} at the counter.`;
+
+// What the guest should do (or expect) at each stage. An order for a room or
+// a table is brought there (the kiosk's "room drop" and "dine-in" too);
+// anything else is collected at the counter.
 function nextStep(order) {
   const room = order.room_number;
-  const where = order.table_number ? 'at your table' : 'at the counter';
+  const table = order.table_number;
   switch (order.status) {
-    case 'new':
-      if (order.paid) return room ? `The kitchen has your order. We will bring it to Room ${room}.` : 'The kitchen has your order.';
-      return room
-        ? `The kitchen has your order. Please have ${inr(order.total_amount)} ready in cash for when it arrives at Room ${room}.`
-        : `The kitchen has your order. Pay ${inr(order.total_amount)} ${where}.`;
+    case 'new': {
+      const bringing = room ? ` We will bring it to Room ${room}.` : table ? ` We will bring it to Table ${table}.` : '';
+      return `The kitchen has your order.${bringing}${order.paid ? '' : ` ${stillToPay(order)}`}`;
+    }
     case 'preparing':
       return 'Your order is being cooked now.';
     case 'ready':
-      if (room) return order.paid ? `Your order is on its way to Room ${room}.` : `Your order is on its way to Room ${room}. Please have ${inr(order.total_amount)} ready in cash.`;
-      return order.table_number ? 'Your order is ready to be served.' : 'Your order is ready. Please collect it at the counter.';
+      if (room) return `Your order is on its way to Room ${room}.${order.paid ? '' : ` ${stillToPay(order)}`}`;
+      return table ? 'Your order is ready to be served.' : 'Your order is ready. Please collect it at the counter.';
     case 'served':
       return 'Enjoy your meal!';
     case 'cancelled':
@@ -104,20 +113,26 @@ function CancelOrder({ token, paidOnline, onCancelled }) {
   );
 }
 
-function ConfirmationContent({ orderContext }) {
-  const browseHref = orderingHref(orderContext); // back to the menu
-  const table = orderContext.type === 'table' ? orderContext.tableId : null;
-  const { accessKey } = orderContext;
-  const searchParams = useSearchParams();
-  // The order's private token (not its number — those run 1, 2, 3 and could be guessed).
-  const orderId = searchParams.get('order');
+const Loading = () => <div className="card mx-auto h-80 max-w-lg animate-pulse" role="status" aria-label="Loading your order" />;
+
+/**
+ * One order, followed live: where it stands, what was ordered, what was paid.
+ * `token`: the order's private token (not its number — those run 1, 2, 3 and
+ * could be guessed). `orderContext`: the table, room or counter the page was
+ * reached from, with its QR key; null when the page was opened from the link
+ * in an SMS, which carries no key — there is then no way back to the menu, so
+ * no "Order more", no "Call staff" and no list of this phone's other orders.
+ */
+function OrderStatus({ token, orderContext = null }) {
+  const browseHref = orderContext ? orderingHref(orderContext) : null; // back to the menu
+  const table = orderContext?.type === 'table' ? orderContext.tableId : null;
   const [order, setOrder] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const lastStatus = useRef(null);
 
   useEffect(() => {
-    if (!orderId) {
+    if (!token) {
       setLoading(false);
       setError('No order reference was provided.');
       return;
@@ -126,7 +141,7 @@ function ConfirmationContent({ orderContext }) {
     let cancelled = false;
     const poll = () => {
       api
-        .get(`/food-orders/${orderId}`)
+        .get(`/food-orders/${token}`)
         .then((res) => {
           if (cancelled) return;
           const next = res.data.order;
@@ -161,17 +176,19 @@ function ConfirmationContent({ orderContext }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [orderId]);
+  }, [token]);
 
-  if (loading) {
-    return <div className="card mx-auto h-80 max-w-lg animate-pulse" role="status" aria-label="Loading your order" />;
-  }
+  if (loading) return <Loading />;
 
   if (!order) {
     return (
       <div className="card mx-auto max-w-lg p-8 text-center">
         <p role="alert" className="text-red-700">{error || 'Order not found.'}</p>
-        <Link href={browseHref} className="btn-primary mt-6 inline-flex">Back to Menu</Link>
+        {browseHref ? (
+          <Link href={browseHref} className="btn-primary mt-6 inline-flex">Back to Menu</Link>
+        ) : (
+          <p className="mt-3 text-sm text-ink-500">Please check the link in your message, or ask our staff.</p>
+        )}
       </div>
     );
   }
@@ -208,45 +225,67 @@ function ConfirmationContent({ orderContext }) {
           <dt className="text-ink-400">Total</dt>
           <dd className="price">{inr(order.total_amount)}</dd>
         </div>
-        {/* Shown once the counter has recorded the payment; older API servers don't say. */}
+        {/* Older API servers don't say whether an order is paid. */}
         {order.paid !== undefined && !cancelledOrder && (
           <div className="flex justify-between">
             <dt className="text-ink-400">Payment</dt>
             <dd className={order.paid ? 'font-semibold text-green-800' : 'text-ink-700'}>
-              {order.paid ? 'Paid — thank you' : order.room_number ? 'Cash, when it arrives' : `To pay ${order.table_number ? 'at your table' : 'at the counter'}`}
+              {order.paid ? 'Paid — thank you' : order.table_number || order.room_number ? 'Not paid yet — please pay our staff' : 'To pay at the counter'}
             </dd>
           </div>
         )}
       </dl>
 
-      <Link href={browseHref} className="btn-primary mt-8 inline-flex">Order More</Link>
+      {browseHref && <Link href={browseHref} className="btn-primary mt-8 inline-flex">Order More</Link>}
       {order.status === 'new' && (
         <CancelOrder
-          token={orderId}
+          token={token}
           paidOnline={Boolean(order.paid_online)}
           onCancelled={(refund) => setOrder((o) => ({ ...o, status: 'cancelled', refund_status: refund ? refund.status : o.refund_status }))}
         />
       )}
       {order.status === 'preparing' && <p className="mt-4 text-sm text-ink-400">Need to change it? Please ask our staff — the kitchen has started.</p>}
-      {table && accessKey && !cancelledOrder && <TableService table={table} accessKey={accessKey} className="mt-4" />}
+      {table && orderContext.accessKey && !cancelledOrder && <TableService table={table} accessKey={orderContext.accessKey} className="mt-4" />}
 
       {/* Everything ordered from this phone in this sitting, with the running total. */}
-      <YourOrders cartKey={orderingKey(orderContext)} confirmationHref={(token) => orderHref(orderContext, token)} minOrders={2} className="mt-8" />
+      {orderContext && (
+        <YourOrders cartKey={orderingKey(orderContext)} confirmationHref={(other) => orderHref(orderContext, other)} minOrders={2} className="mt-8" />
+      )}
+    </div>
+  );
+}
+
+// The order's token arrives in the address (?order=…) on the pages reached from the menu.
+function ConfirmationContent({ orderContext }) {
+  const searchParams = useSearchParams();
+  return <OrderStatus token={searchParams.get('order')} orderContext={orderContext} />;
+}
+
+/**
+ * Live status of one food order, on the page a guest lands on after ordering.
+ * `orderContext`: the table, room or counter it was ordered from
+ * (lib/foodOrders.js) — it leads back to the menu, and a table also gets
+ * "Call staff".
+ */
+export default function OrderConfirmation({ orderContext }) {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+      <Suspense fallback={<Loading />}>
+        <ConfirmationContent orderContext={orderContext} />
+      </Suspense>
     </div>
   );
 }
 
 /**
- * Live status of one food order. `orderContext`: the table, room or counter it
- * was ordered from (lib/foodOrders.js) — it leads back to the menu, and a table
- * also gets "Call staff" / "Request the bill".
+ * The same live status for someone who opened the link in their order's SMS
+ * (/order/track/<token>), on any phone. The link carries no QR key, so the
+ * page only follows the order: there is no way from it to order more.
  */
-export default function OrderConfirmation({ orderContext }) {
+export function OrderTracking({ token }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
-      <Suspense fallback={<div className="card mx-auto h-80 max-w-lg animate-pulse" role="status" aria-label="Loading your order" />}>
-        <ConfirmationContent orderContext={orderContext} />
-      </Suspense>
+      <OrderStatus token={token} />
     </div>
   );
 }

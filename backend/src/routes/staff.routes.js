@@ -7,6 +7,7 @@ const staffAuth = require('../middleware/staffAuth');
 const { ApiError } = require('../middleware/errorHandler');
 const { ALLOWED_TYPES } = require('../services/publicImage.service');
 const issues = require('../controllers/roomIssue.controller');
+const { SKIP_REASONS } = require('../services/cleaning.service');
 const {
   login,
   listHousekeepers,
@@ -18,8 +19,10 @@ const {
   startTask,
   pauseTask,
   completeTask,
+  skipTask,
   approveInspection,
   rejectInspection,
+  rejectionPhotoUrl,
 } = require('../controllers/staff.controller');
 const { assignJob } = require('../controllers/housekeeping.controller');
 
@@ -60,17 +63,20 @@ router.use(staffAuth);
 
 router.get('/me', me);
 
-// "Report a problem" from a room, with an optional photo (held in memory only
-// long enough to pass it to private storage).
-const issuePhoto = multer({
+// One optional photo from a room — with "Report a problem", or when an
+// inspector sends a room back. Held in memory only long enough to pass it to
+// private storage.
+const roomPhoto = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) =>
     ALLOWED_TYPES.includes(file.mimetype) ? cb(null, true) : cb(new ApiError(400, 'The photo must be a JPG, PNG or WEBP')),
 });
+
+// "Report a problem" from a room.
 router.post(
   '/issues',
-  issuePhoto.single('photo'),
+  roomPhoto.single('photo'),
   [
     body('roomUnitId').isInt({ min: 1 }).toInt(),
     body('kind').isIn(issues.KINDS).withMessage(`kind must be one of: ${issues.KINDS.join(', ')}`),
@@ -85,9 +91,58 @@ const taskId = [param('id').isInt({ min: 1 })];
 router.post('/tasks/:id/start', taskId, validate, startTask);
 router.post('/tasks/:id/pause', taskId, validate, pauseTask);
 router.post('/tasks/:id/complete', taskId, validate, completeTask);
+
+// A stayover closed at the door without the room being serviced: "Do not
+// disturb", the guest said no, or something else — which needs a note.
+router.post(
+  '/tasks/:id/skip',
+  [
+    ...taskId,
+    body('reason').isIn(SKIP_REASONS).withMessage(`reason must be one of: ${SKIP_REASONS.join(', ')}`),
+    body('note')
+      .optional({ values: 'falsy' })
+      .isString()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('Keep the note under 500 characters'),
+    body('note')
+      .if(body('reason').equals('other'))
+      .isString()
+      .withMessage('Say why the room was not serviced')
+      .bail()
+      .trim()
+      .isLength({ min: 3 })
+      .withMessage('Say why the room was not serviced'),
+  ],
+  validate,
+  skipTask
+);
+
 router.post('/tasks/:id/approve', taskId, validate, approveInspection);
+
+// A form with a photo sends everything as text: the failed tasks then arrive
+// as one name, the same field repeated, or a JSON list. Made into a list
+// here, so the checks below read the same body a JSON request sends.
+const failedTasksAsList = (req, res, next) => {
+  let failed = req.body ? req.body.failedTasks : undefined;
+  if (typeof failed === 'string') {
+    try {
+      failed = JSON.parse(failed);
+    } catch {
+      // a plain name, e.g. "Bedding"
+    }
+    if (typeof failed === 'string') failed = [failed];
+    req.body.failedTasks = failed;
+  }
+  next();
+};
+
+// Sending a room back: JSON as before, or a form with an optional `photo` of
+// what is wrong (JPG, PNG or WEBP, up to 5 MB).
 router.post(
   '/tasks/:id/reject',
+  roomPhoto.single('photo'),
+  failedTasksAsList,
   [
     ...taskId,
     body('failedTasks').isArray({ min: 1, max: 2 }).withMessage('Pick at least one failed task'),
@@ -101,6 +156,9 @@ router.post(
   validate,
   rejectInspection
 );
+
+// The photo that came with the last "send back", for the housekeeper redoing the room.
+router.get('/tasks/:id/rejection-photo-url', taskId, validate, rejectionPhotoUrl);
 
 // Inspectors run the housekeeping floor: they see every open room and say who
 // cleans and inspects it, the same as a manager does from the admin board.

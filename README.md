@@ -94,7 +94,7 @@ Log in at `http://localhost:3000/admin` with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, t
 | `/rooms`, `/rooms/:slug` | Guests | Pick dates → pick an actual room number → pay |
 | `/booking/status` | Guests | Look up a booking with booking ID + mobile number (no login) |
 | `/admin` | Manager | Bookings (approvals, discounts, cancellations, IDs, promotions), rooms, housekeeping, menu |
-| `/frontdesk` | Front desk staff | Arrivals / departures / in-house, walk-ins, payments, ID capture, check-in/out |
+| `/frontdesk` | Front desk staff | Arrivals / departures / in-house, rooms board, calendar of rooms by date, walk-ins, payments, ID capture, check-in/out |
 | `/staff` | Housekeeping | Bedding / toiletry / inspector task screens (front desk logins are redirected) |
 | `/kitchen` | Kitchen | Food orders |
 
@@ -104,10 +104,10 @@ The **booking row is the source of truth**; payments, refunds, ID documents, cle
 messages all hang off it. Guests have no accounts — a guest is the name / phone / email on the booking.
 
 ```
-online:  pending_payment ─Razorpay─▶ paid ─manager approves─▶ confirmed
+online:  pending_payment ─Razorpay─▶ confirmed   (paying confirms it; nobody approves)
 counter:                               (paid at the desk) ──▶ confirmed
 stay:    confirmed ─ID + full payment─▶ checked_in ─▶ checked_out ─▶ cleaning job
-exits:   cancelled / rejected (full refund) · no_show (no refund)
+exits:   cancelled (full refund) · no_show (no refund)
 ```
 
 **Rules enforced by the server**
@@ -115,9 +115,17 @@ exits:   cancelled / rejected (full refund) · no_show (no refund)
 - **One room, one live booking per night.** A Postgres exclusion constraint on `(room_unit_id,
   daterange(check_in, check_out))` rejects overlaps for any `pending_payment / paid / confirmed /
   checked_in` booking — including simultaneous requests.
-- **Online holds:** the room is held `BOOKING_HOLD_MINUTES` (15) while the guest pays. Once paid, the
-  manager has `BOOKING_APPROVAL_HOURS` (24) to approve; otherwise the booking auto-cancels with a full
-  refund (checked every 2 minutes). A payment that arrives after its hold expired is refunded automatically.
+- **Online bookings are for a room type.** The guest site shows how many rooms of each type are free,
+  never room numbers. A free room of the type is held in the background (so the count on sale is always
+  right) for `BOOKING_HOLD_MINUTES` (15) while the guest pays. Paying confirms the booking at once. A
+  payment that arrives after its hold expired is refunded automatically. The guest learns the room number
+  at check-in; the front desk may move the booking to another room before or during the stay.
+- **GST invoice:** from a paid booking the front desk prints a tax invoice (CGST + SGST, SAC 996311). The
+  booking gets the next number of the financial year (`GKL/26-27/0001`) the first time; printing again
+  reuses it. The resort's registered name and GSTIN come from Admin → Settings.
+- **Late check-out:** from `CHECKOUT_HOUR` (11) a guest who is due out and still checked in is flagged on
+  the front desk's Departures list and the room gets its cleaning job (marked Dirty). Nobody is checked
+  out automatically; extending the stay takes an untouched job back.
 - **Counter bookings** (walk-ins) are confirmed immediately and paid in full on the spot
   (cash / UPI / card + a reference number).
 - **Check-in** needs: status confirmed, date on/after check-in, nothing due, the primary guest's ID
@@ -125,6 +133,14 @@ exits:   cancelled / rejected (full refund) · no_show (no refund)
   sees "ID recorded for 1 of 2 adults" if some are missing.
 - **Extensions** price the extra nights at current rates and promotions and add a balance due; check-out
   is blocked until it is paid. Extending into another guest's booking is refused.
+- **Out of order:** the front desk or a manager can take a room out of order from a day (today or
+  later) until the day it is back, or until further notice, with a reason. On those nights the room is
+  not offered, cannot be booked and cannot be checked into. Bookings already in the room are kept and
+  shown as needing another room; putting the room back ends the block from today.
+- **Moving a stay** to another room (front desk or manager) works until the guest has left: the new room
+  must fit the party, be free on every night of the stay and be in service. The price stays as booked,
+  whatever the new room's type. A guest already in the room can only move to a room that is `Ready`,
+  and the room they leave goes to housekeeping.
 - **Early check-out** ends the stay today and frees the unused nights. There is no automatic refund —
   a manager discount can give money back.
 - **Check-out** creates the room's cleaning job in the same transaction; the 11 PM job is a safety net.
@@ -155,6 +171,7 @@ exits:   cancelled / rejected (full refund) · no_show (no refund)
 | `refunds` | Money out: Razorpay refunds (tracked by webhook) or counter payouts (pending until paid out). |
 | `guest_documents` | ID proofs: guest, type, last 4 chars, nationality, storage key, masked confirmation, verified by/at, purged at. |
 | `rate_discounts` | Standing promotions by room type and date range, with a reason. |
+| `room_blocks` | A room out of order for the nights `[start_date, end_date)` (`end_date` empty = until put back), the reason, who set and ended it, and the housekeeping report it came from. |
 | `audit_log` | Who did what, when (manager, staff, guest, system). |
 | `notifications` | Guest message outbox (SMS / WhatsApp / email) and delivery status. |
 | `admins` | Manager logins. |
@@ -191,6 +208,9 @@ All routes are mounted under `/api`.
 | POST / DELETE | `/desk/bookings/:id/documents[/:docId]` | Front desk or manager | Upload a verified ID (multipart) / remove before check-in |
 | POST | `/desk/bookings/:id/check-in` · `extend` · `check-out` · `no-show` | Front desk or manager | Stay operations |
 | POST | `/desk/refunds/:id/complete` | Front desk or manager | Record a counter refund payout |
+| GET · POST | `/desk/bookings/:id/move-options` · `/desk/bookings/:id/move` | Front desk or manager | Rooms a stay could move to · move it (`roomUnitId`, optional `reason`) |
+| GET, POST | `/desk/room-blocks` | Front desk or manager | Rooms out of order (`?from&to`) / take one out (`roomUnitId`, `startDate?`, `endDate?`, `reason`) |
+| POST | `/desk/room-blocks/:id/end` | Front desk or manager | Put the room back in service from today |
 | — | `/admin/rooms…`, `/admin/menu…`, `/admin/food-orders`, `/menu…`, `/food-orders…`, `/kitchen…` | | Rooms, menu and food ordering |
 | POST | `/checkouts` | Kiosk key, or a room's QR key | Price a basket and open a Razorpay order for it (nothing reaches the kitchen yet) |
 | POST | `/checkouts/:token/confirm` | Checkout token | **Verify Razorpay signature** → the food order is created, already paid |
@@ -225,6 +245,12 @@ three tasks — Bedding, Toiletry, Inspection — each assigned to one staff mem
 2. **11 PM safety net** (`CLEANING_CRON`, `RESORT_TIMEZONE`): any stay checked out in the last 3 days
    without a cleaning job gets one. The admin board also has a **Run nightly now** button.
 3. **Manually:** a manager marks any room dirty (with priority + note).
+4. **Late check-out** (every 10 minutes from `CHECKOUT_HOUR`): see the booking rules above.
+5. **Stayover** (every 10 minutes from `STAYOVER_HOUR`, 9): every occupied room (not on its arrival or
+   departure day) gets a daily service job with Bedding and Toiletry tasks only. Nobody inspects it, and it
+   does not change the room's own status. Whichever housekeeper reaches the door first can close it
+   without servicing: do not disturb, guest said no, or another reason with a note
+   (`POST /api/staff/tasks/:id/skip`). One left open is closed as "not done" the next morning.
 
 The database allows one checkout job per stay and never two open jobs on the same room. Check-in is
 refused while a room is not `Ready`.
@@ -290,8 +316,9 @@ booking page shows a "Simulate Successful Payment" button. Mock mode refuses to 
 See [`backend/.env.example`](backend/.env.example) and
 [`frontend/.env.local.example`](frontend/.env.local.example). Never commit real `.env`/`.env.local`
 files — both are already in [`.gitignore`](.gitignore). Booking-related settings: `RESORT_TIMEZONE`,
-`BOOKING_HOLD_MINUTES`, `BOOKING_APPROVAL_HOURS`, `RAZORPAY_MODE`, `RAZORPAY_WEBHOOK_SECRET`,
-`STORAGE_DRIVER` + `S3_*`, `DOC_RETENTION_DAYS`, `NOTIFY_DRIVER`, `CLEANING_CRON`.
+`BOOKING_HOLD_MINUTES`, `RAZORPAY_MODE`, `RAZORPAY_WEBHOOK_SECRET`,
+`STORAGE_DRIVER` + `S3_*`, `DOC_RETENTION_DAYS`, `NOTIFY_DRIVER`, `NOTIFY_CHANNELS`, `CLEANING_CRON`,
+`STAYOVER_HOUR`, `CHECKOUT_HOUR`.
 
 ## 7. Security notes / production checklist
 

@@ -13,7 +13,7 @@ function LookupHelp() {
   return (
     <aside className="space-y-3 text-sm text-ink-500 lg:pt-10">
       <h2 className="font-serif text-xl font-semibold text-ink-900">What you can do here</h2>
-      <p>See whether your booking is confirmed, check your dates, room number and what you paid, track a refund, and get directions.</p>
+      <p>See whether your booking is confirmed, check your dates and what you paid, track a refund, and get directions.</p>
       <p>
         To change dates or cancel, contact the resort{wa ? ' on WhatsApp' : ''} at{' '}
         {tel ? <a className="text-ocean-600 underline" href={tel}>{contact.phone}</a> : <a className="text-ocean-600 underline" href={`mailto:${contact.email}`}>{contact.email}</a>}.

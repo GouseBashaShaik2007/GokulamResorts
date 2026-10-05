@@ -7,7 +7,7 @@ import useCleaningSocket from '../../lib/useCleaningSocket';
 import Chip from '../ui/Chip';
 import { addDays, errMsg, inr, todayIST } from '../../lib/bookingUi';
 import VegMark from '../ui/VegMark';
-import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, ORDER_TYPE_LABEL, orderTitle, paidOnline, splitOrderNotes } from '../../lib/foodOrders';
+import { NEXT_ORDER_STATUS, ORDER_STATUS_LABEL, orderTitle, paidOnline, splitOrderNotes } from '../../lib/foodOrders';
 import { useConfirm } from '@/components/ui/Confirm';
 import { useToast } from '@/components/ui/Toast';
 
@@ -116,7 +116,7 @@ export default function FoodOrdersManager() {
     setBusyId(order.id);
     try {
       const res = await api.patch(`/admin/food-orders/${order.id}/status`, { status, ...extra });
-      // A cancelled kiosk order was paid on the screen: say where the money went.
+      // A cancelled order that had been paid online (the kiosk, a table, a room): say where the money went.
       const refund = res.data?.refund;
       if (refund?.status === 'failed') {
         toast(`Order #${order.id} is cancelled, but the ${inr(refund.amount)} refund could not be started. Refund it by hand in the Razorpay dashboard.`, { tone: 'error', duration: 15000 });
@@ -157,7 +157,8 @@ export default function FoodOrdersManager() {
     if (reason) setStatus(order, 'cancelled', 'Could not cancel that order.', { reason: reason.trim() });
   };
 
-  // Payment is taken at the counter; the manager can record it here too, and undo a slip.
+  // Most orders arrive paid online. A counter order is paid at the counter;
+  // the manager can record that here too, and undo a slip.
   const { pay, undo } = useOrderPayments({ auth: asManager, onChanged: load });
 
   // What the listed orders are worth; cancelled ones bring in nothing.
@@ -216,10 +217,10 @@ export default function FoodOrdersManager() {
             <tr key={o.id} className="border-b border-sand-200 align-top text-ink-800">
               <td className="py-2 pr-4">{o.id}</td>
               <td className="py-2 pr-4">
+                {/* What the order is and where it goes: "Table 4", "Counter", "Kiosk · Pickup"… */}
                 {orderTitle(o)}
-                {/* "Table 7" and "Room 101" say what they are; a name or a bare number needs its kind. */}
-                {!o.table_number && !o.room_number && <span className="block text-xs text-ink-400">{ORDER_TYPE_LABEL[o.order_type] || o.order_type}</span>}
-                {o.room_number && o.customer_name && <span className="block text-xs text-ink-400">{o.customer_name}</span>}
+                {/* The name it was placed under, where one was given (the kiosk takes none). */}
+                {o.customer_name && <span className="block text-xs text-ink-400">{o.customer_name}</span>}
               </td>
               <td className="py-2 pr-4 text-ink-500">{formatWhen(o.created_at)}</td>
               <td className="py-2 pr-4"><OrderItems order={o} /></td>

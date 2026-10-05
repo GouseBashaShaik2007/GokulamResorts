@@ -9,9 +9,8 @@ import LookupForm from './booking-status/LookupForm';
 /**
  * Looks up a booking by reference + phone. If both are known up front (right
  * after paying, same tab) it loads straight away; otherwise it asks for them.
- * `justBooked`: this is the page a guest lands on after paying, so a booking
- * that is still awaiting the resort's confirmation gets the "payment received,
- * here is what happens next" card on top.
+ * `justBooked`: this is the page a guest lands on after paying, so the
+ * "booking confirmed, here is what happens next" card goes on top.
  */
 export default function GuestBookingStatus({ initialRef = '', initialPhone = '', intro = '', justBooked = false }) {
   const [booking, setBooking] = useState(null);
@@ -38,8 +37,8 @@ export default function GuestBookingStatus({ initialRef = '', initialPhone = '',
     if (initialRef && initialPhone) lookup(initialRef, initialPhone);
   }, [initialRef, initialPhone, lookup]);
 
-  // While the booking is waiting on payment or the resort's approval, check
-  // again quietly so "Booking confirmed" appears without a reload. Once a
+  // While the booking is waiting on its payment, check again quietly so
+  // "Booking confirmed" appears without a reload. Once a
   // minute: the lookup API allows 30 requests per 15 minutes.
   const waiting = !!booking && ['pending_payment', 'paid'].includes(booking.status);
   useEffect(() => {

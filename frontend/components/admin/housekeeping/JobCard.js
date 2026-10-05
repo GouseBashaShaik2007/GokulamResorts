@@ -5,20 +5,36 @@ import api from '../../../lib/api';
 import { useConfirm } from '@/components/ui/Confirm';
 import { errMsg } from '../../../lib/bookingUi';
 import { JOB_STATUS_STYLE, PRIORITY_STYLE, TASK_STATUS_STYLE } from '../../../lib/cleaningStyles';
-import { RejectForm } from '../../housekeeping/TaskCards';
+import { stayoverStatus } from '../../../lib/stayovers';
+import { JobNote, RejectForm } from '../../housekeeping/TaskCards';
 import { Badge, PRIORITIES, TASK_ROLES, fmtTime } from '../../housekeeping/shared';
 
+// What raised the job, as the card's small print says it.
+function jobKind(job) {
+  if (job.reason === 'stayover') return 'Guest is staying';
+  if (job.reason === 'manual') return 'Marked dirty';
+  if (job.source === 'late') return 'Checkout (guest late)';
+  if (job.source === 'nightly') return 'Checkout (11 PM safety net)';
+  return 'Checkout';
+}
+
 /**
- * One room's cleaning job: its priority, and who does each of its three tasks.
- * The manager can also decide it in the inspector's place: approve or send
- * back a cleaned room, or mark a room ready that was never cleaned in the app.
+ * One room's cleaning job: its priority, and who does each of its tasks —
+ * three for a full clean, two for a stayover (the guest is staying; nobody
+ * inspects it, and a finished one says how it ended).
+ * The manager can also decide a full clean in the inspector's place: approve
+ * or send back a cleaned room, or mark a room ready that was never cleaned in
+ * the app.
  */
 export default function JobCard({ job, staff, onChanged, onError }) {
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const ask = useConfirm();
   const finished = job.status === 'Ready';
+  const stayover = job.reason === 'stayover';
   const cleaned = job.status === 'Inspection';
+  // A stayover is shown in its own words: its room is occupied, not "Dirty".
+  const status = stayover ? stayoverStatus(job) : { label: job.status, style: JOB_STATUS_STYLE[job.status] };
 
   const assign = async (field, value) => {
     setBusy(true);
@@ -76,10 +92,12 @@ export default function JobCard({ job, staff, onChanged, onError }) {
     <div className={`card p-5 ${finished ? 'opacity-70' : ''}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="font-serif text-xl font-bold text-ink-900">Room {job.unit_number}</p>
+          <p className="flex flex-wrap items-center gap-2 font-serif text-xl font-bold text-ink-900">
+            Room {job.unit_number}
+            {stayover && <span className="rounded-full bg-ocean-50 px-2.5 py-0.5 font-sans text-xs font-semibold text-ocean-700">Stayover</span>}
+          </p>
           <p className="text-xs text-ink-400">
-            {job.room_type} · {job.reason === 'manual' ? 'Marked dirty' : job.source === 'nightly' ? 'Checkout (11 PM safety net)' : 'Checkout'} ·{' '}
-            {String(job.job_date).slice(0, 10)}
+            {job.room_type} · {jobKind(job)} · {String(job.job_date).slice(0, 10)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -99,17 +117,31 @@ export default function JobCard({ job, staff, onChanged, onError }) {
               <span className="pointer-events-none absolute right-2 text-[10px]" aria-hidden="true">▾</span>
             </span>
           )}
-          <Badge className={JOB_STATUS_STYLE[job.status]}>{job.status}</Badge>
+          <Badge className={status.style}>{status.label}</Badge>
         </div>
       </div>
 
-      {job.notes && <p className="mt-2 text-xs italic text-ink-500">Note: {job.notes}</p>}
+      {/* "The guest has not checked out yet" is a warning, not a passing remark. */}
+      {job.source === 'late' ? (
+        <JobNote source={job.source} notes={job.notes} />
+      ) : (
+        job.notes && <p className="mt-2 text-xs italic text-ink-500">Note: {job.notes}</p>
+      )}
+      {/* A stayover closed at the door: the housekeeper's note, and who it was. */}
+      {stayover && finished && (job.closed_note || job.closed_by_name) && (
+        <p className="mt-2 text-xs text-ink-500">
+          {job.closed_note}
+          {job.closed_note && job.closed_by_name ? ' — ' : ''}
+          {job.closed_by_name && `closed by ${job.closed_by_name}`}
+        </p>
+      )}
       {rejection && (
         <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-700">
           Rejected ({rejection.failed_tasks.join(' + ')}): {rejection.failure_reason}
         </p>
       )}
 
+      {/* One row per task the job has: a stayover has no inspection, so no inspector. */}
       <div className="mt-4 space-y-2">
         {TASK_ROLES.map(({ type, role, field }) => {
           const task = job.tasks?.[type];
@@ -129,7 +161,7 @@ export default function JobCard({ job, staff, onChanged, onError }) {
                 {options.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
               <span className="flex flex-col items-end gap-0.5">
-                <Badge className={TASK_STATUS_STYLE[task.status]}>{task.status}</Badge>
+                <Badge className={TASK_STATUS_STYLE[task.status]}>{task.status === 'Skipped' ? 'Not done' : task.status}</Badge>
                 {(task.start_time || task.end_time) && (
                   <span className="text-[10px] text-ink-400">
                     {fmtTime(task.start_time)} → {fmtTime(task.end_time)}
@@ -152,7 +184,8 @@ export default function JobCard({ job, staff, onChanged, onError }) {
         </div>
       )}
       {cleaned && rejecting && <RejectForm busy={busy} onSubmit={reject} onCancel={() => setRejecting(false)} />}
-      {!finished && !cleaned && (
+      {/* Not for a stayover: it finishes by itself, or the housekeeper closes it at the door. */}
+      {!finished && !cleaned && !stayover && (
         <p className="mt-4 border-t border-sand-300 pt-3 text-right">
           <button type="button" disabled={busy} onClick={markReady} className="text-xs text-ink-500 underline disabled:opacity-50">
             Mark ready without inspection…

@@ -10,6 +10,7 @@ const orderAccess = require('../utils/orderAccess');
 const foodOrders = require('../services/foodOrders.service');
 const { emitFoodUpdate } = require('../realtime');
 const { startSession, endSession } = require('../utils/session');
+const { CHECKOUT_HOUR } = require('../services/cleaning.service');
 
 // POST /api/admin/login
 const login = asyncHandler(async (req, res) => {
@@ -396,7 +397,7 @@ const listFoodOrders = asyncHandler(async (req, res) => {
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
   const { rows: orders } = await query(
-    `SELECT id, order_type, table_number, room_number, customer_name, customer_phone, notes,
+    `SELECT id, order_type, service_mode, table_number, room_number, customer_name, customer_phone, notes,
             total_amount, status, created_at, updated_at, paid_at, payment_method, payment_reference, refund_status
      FROM food_orders
      ${where}
@@ -447,12 +448,9 @@ const updateFoodOrderStatus = asyncHandler(async (req, res) => {
   }
   await foodOrders.assertNotRefunded(id, status);
 
-  const { rows } = await query(
-    `UPDATE food_orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING id, status`,
-    [status, id]
-  );
-
-  if (rows.length === 0) {
+  // A guest who left a phone number is told when the order becomes ready.
+  const order = await foodOrders.setStatus(id, status);
+  if (!order) {
     throw new ApiError(404, 'Order not found');
   }
 
@@ -460,20 +458,19 @@ const updateFoodOrderStatus = asyncHandler(async (req, res) => {
     actorType: 'admin',
     actorId: req.admin?.sub,
     action: 'food_order_status_change',
-    details: { orderId: rows[0].id, status, ...(status === 'cancelled' ? { reason: String(reason).trim() } : {}) },
+    details: { orderId: order.id, status, ...(status === 'cancelled' ? { reason: String(reason).trim() } : {}) },
   });
-  // An order paid on the kiosk is refunded the way it was paid; `refund` tells the screen.
-  const actor = { type: 'admin', id: req.admin?.sub ?? null };
-  const refund = status === 'cancelled' ? await foodOrders.refundIfPaidOnline(rows[0].id, actor) : null;
-  // A room order paid in cash is paid at the door: delivering it records the cash.
-  const cash = await foodOrders.syncCashOnDelivery(rows[0].id, status, actor);
-  emitFoodUpdate('order_status', { orderId: rows[0].id, status });
+  // A cancelled order that was paid online is refunded the way it was paid
+  // (`refund` tells the screen), and the guest is told. An older room order
+  // that was to be paid in cash at the door: delivering it records the cash.
+  const { refund, cash } = await foodOrders.afterStatusChange(order, { type: 'admin', id: req.admin?.sub ?? null });
+  emitFoodUpdate('order_status', { orderId: order.id, status });
 
-  res.json({ success: true, order: rows[0], refund, cash });
+  res.json({ success: true, order: { id: order.id, status: order.status }, refund, cash });
 });
 
 const SETTINGS_COLUMNS =
-  'site_url, phone, whatsapp, email, address, maps_url, check_in_time, check_out_time, table_count, updated_at';
+  'site_url, phone, whatsapp, email, address, maps_url, check_in_time, check_out_time, table_count, legal_name, gstin, updated_at';
 
 // GET /api/admin/settings
 const getSettings = asyncHandler(async (req, res) => {
@@ -513,6 +510,7 @@ const SETTINGS_TEXT_FIELDS = {
   mapsUrl: 'maps_url',
   checkInTime: 'check_in_time',
   checkOutTime: 'check_out_time',
+  legalName: 'legal_name', // the registered business name, for GST invoices
 };
 
 // PUT /api/admin/settings
@@ -531,6 +529,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     if (req.body[field] !== undefined) set(column, String(req.body[field] || '').trim());
   }
   if (req.body.tableCount !== undefined) set('table_count', req.body.tableCount);
+  if (req.body.gstin !== undefined) set('gstin', String(req.body.gstin || '').trim().toUpperCase());
 
   if (setClauses.length === 0) {
     throw new ApiError(400, 'No valid fields provided to update');
@@ -605,8 +604,10 @@ const todayStats = asyncHandler(async (req, res) => {
        (SELECT count(*)::int FROM bookings, day WHERE status = 'confirmed' AND check_in <= day.today) AS arrivals,
        (SELECT count(*)::int FROM bookings, day WHERE status = 'checked_in' AND check_out <= day.today) AS departures,
        (SELECT count(*)::int FROM bookings WHERE status = 'checked_in') AS in_house,
-       (SELECT count(*)::int FROM bookings WHERE status = 'paid') AS awaiting_approval,
-       (SELECT min(hold_expires_at) FROM bookings WHERE status = 'paid') AS approval_deadline,
+       -- Guests due out who are still checked in after check-out time.
+       (SELECT count(*)::int FROM bookings, day
+         WHERE status = 'checked_in'
+           AND (check_out < day.today OR (check_out = day.today AND extract(hour FROM now() AT TIME ZONE $1) >= $2::int))) AS late_checkouts,
        (SELECT count(*)::int FROM refunds WHERE status = 'pending' AND method <> 'razorpay') AS pending_refunds,
        (SELECT count(*)::int FROM room_units WHERE is_active) AS rooms,
        (SELECT count(*)::int FROM room_units WHERE is_active AND status <> 'Ready') AS rooms_not_ready,
@@ -614,7 +615,7 @@ const todayStats = asyncHandler(async (req, res) => {
        (SELECT count(*)::int FROM food_orders WHERE status <> 'cancelled' AND paid_at IS NULL
           AND created_at > now() - interval '3 days') AS unpaid_food_orders,
        (SELECT count(*)::int FROM room_issues WHERE status = 'open') AS open_room_issues`,
-    [TIMEZONE]
+    [TIMEZONE, CHECKOUT_HOUR]
   );
   const r = rows[0];
   res.json({
@@ -628,8 +629,7 @@ const todayStats = asyncHandler(async (req, res) => {
       arrivals: r.arrivals,
       departures: r.departures,
       inHouse: r.in_house,
-      awaitingApproval: r.awaiting_approval,
-      approvalDeadline: r.approval_deadline, // when the first unapproved booking auto-cancels, or null
+      lateCheckouts: r.late_checkouts, // still checked in after check-out time
       pendingRefunds: r.pending_refunds,
       rooms: r.rooms,
       roomsNotReady: r.rooms_not_ready,

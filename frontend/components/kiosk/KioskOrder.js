@@ -103,13 +103,14 @@ function StartOverDialog({ onKeep, onStartOver }) {
 /**
  * The kiosk's ordering screen, laid out for a tablet on its side: categories
  * down the left, the dishes of one category in the middle, and the order with
- * its Pay button always in view on the right.
+ * its Continue button always in view on the right.
  *
  * `menu`: { categories, items }. `cart`: from useCart. `allergy` / `onAllergy`:
  * the note the kitchen sees as a warning. `notice`: a message about the order
- * (a dish sold out, a payment not completed). `onPay()`, `onStartOver()`.
+ * (a dish sold out, a payment not completed). `onContinue()` moves on to "how
+ * would you like your order?" and the payment (KioskService.js). `onStartOver()`.
  */
-export default function KioskOrder({ menu, cart, allergy, onAllergy, notice, onDismissNotice, onPay, paying, onStartOver }) {
+export default function KioskOrder({ menu, cart, allergy, onAllergy, notice, onDismissNotice, onContinue, paying, onStartOver }) {
   const [vegOnly, setVegOnly] = useState(false);
   const [jainOnly, setJainOnly] = useState(false);
   const [chosen, setChosen] = useState(null); // category id; null = the first one
@@ -238,10 +239,10 @@ export default function KioskOrder({ menu, cart, allergy, onAllergy, notice, onD
             <span className="text-xl text-ink-700">Total</span>
             <span data-order-total className="price text-3xl">{inr(cart.total)}</span>
           </div>
-          <button type="button" onClick={onPay} disabled={cart.items.length === 0 || paying} className="btn-primary mt-3 h-[4.5rem] w-full text-2xl disabled:opacity-40">
-            {cart.items.length === 0 ? 'Pay' : `Pay ${inr(cart.total)}`}
+          <button type="button" data-order-continue onClick={onContinue} disabled={cart.items.length === 0 || paying} className="btn-primary mt-3 h-[4.5rem] w-full text-2xl disabled:opacity-40">
+            Continue
           </button>
-          <p className="mt-2 text-center text-sm text-ink-500">Pay on this screen by UPI or card. Then listen for your number.</p>
+          <p className="mt-2 text-center text-sm text-ink-500">Next: dine-in, pickup or to your room. Then pay on this screen by UPI or card.</p>
         </div>
       </aside>
 

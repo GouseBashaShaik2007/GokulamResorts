@@ -7,6 +7,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const { ALLOWED_TYPES } = require('../services/storage.service');
 const { guestFields } = require('./booking.routes');
 const desk = require('../controllers/desk.controller');
+const blocks = require('../controllers/roomBlock.controller');
 
 const router = Router();
 
@@ -32,6 +33,22 @@ router.use(deskAuth);
 router.get('/overview', desk.overview);
 router.get('/rooms', desk.rooms);
 router.post('/rooms/:id/approve-cleaning', [param('id').isInt({ min: 1 })], validate, desk.approveCleaning);
+
+// Rooms taken out of order, and put back in service.
+router.get('/room-blocks', [query('from').optional().isISO8601(), query('to').optional().isISO8601()], validate, blocks.list);
+router.post(
+  '/room-blocks',
+  [
+    body('roomUnitId').isInt({ min: 1 }).toInt(),
+    body('startDate').optional({ checkFalsy: true }).isISO8601(),
+    body('endDate').optional({ checkFalsy: true }).isISO8601(),
+    body('reason').isString().trim().isLength({ min: 3, max: 300 }).withMessage('Say why the room is out of order'),
+    body('roomIssueId').optional({ checkFalsy: true }).isInt({ min: 1 }).toInt(),
+  ],
+  validate,
+  blocks.create
+);
+router.post('/room-blocks/:id/end', [param('id').isInt({ min: 1 })], validate, blocks.end);
 router.get('/bookings', desk.list);
 router.get('/bookings/:id', bookingId, validate, desk.detail);
 router.get(
@@ -91,6 +108,19 @@ router.post('/bookings/:id/extend', [...bookingId, body('checkOut').isISO8601()]
 router.post('/bookings/:id/check-out', bookingId, validate, desk.checkOut);
 router.post('/bookings/:id/no-show', bookingId, validate, desk.noShow);
 
+// Another room for the same stay: its room is out of order, or a different one is given at check-in.
+router.get('/bookings/:id/move-options', bookingId, validate, desk.moveOptions);
+router.post(
+  '/bookings/:id/move',
+  [
+    ...bookingId,
+    body('roomUnitId').isInt({ min: 1 }).toInt().withMessage('Choose a room'),
+    body('reason').optional({ checkFalsy: true }).isString().trim().isLength({ max: 300 }),
+  ],
+  validate,
+  desk.move
+);
+
 // Food orders: who has paid. Cash needs no reference; a UPI or card one may be noted.
 router.get('/food-orders', desk.foodOrders);
 router.post(
@@ -115,6 +145,18 @@ router.post(
   [param('id').isInt({ min: 1 }), methodField('method'), referenceField('reference')],
   validate,
   desk.completeRefund
+);
+
+// The GST invoice for a stay that is paid in full. A company's name and GSTIN are optional.
+router.post(
+  '/bookings/:id/invoice',
+  [
+    ...bookingId,
+    body('billingName').optional({ checkFalsy: true }).isString().trim().isLength({ max: 150 }),
+    body('billingGstin').optional({ checkFalsy: true }).isString().trim().isLength({ max: 15 }),
+  ],
+  validate,
+  desk.invoice
 );
 
 module.exports = router;

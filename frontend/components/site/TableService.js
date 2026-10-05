@@ -5,12 +5,12 @@ import api from '@/lib/api';
 import { errMsg } from '@/lib/bookingUi';
 import { useToast } from '@/components/ui/Toast';
 
-const REQUESTS = [
-  { kind: 'staff', label: 'Call staff', sent: 'Staff called', toast: 'A member of our staff is on the way to your table.' },
-  { kind: 'bill', label: 'Request the bill', sent: 'Bill requested', toast: 'We’ll bring the bill to your table.' },
-];
+// What a table can ask for. There is no "Request the bill": a table's order is
+// paid when it is placed, so there is no bill to bring. (The API still takes
+// kind 'bill', for a page that was opened before that.)
+const REQUESTS = [{ kind: 'staff', label: 'Call staff', sent: 'Staff called', toast: 'A member of our staff is on the way to your table.' }];
 
-/** "Call staff" / "Request the bill" for a table — the request shows on the kitchen display. */
+/** "Call staff" for a table — the request shows on the kitchen display. */
 export default function TableService({ table, accessKey, className = '' }) {
   const toast = useToast();
   const [sent, setSent] = useState({});

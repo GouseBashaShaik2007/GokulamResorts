@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { inr, fmtDate, fmtDateTime, nightsBetween } from '@/lib/bookingUi';
+import { inr, fmtDate, nightsBetween } from '@/lib/bookingUi';
 import { downloadCalendarFile, stayCalendarFile } from '@/lib/calendar';
 import { realPhotos } from '@/lib/rooms';
 import { SITE_NAME, directionsUrl, telHref, whatsappUrl } from '@/lib/site';
@@ -13,8 +13,8 @@ import { CheckInCountdown, CopyButton, StayProgress, refundedTotal, statusFor } 
 /**
  * One booking as its guest sees it: status, stay details, what was paid or
  * refunded, what to bring, and ways to keep or act on it.
- * `justBooked`: the guest has only now paid, so a booking still awaiting the
- * resort's confirmation gets the "payment received" card on top.
+ * `justBooked`: the guest has only now paid, so the "booking confirmed"
+ * card goes on top.
  */
 export default function BookingSummary({ b, justBooked }) {
   const contact = useContact();
@@ -29,7 +29,7 @@ export default function BookingSummary({ b, justBooked }) {
   const wa = whatsappUrl(`Hello, this is about booking ${b.reference}.`, contact);
   const tel = telHref(contact);
   // The dedicated "payment received" card above already carries the heading and reference.
-  const celebrated = justBooked && b.status === 'paid';
+  const celebrated = justBooked && upcoming;
   const Title = celebrated ? 'h2' : 'h1';
 
   const addToCalendar = () =>
@@ -37,7 +37,7 @@ export default function BookingSummary({ b, justBooked }) {
       `gokulam-${b.reference}.ics`,
       stayCalendarFile({
         reference: b.reference,
-        title: `Stay at ${SITE_NAME} — Room ${b.room.unitNumber}`,
+        title: `Stay at ${SITE_NAME}${b.room.unitNumber ? ` — Room ${b.room.unitNumber}` : ''}`,
         checkIn: b.checkIn,
         checkOut: b.checkOut,
         location: contact.address,
@@ -69,7 +69,14 @@ export default function BookingSummary({ b, justBooked }) {
 
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
             <div><dt className="text-ink-400">Guest</dt><dd className="text-ink-900">{b.guestName}</dd></div>
-            <div><dt className="text-ink-400">Room</dt><dd className="text-ink-900">{b.room.unitNumber} · {b.room.type}{b.room.view ? ` · ${b.room.view}` : ''}</dd></div>
+            <div>
+              <dt className="text-ink-400">Room</dt>
+              <dd className="text-ink-900">
+                {b.room.unitNumber ? `${b.room.unitNumber} · ` : ''}{b.room.type}{b.room.view ? ` · ${b.room.view}` : ''}
+                {/* The front desk gives the room at check-in. */}
+                {!b.room.unitNumber && upcoming && <span className="block text-xs text-ink-400">Room number given at check-in</span>}
+              </dd>
+            </div>
             <div><dt className="text-ink-400">Check-in</dt><dd className="text-ink-900">{fmtDate(b.checkIn)}</dd></div>
             <div><dt className="text-ink-400">Check-out</dt><dd className="text-ink-900">{fmtDate(b.checkOut)} · {nights} night{nights > 1 ? 's' : ''}</dd></div>
             <div><dt className="text-ink-400">Guests</dt><dd className="text-ink-900">{b.adults} adult{b.adults > 1 ? 's' : ''}{b.children ? `, ${b.children} child${b.children > 1 ? 'ren' : ''}` : ''}</dd></div>
@@ -95,12 +102,6 @@ export default function BookingSummary({ b, justBooked }) {
               </div>
             )}
           </dl>
-          {b.status === 'paid' && b.holdExpiresAt && !celebrated && (
-            <p className="text-xs text-ink-400">
-              Confirmation due by {fmtDateTime(b.holdExpiresAt)}. If the resort has not confirmed by then, the booking is
-              cancelled and the full amount is refunded automatically.
-            </p>
-          )}
 
           {upcoming && (
             <div className="rounded-xl bg-sand-100 p-4 text-sm text-ink-700">

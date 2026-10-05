@@ -4,7 +4,7 @@ export const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximum
 
 export const STATUS_LABEL = {
   pending_payment: 'Pending payment',
-  paid: 'Paid · awaiting approval',
+  paid: 'Paid', // from before paying confirmed a booking; none are made now
   confirmed: 'Confirmed',
   checked_in: 'Checked in',
   checked_out: 'Checked out',

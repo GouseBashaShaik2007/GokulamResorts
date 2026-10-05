@@ -23,8 +23,9 @@ export const CONTACT = {
   mapsUrl: null, // Google Maps share link for the resort pin — used by "Directions"
   // Until the exact pin is set, maps show the area, not a specific building.
   mapQuery: 'Chirala Beach, Andhra Pradesh, India',
-  checkInTime: null, // as shown to guests, e.g. '2:00 PM'
-  checkOutTime: null,
+  // The resort's times, as shown to guests. Admin → Settings can change them.
+  checkInTime: '2:00 PM',
+  checkOutTime: '11:00 AM',
 };
 
 /**

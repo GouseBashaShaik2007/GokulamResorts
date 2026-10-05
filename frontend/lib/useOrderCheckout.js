@@ -10,14 +10,16 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Paying for a food order online before it exists — the restaurant's kiosk,
- * and a hotel room's "pay now". Nothing reaches the kitchen until the payment
- * is in: `start` opens a checkout on the server and the payment window on the
- * screen; when the customer has paid, the server checks the payment and only
- * then places the order (see backend/src/controllers/checkout.controller.js).
+ * and an order from a table's or a hotel room's QR code. Nothing reaches the
+ * kitchen until the payment is in: `start` opens a checkout on the server and
+ * the payment window on the screen; when the customer has paid, the server
+ * checks the payment and only then places the order
+ * (see backend/src/controllers/checkout.controller.js).
  *
  * Options:
  *   messages       { startFailed, windowFailed, backedOut } — what to say, in the screen's own words
- *   onPaid({ orderNumber, orderToken, total })
+ *   onPaid({ orderNumber, orderToken, total })   orderToken: the guest's private link to the
+ *                  order, for a table or a room; null for the kiosk, whose customer has only the number
  *   onMenuChanged({ code, message, total })   the server refused the checkout: a dish
  *                  sold out ('sold_out') or a price changed ('price_changed') since the menu was read
  *   onBackedOut(message)                      the payment window was closed without paying
@@ -101,7 +103,8 @@ export default function useOrderCheckout({ messages, onPaid, onMenuChanged, onBa
   };
 
   /**
-   * `body`: what POST /checkouts takes ({ orderType, accessKey, items, … }).
+   * `body`: what POST /checkouts takes ({ orderType, accessKey, items, … }, with
+   * the table, the room, or the kiosk customer's serviceMode).
    * `total`: what the screen showed. `gateway`: extra options for the payment
    * window (name, description, prefill, …).
    */

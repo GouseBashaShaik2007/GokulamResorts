@@ -20,7 +20,7 @@ export function statusFor(b) {
     case 'paid':
       return {
         title: 'Payment received',
-        text: 'The resort is reviewing your booking and will confirm within 24 hours. You will get an SMS / WhatsApp as soon as it is confirmed. If it cannot be confirmed, your payment is refunded in full automatically.',
+        text: 'Your payment has arrived and your booking is being confirmed. This page updates by itself.',
       };
     case 'confirmed':
       return { title: 'Booking confirmed', text: 'We look forward to welcoming you.' };
@@ -42,20 +42,20 @@ export function statusFor(b) {
 /** Total refunded (or being refunded) on a booking. */
 export const refundedTotal = (b) => sum(b.refunds);
 
-// Stay progress, in the order a booking actually moves.
+// Stay progress, in the order a booking actually moves. Paying confirms a
+// booking, so "paid" and "confirmed" are one step.
 const STEPS = [
-  { key: 'paid', label: 'Paid' },
-  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'confirmed', label: 'Paid and confirmed' },
   { key: 'checked_in', label: 'Checked in' },
   { key: 'checked_out', label: 'Checked out' },
 ];
-const STEP_INDEX = { pending_payment: -1, paid: 0, confirmed: 1, checked_in: 2, checked_out: 3 };
+const STEP_INDEX = { pending_payment: -1, paid: 0, confirmed: 0, checked_in: 1, checked_out: 2 };
 
 export function StayProgress({ status }) {
   const at = STEP_INDEX[status];
   if (at === undefined) return null;
   return (
-    <ol className="grid grid-cols-4 gap-2" aria-label="Booking progress">
+    <ol className="grid grid-cols-3 gap-2" aria-label="Booking progress">
       {STEPS.map((s, i) => (
         <li key={s.key} className="text-center" aria-current={i === at ? 'step' : undefined}>
           <span className={`mx-auto block h-1.5 rounded-full ${i <= at ? 'bg-ocean-500' : 'bg-sand-300'}`} />

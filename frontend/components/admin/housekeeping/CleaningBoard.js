@@ -117,9 +117,22 @@ function AssignAll({ jobs, staff, onDone, onError }) {
   );
 }
 
+// The pills above the cards. A stayover (the guest is staying) is kept apart
+// from the full cleans: its room is occupied, so it is never "Dirty" or
+// "Ready" the way a room waiting for its next guest is.
+const isStayover = (job) => job.reason === 'stayover';
+const FILTERS = {
+  open: (job) => job.status !== 'Ready',
+  all: () => true,
+  stayover: isStayover,
+};
+const matches = (filter) => FILTERS[filter] || ((job) => !isStayover(job) && job.status === filter);
+
 /**
  * The day's cleaning jobs: rooms at a glance, mark a room dirty, and one card
  * per job to set its priority and assign its tasks. Updates live.
+ * Full cleans (a guest left, or a room marked dirty) and stayovers (the guest
+ * is staying) are both here; "Stayovers" shows the day's, open and finished.
  * `staff` and `units`: everyone who can be assigned, and every physical room.
  */
 export default function CleaningBoard({ staff, units, reloadUnits }) {
@@ -162,9 +175,12 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
     }
   };
 
-  const openUnitIds = new Set(jobs.filter((j) => j.status !== 'Ready').map((j) => j.room_unit_id));
-  const counts = ['Dirty', 'Cleaning', 'Inspection', 'Ready'].map((s) => [s, jobs.filter((j) => j.status === s).length]);
-  const shown = jobs.filter((j) => (filter === 'open' ? j.status !== 'Ready' : filter === 'all' ? true : j.status === filter));
+  // Rooms that cannot be marked dirty again: a full clean is already open.
+  // (Marking an occupied room dirty replaces its stayover, so that is allowed.)
+  const openUnitIds = new Set(jobs.filter((j) => j.status !== 'Ready' && !isStayover(j)).map((j) => j.room_unit_id));
+  const counts = ['Dirty', 'Cleaning', 'Inspection', 'Ready'].map((s) => [s, jobs.filter(matches(s)).length]);
+  const stayovers = jobs.filter(isStayover); // today's: still to do, and finished
+  const shown = jobs.filter(matches(filter));
 
   return (
     <div className="space-y-6">
@@ -178,6 +194,9 @@ export default function CleaningBoard({ staff, units, reloadUnits }) {
               {s === 'Ready' ? 'Ready today' : s} ({n})
             </Chip>
           ))}
+          <Chip tone="solid" size="xs" pressed={filter === 'stayover'} onClick={() => setFilter('stayover')}>
+            Stayovers ({stayovers.length})
+          </Chip>
         </div>
         <div className="flex items-center gap-3">
           <LiveBadge live={live} />

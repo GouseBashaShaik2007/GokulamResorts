@@ -2,15 +2,17 @@ const { query } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
 const { emitFoodUpdate } = require('../realtime');
-const { refundIfPaidOnline, syncCashOnDelivery, assertNotRefunded } = require('../services/foodOrders.service');
+const { setStatus, afterStatusChange, assertNotRefunded } = require('../services/foodOrders.service');
 
 const ACTIVE_STATUSES = ['new', 'preparing', 'ready'];
 const ALL_STATUSES = ['new', 'preparing', 'ready', 'served', 'cancelled'];
 
-// GET /api/kitchen/orders — active orders, oldest first (FIFO for the kitchen)
+// GET /api/kitchen/orders — active orders, oldest first (FIFO for the kitchen).
+// order_type, service_mode, table_number and room_number together say what an
+// order is and where it goes (the screen words it: lib/foodOrders.js).
 const listActiveOrders = asyncHandler(async (req, res) => {
   const { rows: orders } = await query(
-    `SELECT id, order_type, table_number, room_number, customer_name, customer_phone, notes,
+    `SELECT id, order_type, service_mode, table_number, room_number, customer_name, customer_phone, notes,
             total_amount, status, created_at, updated_at, payment_method, (paid_at IS NOT NULL) AS paid
      FROM food_orders
      WHERE status = ANY($1)
@@ -53,26 +55,23 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
   await assertNotRefunded(id, status);
 
-  const { rows } = await query(
-    `UPDATE food_orders SET status = $1, updated_at = now() WHERE id = $2 RETURNING id, status`,
-    [status, id]
-  );
-
-  if (rows.length === 0) {
+  // A guest who left a phone number is told when the order becomes ready.
+  const order = await setStatus(id, status);
+  if (!order) {
     throw new ApiError(404, 'Order not found');
   }
 
-  // An order paid on the kiosk is refunded the way it was paid; `refund` tells the screen.
-  const actor = { type: 'kitchen', id: req.kitchen?.sub ?? null };
-  const refund = status === 'cancelled' ? await refundIfPaidOnline(rows[0].id, actor) : null;
-  // A room order paid in cash is paid at the door: delivering it records the cash (`cash` tells the screen).
-  const cash = await syncCashOnDelivery(rows[0].id, status, actor);
+  // A cancelled order that was paid online is refunded the way it was paid
+  // (`refund` tells the screen), and the guest is told. An older room order
+  // that was to be paid in cash at the door: delivering it records the cash (`cash`).
+  const { refund, cash } = await afterStatusChange(order, { type: 'kitchen', id: req.kitchen?.sub ?? null });
 
-  emitFoodUpdate('order_status', { orderId: rows[0].id, status: rows[0].status });
-  res.json({ success: true, order: rows[0], refund, cash });
+  emitFoodUpdate('order_status', { orderId: order.id, status: order.status });
+  res.json({ success: true, order: { id: order.id, status: order.status }, refund, cash });
 });
 
-// GET /api/kitchen/requests — tables waiting for a person or for the bill, oldest first.
+// GET /api/kitchen/requests — tables waiting for a person (or, from a page
+// opened before tables paid online, for the bill), oldest first.
 const listRequests = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT id, table_number, kind, created_at FROM table_requests WHERE status = 'open' ORDER BY created_at ASC`

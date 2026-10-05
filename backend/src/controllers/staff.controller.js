@@ -5,6 +5,7 @@ const { query } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
 const cleaning = require('../services/cleaning.service');
+const storage = require('../services/storage.service');
 const { emitJobUpdate } = require('../realtime');
 const { startSession, endSession } = require('../utils/session');
 const { tileNames } = require('../utils/tiles');
@@ -96,7 +97,7 @@ const myTasks = asyncHandler(async (req, res) => {
   res.json({ success: true, tasks });
 });
 
-// POST /api/staff/tasks/:id/{start,pause,complete,approve,reject}
+// POST /api/staff/tasks/:id/{start,pause,complete,skip,approve,reject}
 function taskAction(fn, event) {
   return asyncHandler(async (req, res) => {
     const job = await fn(req);
@@ -111,25 +112,53 @@ const completeTask = taskAction(
   (req) => cleaning.completeTask(Number(req.params.id), req.staff.id),
   'task_completed'
 );
+// { reason: 'dnd' | 'refused' | 'other', note? } — a stayover closed at the
+// door without the room being serviced, for both housekeepers at once.
+const skipTask = taskAction(
+  (req) => cleaning.skipStayover(Number(req.params.id), req.staff.id, req.body.reason, req.body.note),
+  'stayover_skipped'
+);
 const approveInspection = taskAction(
   (req) => cleaning.approveInspection(Number(req.params.id), req.staff.id),
   'inspection_approved'
 );
+// JSON, or multipart with an optional `photo` of what is wrong.
 const rejectInspection = taskAction(
   (req) =>
-    cleaning.rejectInspection(Number(req.params.id), req.staff.id, req.body.failedTasks, req.body.failureReason),
+    cleaning.rejectInspection(
+      Number(req.params.id),
+      req.staff.id,
+      req.body.failedTasks,
+      req.body.failureReason,
+      req.file || null
+    ),
   'inspection_rejected'
 );
 
+// GET /api/staff/tasks/:id/rejection-photo-url — a 60-second link to the photo
+// the inspector added when the room was last sent back. For the people who
+// have a task on that room's job; :id is their own task.
+const rejectionPhotoUrl = asyncHandler(async (req, res) => {
+  const photo = await cleaning.rejectionPhoto(Number(req.params.id), req.staff.id);
+  const apiBase = `${req.protocol}://${req.get('host')}/api`;
+  res.json({ success: true, url: await storage.viewUrl(photo.photo_key, photo.photo_content_type, apiBase) });
+});
+
 // GET /api/staff/jobs — inspectors only. Every open cleaning job with its
 // tasks, and the housekeeping team, so an inspector can assign or reassign
-// who does what.
+// who does what. Also today's finished stayovers, to see how each one ended
+// (serviced, do not disturb, the guest said no ...).
 const openJobs = asyncHandler(async (req, res) => {
   const [jobs, { rows: team }] = await Promise.all([
     cleaning.listJobsForAdmin(),
     query(`SELECT id, name, role FROM staff WHERE is_active = true AND role = ANY($1) ORDER BY name, id`, [PIN_ROLES]),
   ]);
-  res.json({ success: true, jobs: jobs.filter((j) => j.status !== 'Ready'), team });
+  res.json({
+    success: true,
+    jobs: jobs.filter((j) => j.status !== 'Ready'),
+    stayoversDone: jobs.filter((j) => j.status === 'Ready' && j.reason === 'stayover'),
+    team,
+  });
 });
 
 module.exports = {
@@ -144,6 +173,8 @@ module.exports = {
   startTask,
   pauseTask,
   completeTask,
+  skipTask,
   approveInspection,
   rejectInspection,
+  rejectionPhotoUrl,
 };

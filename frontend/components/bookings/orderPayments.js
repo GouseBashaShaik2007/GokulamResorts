@@ -13,7 +13,7 @@ export const PAYMENT_METHODS = [
   { value: 'card', label: 'Card' },
 ];
 // 'online' is never chosen here: it is what is recorded when a customer pays through the
-// payment gateway — on the kiosk's screen, or "pay now" from a hotel room.
+// payment gateway — on the kiosk's screen, or on their own phone at a table or in a hotel room.
 export const PAYMENT_LABEL = { ...Object.fromEntries(PAYMENT_METHODS.map((m) => [m.value, m.label])), online: 'Online' };
 
 /** How a refund of an online payment stands, for an order cancelled after it was paid. */

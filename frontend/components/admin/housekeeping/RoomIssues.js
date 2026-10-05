@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import api from '../../../lib/api';
+import api, { deskAs } from '../../../lib/api';
 import { errMsg, fmtDateTime } from '../../../lib/bookingUi';
 import { ISSUE_KIND_LABEL } from '../../../lib/roomIssues';
 import useCleaningSocket from '../../../lib/useCleaningSocket';
+import { BlockRoomForm, untilLabel } from '../../bookings/RoomBlocks';
 import { useConfirm } from '../../ui/Confirm';
 import { useToast } from '../../ui/Toast';
 
@@ -18,7 +19,8 @@ const KIND_STYLE = {
 /**
  * Admin → Housekeeping: problems housekeeping reported from the rooms — a
  * broken tap, a stain, something a guest left behind. The manager opens the
- * photo, deals with it, and marks it resolved. New reports arrive live.
+ * photo, deals with it, and marks it resolved — and can take the room out of
+ * order until it is fixed. New reports arrive live.
  * Hidden while there is nothing open and nothing to look back at.
  */
 export default function RoomIssues() {
@@ -27,6 +29,8 @@ export default function RoomIssues() {
   const [issues, setIssues] = useState(null); // null until loaded
   const [showResolved, setShowResolved] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [blockingId, setBlockingId] = useState(null); // the report whose "out of order" form is open
+  const asManager = deskAs('admin');
 
   const load = useCallback(async () => {
     try {
@@ -118,12 +122,38 @@ export default function RoomIssues() {
                   </button>
                 )}
                 {issue.status === 'open' && (
+                  <button
+                    type="button"
+                    onClick={() => setBlockingId((id) => (id === issue.id ? null : issue.id))}
+                    aria-expanded={blockingId === issue.id}
+                    className="rounded-lg border border-sand-400 px-3 py-1.5 text-sm text-ink-700 hover:bg-sand-300"
+                  >
+                    Take room out of order
+                  </button>
+                )}
+                {issue.status === 'open' && (
                   <button type="button" onClick={() => resolve(issue)} className="rounded-lg bg-ocean-500 px-3 py-1.5 text-sm font-semibold text-white">
                     Mark resolved
                   </button>
                 )}
               </div>
             </div>
+            {blockingId === issue.id && (
+              <div className="mt-3">
+                <BlockRoomForm
+                  preset={{ roomUnitId: issue.room_unit_id, unitNumber: issue.unit_number, reason: issue.description.slice(0, 300), roomIssueId: issue.id }}
+                  auth={asManager}
+                  onCancel={() => setBlockingId(null)}
+                  onDone={({ block, affected }) => {
+                    setBlockingId(null);
+                    toast(
+                      `Room ${block.unit_number} is out of order ${untilLabel(block.end_date)}.${affected.length ? ` ${affected.length} booking${affected.length === 1 ? '' : 's'} to move: see Bookings → Calendar.` : ''}`,
+                      { duration: affected.length ? 8000 : 4000 }
+                    );
+                  }}
+                />
+              </div>
+            )}
           </li>
         ))}
       </ul>

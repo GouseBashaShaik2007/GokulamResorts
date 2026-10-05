@@ -12,14 +12,18 @@ import { CleaningTaskCard, InspectionCard } from './TaskCards';
 /**
  * A housekeeper's or inspector's rooms for the day. `staff`: { name, role };
  * `onLogout` signs them out (also called when their login stops working).
+ * A housekeeper's list holds full cleans (a guest left) and stayovers (the
+ * guest is staying: a lighter service, which can also be closed at the door).
  * An inspector also gets every room being cleaned, to say who works on it.
  */
 export default function TaskBoard({ staff, onLogout }) {
   const isInspector = staff.role === 'Inspector';
   const [tasks, setTasks] = useState([]);
-  // Inspectors only: every open cleaning job, and the team to pick from.
+  // Inspectors only: every open cleaning job, the team to pick from, and
+  // today's finished stayovers (to see which rooms were not serviced, and why).
   const [jobs, setJobs] = useState([]);
   const [team, setTeam] = useState([]);
+  const [stayoversDone, setStayoversDone] = useState([]);
   const [view, setView] = useState('tasks'); // inspectors: 'tasks' | 'assign'
   const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState(null); // the task being saved
@@ -33,6 +37,7 @@ export default function TaskBoard({ staff, onLogout }) {
       if (all) {
         setJobs(all.data.jobs);
         setTeam(all.data.team);
+        setStayoversDone(all.data.stayoversDone || []);
       }
       setLoaded(true);
     } catch (err) {
@@ -103,7 +108,7 @@ export default function TaskBoard({ staff, onLogout }) {
         </div>
       )}
 
-      {assigning && loaded && <AssignRooms jobs={jobs} team={team} onChanged={load} />}
+      {assigning && loaded && <AssignRooms jobs={jobs} team={team} stayoversDone={stayoversDone} onChanged={load} />}
 
       {!assigning && loaded && tasks.length === 0 && (
         <div className="card p-8 text-center">

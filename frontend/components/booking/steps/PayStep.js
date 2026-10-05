@@ -76,8 +76,7 @@ export default function PayStep() {
       {canSimulate && (
         <div className="space-y-2">
           <p className="text-center text-xs text-ink-400">
-            No live payment gateway is connected yet — simulate a successful payment to send this booking to the
-            resort for confirmation.
+            No live payment gateway is connected yet — simulate a successful payment to confirm this booking.
           </p>
           <button
             type="button" onClick={confirmMock} disabled={status === 'paying'}
@@ -102,7 +101,7 @@ export default function PayStep() {
       )}
 
       <p className="text-center text-xs text-ink-400">
-        The resort confirms within 24 hours. If it can&apos;t, you are refunded in full automatically.
+        Your booking is confirmed as soon as the payment goes through.
       </p>
 
       <button type="button" onClick={reset} className="w-full text-center text-xs text-ink-400 hover:underline">

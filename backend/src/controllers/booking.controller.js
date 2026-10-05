@@ -6,8 +6,9 @@ const { GUEST } = require('../services/audit');
 const normalizePhone = (p) => String(p).trim().replace(/(?!^\+)[^\d]/g, '');
 
 // GET /api/availability?checkIn&checkOut&roomTypeId&guests
-// Real room numbers that are free for the dates, grouped by type, with prices.
-// For a stay starting today, only rooms housekeeping has passed.
+// The room types that have a room free for the dates, with prices and how many
+// are left. Guests book a type, not a room number, so no numbers are sent.
+// For a stay starting today, only rooms housekeeping has passed are counted.
 const getAvailability = asyncHandler(async (req, res) => {
   const { checkIn, checkOut, roomTypeId, guests } = req.query;
   const types = await bookings.availability({
@@ -17,24 +18,29 @@ const getAvailability = asyncHandler(async (req, res) => {
     guests: guests ? Number(guests) : 1,
     liveOnly: true,
   });
-  res.json({ success: true, types });
+  res.json({
+    success: true,
+    types: types.map(({ roomType, quote, units }) => ({ roomType, quote, free: units.length })),
+  });
 });
 
-// POST /api/book-room — online booking; holds the room while the guest pays.
+// POST /api/book-room — online booking of a room type; a room of that type is
+// held while the guest pays. Which room it is stays with the resort: the
+// front desk gives the room at check-in.
 const createBooking = asyncHandler(async (req, res) => {
-  const b = await bookings.createBooking(
+  const b = await bookings.createOnlineBooking(
     { ...req.body, phone: normalizePhone(req.body.phone) },
     { source: 'online', actor: GUEST }
   );
   res.status(201).json({
     success: true,
-    message: 'Room held. Complete payment to send your booking for confirmation.',
+    message: 'Room held. Complete payment to confirm your booking.',
     bookingId: b.id,
     reference: b.reference,
     amount: Number(b.total_amount),
     currency: 'INR',
     holdExpiresAt: b.hold_expires_at,
-    room: { unitNumber: b.unit_number, type: b.room_type },
+    room: { type: b.room_type },
   });
 });
 

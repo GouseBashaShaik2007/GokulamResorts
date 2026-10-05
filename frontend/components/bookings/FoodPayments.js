@@ -15,8 +15,12 @@ function OrderLine({ order, children }) {
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sand-300 bg-sand-200 px-4 py-3">
       <div className="min-w-0">
         <p className="font-medium text-ink-900">
+          {/* What the order is and where it goes ("Table 4", "Counter", "Kiosk · Pickup"), then its number. */}
           <span className="mr-2 font-serif text-xl font-bold">{orderTitle(order)}</span>
-          <span className="text-sm text-ink-500">#{order.id} · {isToday(order.created_at) ? time(order.created_at) : `${day(order.created_at)}, ${time(order.created_at)}`} · {ORDER_STATUS_LABEL[order.status] || order.status}</span>
+          <span className="text-sm text-ink-500">
+            #{order.id}
+            {order.customer_name ? ` · ${order.customer_name}` : ''} · {isToday(order.created_at) ? time(order.created_at) : `${day(order.created_at)}, ${time(order.created_at)}`} · {ORDER_STATUS_LABEL[order.status] || order.status}
+          </span>
         </p>
         <p className="mt-0.5 truncate text-sm text-ink-500" title={dishes(order)}>{dishes(order)}</p>
       </div>
@@ -30,10 +34,10 @@ function OrderLine({ order, children }) {
 
 /**
  * The front desk's Food orders tab: who still has to pay, and what has been
- * paid today. Table and counter orders are paid for at the counter and
- * recorded here. Kiosk orders arrive already paid on the kiosk's own screen,
- * and room orders are paid online or in cash at the room's door: both only
- * show here once paid, as part of the day's takings.
+ * paid today. Counter orders are paid for at the counter and recorded here.
+ * Table, room and kiosk orders arrive already paid online and show as part of
+ * the day's takings. (An order from before tables paid online can still be
+ * recorded here; an unpaid room order from then is paid in cash at the door.)
  *
  * `orders`: from GET /desk/food-orders (today's, plus older unpaid ones);
  * null while loading. `auth`: from deskAs(mode). `mode`: 'admin' lets a
