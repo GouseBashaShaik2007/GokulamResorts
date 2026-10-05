@@ -1,16 +1,15 @@
 const jwt = require('jsonwebtoken');
 const { ApiError } = require('./errorHandler');
+const { tokenFor } = require('../utils/session');
 
-// Protects /api/kitchen/* routes (except /kitchen/login).
-// Expects: Authorization: Bearer <jwt>
-// Separate from adminAuth on purpose: kitchen devices share a single password
-// and should not carry the room/booking/menu edit privileges an admin token has.
+// Protects /api/kitchen/* routes (except the sign-in ones).
+// The sign-in travels in the gk_kitchen cookie (see utils/session.js).
+// Separate from adminAuth on purpose: a kitchen sign-in is a short PIN and
+// must not carry the room, booking or menu privileges a manager's has.
 function kitchenAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const [scheme, token] = header.split(' ');
-
-  if (scheme !== 'Bearer' || !token) {
-    return next(new ApiError(401, 'Missing or malformed Authorization header'));
+  const token = tokenFor(req, 'kitchen');
+  if (!token) {
+    return next(new ApiError(401, 'Please sign in'));
   }
 
   try {

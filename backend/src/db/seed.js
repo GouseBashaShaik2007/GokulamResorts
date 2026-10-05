@@ -225,6 +225,21 @@ async function seed() {
   }
   console.log(`Seeded ${unitCount} physical room units (skipped any that already exist).`);
 
+  // A first cook for /kitchen, only when a PIN is given. There is no built-in
+  // default: a well-known PIN on a database the live site also uses is an open
+  // door to every order and guest phone number.
+  const seedPin = process.env.KITCHEN_STAFF_SEED_PIN;
+  const { rows: existingKitchenStaff } = await pool.query(`SELECT id FROM kitchen_staff LIMIT 1`);
+  if (existingKitchenStaff.length > 0) {
+    console.log('Kitchen staff already exist — skipped kitchen seed.');
+  } else if (!seedPin) {
+    console.log('No KITCHEN_STAFF_SEED_PIN set — no cook was created. Add kitchen staff in Admin → Settings.');
+  } else {
+    const pinHash = await bcrypt.hash(seedPin, 10);
+    await pool.query(`INSERT INTO kitchen_staff (name, pin_hash) VALUES ($1, $2)`, ['Chef Ravi', pinHash]);
+    console.log('Seeded kitchen staff "Chef Ravi" with the PIN from KITCHEN_STAFF_SEED_PIN.');
+  }
+
   await pool.end();
 }
 

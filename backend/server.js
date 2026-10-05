@@ -18,8 +18,19 @@ const { notFound, errorHandler } = require('./src/middleware/errorHandler');
 const { initRealtime } = require('./src/realtime');
 const { startScheduler } = require('./src/jobs/scheduler');
 const deskRoutes = require('./src/routes/desk.routes');
+const siteRoutes = require('./src/routes/site.routes');
+const checkoutRoutes = require('./src/routes/checkout.routes');
 
 const app = express();
+
+// Behind a hosting proxy (Render, a load balancer) the visitor's address
+// arrives in X-Forwarded-For. Unless Express is told to trust that proxy,
+// every request appears to come from the proxy itself — and all visitors then
+// share one rate-limit bucket, so one person can lock everyone out.
+// TRUST_PROXY is the number of proxies in front of the app: 1 on Render.
+// Defaults to 1 in production and off locally.
+const trustProxy = process.env.TRUST_PROXY ?? (process.env.NODE_ENV === 'production' ? '1' : '');
+if (trustProxy) app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
 
 // --- Security & core middleware ---
 app.use(helmet());
@@ -41,6 +52,12 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // --- Health check ---
 app.get('/health', (req, res) => res.json({ success: true, status: 'ok' }));
 
+// Approximate display rates for the currency switcher (charges are always INR).
+app.get('/api/fx', (req, res) => {
+  const rates = require('./src/services/fx.service').getRates();
+  res.set('Cache-Control', 'public, max-age=3600').json({ success: true, fx: rates });
+});
+
 // --- API routes ---
 app.use('/api/rooms', roomsRoutes);
 app.use('/api', bookingRoutes); // /api/availability, /api/book-room, /api/bookings/lookup
@@ -48,8 +65,10 @@ app.use('/api', paymentRoutes); // /api/create-order, /api/verify-payment, /api/
 app.use('/api/admin', adminRoutes); // /api/admin/login, /api/admin/add-room, ...
 app.use('/api/contact', contactRoutes);
 app.use('/api/menu', menuRoutes);
-app.use('/api', foodOrderRoutes); // /api/food-orders, /api/food-orders/:id
+app.use('/api', siteRoutes); // /api/site-info, /api/offers
+app.use('/api', foodOrderRoutes); // /api/order-access, /api/food-orders, /api/food-orders/:token, /api/table-requests
 app.use('/api/kitchen', kitchenRoutes);
+app.use('/api/checkouts', checkoutRoutes); // food paid online first (the kiosk, a room's "pay now"): the order exists only once paid
 app.use('/api/desk', deskRoutes); // front desk (and managers): check-in/out, counter bookings, IDs
 app.use('/api/staff', staffRoutes); // housekeeping staff login + task actions
 

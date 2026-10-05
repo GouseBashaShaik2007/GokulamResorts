@@ -68,6 +68,21 @@ CREATE TABLE IF NOT EXISTS staff (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Kitchen tablet logins: a short numeric PIN per cook instead of one shared
+-- device password, so order actions can be attributed to a person (see
+-- audit_log below). Deliberately its own table, not a `staff` role — PINs
+-- are low-entropy by design (fast to type on a greasy tablet), so they are
+-- looked up by scanning active rows and bcrypt-comparing each, not by a
+-- direct WHERE match; fine at kitchen-team scale (a handful of cooks).
+CREATE TABLE IF NOT EXISTS kitchen_staff (
+  id            SERIAL PRIMARY KEY,
+  name          VARCHAR(150) NOT NULL,
+  pin_hash      VARCHAR(255) NOT NULL,
+  is_active     BOOLEAN NOT NULL DEFAULT true,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ---------------------------------------------------------
 -- Bookings — the source of truth. Guests have no accounts; a guest is the
 -- name/phone/email on the booking.
@@ -79,6 +94,7 @@ CREATE TABLE IF NOT EXISTS staff (
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS bookings (
   id                      SERIAL PRIMARY KEY,
+  reference               VARCHAR(12) UNIQUE NOT NULL, -- guest-facing code, e.g. GKL-7F3K2 (never a guessable sequential number)
   room_unit_id            INTEGER NOT NULL REFERENCES room_units(id),
   room_type_id            INTEGER NOT NULL REFERENCES rooms(id),
   source                  VARCHAR(10) NOT NULL CHECK (source IN ('online', 'counter')),
@@ -95,16 +111,20 @@ CREATE TABLE IF NOT EXISTS bookings (
                             'pending_payment', 'paid', 'confirmed', 'checked_in',
                             'checked_out', 'cancelled', 'rejected', 'no_show')),
 
-  -- Pricing snapshot (INR). total = base - promo - manual, never below 0.
+  -- Pricing snapshot (INR). total = (base - promo - manual) + GST, never below 0.
+  -- See pricing.service.js; GST is per night (5% up to ₹7,500, else 18%).
   nightly_rate            NUMERIC(10,2) NOT NULL,
   base_amount             NUMERIC(10,2) NOT NULL,
   promo_discount          NUMERIC(10,2) NOT NULL DEFAULT 0,
   promo_details           JSONB NOT NULL DEFAULT '[]',   -- [{date, ruleId, name, amount}]
+  nights_detail           JSONB NOT NULL DEFAULT '[]',   -- [{date, rate, promo}] one per night
   manual_discount_type    VARCHAR(10) CHECK (manual_discount_type IN ('percent', 'fixed')),
   manual_discount_value   NUMERIC(10,2),
   manual_discount_amount  NUMERIC(10,2) NOT NULL DEFAULT 0,
   manual_discount_reason  TEXT,
   manual_discount_by      INTEGER REFERENCES admins(id),
+  tax_amount              NUMERIC(10,2) NOT NULL DEFAULT 0,
+  tax_details             JSONB NOT NULL DEFAULT '[]',   -- [{rate, nights, taxable, tax}]
   total_amount            NUMERIC(10,2) NOT NULL CHECK (total_amount >= 0),
   -- Money actually held for this booking: captured payments minus refunds.
   amount_paid             NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -129,6 +149,21 @@ CREATE TABLE IF NOT EXISTS bookings (
     daterange(check_in, check_out) WITH &&
   ) WHERE (status IN ('pending_payment', 'paid', 'confirmed', 'checked_in'))
 );
+
+-- Guest-facing reference code, added after the table already existed in
+-- some installs. Nullable add + backfill + tighten, so this is safe to
+-- re-run against a table that already has rows.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reference VARCHAR(12);
+UPDATE bookings SET reference = 'GKL-' || upper(substr(md5(random()::text || id::text), 1, 5))
+  WHERE reference IS NULL;
+ALTER TABLE bookings ALTER COLUMN reference SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_reference ON bookings (reference);
+
+-- GST (added after launch of the booking table). Bookings made before this
+-- keep tax 0 — their totals were quoted and paid without tax.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS nights_detail JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tax_details JSONB NOT NULL DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings (status);
 CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings (check_in, check_out);
@@ -223,6 +258,32 @@ CREATE TABLE IF NOT EXISTS rate_discounts (
   CONSTRAINT chk_rate_discount_percent CHECK (discount_type <> 'percent' OR value <= 100)
 );
 
+-- Single-row table of resort-wide settings editable from the admin panel.
+-- site_url is the production address baked into printed table QR codes; kept
+-- empty until an admin sets it deliberately (never inferred from the request,
+-- which would silently print "localhost" onto real table tents).
+CREATE TABLE IF NOT EXISTS resort_settings (
+  id          SMALLINT PRIMARY KEY DEFAULT 1,
+  site_url    TEXT NOT NULL DEFAULT '',
+  updated_by  INTEGER REFERENCES admins(id),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_resort_settings_singleton CHECK (id = 1)
+);
+INSERT INTO resort_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- Resort details shown on the guest site, editable in Admin -> Settings so a
+-- phone number or check-in time doesn't need a code change. Empty = not shown.
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS phone           TEXT NOT NULL DEFAULT '';
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS whatsapp        TEXT NOT NULL DEFAULT ''; -- digits only, with country code
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS email           TEXT NOT NULL DEFAULT '';
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS address         TEXT NOT NULL DEFAULT '';
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS maps_url        TEXT NOT NULL DEFAULT ''; -- Google Maps link to the resort's pin
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS check_in_time   TEXT NOT NULL DEFAULT ''; -- as shown to guests, e.g. "2:00 PM"
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS check_out_time  TEXT NOT NULL DEFAULT '';
+-- How many restaurant tables have a QR code. Orders for any other table number are refused.
+ALTER TABLE resort_settings ADD COLUMN IF NOT EXISTS table_count     INTEGER NOT NULL DEFAULT 10
+  CHECK (table_count BETWEEN 1 AND 200);
+
 -- Who did what: approvals, rejections, discounts, payments, check-in/out,
 -- overrides, automatic expiries.
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -234,6 +295,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details     JSONB NOT NULL DEFAULT '{}',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 'kitchen' added so per-cook order actions (see kitchen_staff above) are
+-- distinguishable from housekeeping/front-desk 'staff' entries — both id
+-- spaces start at 1, so conflating them would make actor_id ambiguous.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_actor_type_check;
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_actor_type_check
+  CHECK (actor_type IN ('admin', 'staff', 'kitchen', 'guest', 'system'));
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_booking_id ON audit_log (booking_id);
 
@@ -286,8 +354,8 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_available ON menu_items (is_available)
 
 CREATE TABLE IF NOT EXISTS food_orders (
   id              SERIAL PRIMARY KEY,
-  order_type      VARCHAR(20) NOT NULL, -- table | kiosk
-  table_number    VARCHAR(20),          -- NULL for kiosk/counter orders
+  order_type      VARCHAR(20) NOT NULL, -- table | counter | kiosk
+  table_number    VARCHAR(20),          -- NULL for counter and kiosk orders
   customer_name   VARCHAR(150),
   customer_phone  VARCHAR(20),
   notes           TEXT,
@@ -312,6 +380,39 @@ CREATE TABLE IF NOT EXISTS food_order_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_food_order_items_order_id ON food_order_items (order_id);
+
+-- Guest choices per dish: a spice level (only offered on dishes the kitchen
+-- marks as adjustable) and a free-text request.
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS spice_adjustable BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS spice_level VARCHAR(10)
+  CHECK (spice_level IN ('mild', 'medium', 'hot'));
+ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS notes VARCHAR(300);
+
+-- A guest follows their own order by this random token. Order numbers are
+-- sequential, so they must not work as a public address.
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS public_token VARCHAR(40);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_food_orders_public_token ON food_orders (public_token)
+  WHERE public_token IS NOT NULL;
+
+-- What a diner needs to know before ordering. allergens holds any of:
+-- nuts, dairy, gluten, egg, shellfish, fish, soy. spice_rating is the dish's
+-- usual heat, 0 (none) to 3 (hot).
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS allergens    TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_jain      BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS spice_rating SMALLINT NOT NULL DEFAULT 0
+  CHECK (spice_rating BETWEEN 0 AND 3);
+
+-- "Call staff" / "Request bill" from a table's ordering page; shown on the
+-- kitchen display until someone marks it done.
+CREATE TABLE IF NOT EXISTS table_requests (
+  id            SERIAL PRIMARY KEY,
+  table_number  VARCHAR(20) NOT NULL,
+  kind          VARCHAR(10) NOT NULL CHECK (kind IN ('staff', 'bill')),
+  status        VARCHAR(10) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  done_at       TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_table_requests_open ON table_requests (status, created_at);
 
 -- ---------------------------------------------------------
 -- Housekeeping / room cleaning
@@ -373,3 +474,126 @@ CREATE TABLE IF NOT EXISTS cleaning_inspections (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cleaning_inspections_job_id ON cleaning_inspections (job_id);
+
+-- ---------------------------------------------------------
+-- Added 2026-10: paid food orders, housekeeping PINs, room problems,
+-- room details. All additive.
+-- ---------------------------------------------------------
+
+-- Payment for a food order is taken at the counter and recorded by the front
+-- desk or a manager. paid_at NULL = not yet paid.
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS paid_at            TIMESTAMPTZ;
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_method     VARCHAR(10) CHECK (payment_method IN ('cash', 'upi', 'card'));
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_reference  VARCHAR(100);
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS paid_by_staff_id   INTEGER REFERENCES staff(id);
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS paid_by_admin_id   INTEGER REFERENCES admins(id);
+CREATE INDEX IF NOT EXISTS idx_food_orders_unpaid ON food_orders (created_at) WHERE paid_at IS NULL;
+
+-- Housekeeping may sign in by tapping their name and typing a PIN (a shared
+-- phone, no keyboard to speak of). NULL = no PIN; phone + password still works.
+-- The front desk never gets one.
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS pin_hash VARCHAR(255);
+
+-- Problems housekeeping finds in a room: a broken tap, a stain, lost property.
+-- The photo, if any, is in private storage (photo_key) and is deleted a month
+-- after the problem is resolved.
+CREATE TABLE IF NOT EXISTS room_issues (
+  id                    SERIAL PRIMARY KEY,
+  room_unit_id          INTEGER NOT NULL REFERENCES room_units(id),
+  kind                  VARCHAR(20) NOT NULL CHECK (kind IN ('repair', 'damage', 'lost_property', 'other')),
+  description           TEXT NOT NULL,
+  photo_key             TEXT,
+  photo_content_type    VARCHAR(50),
+  reported_by_staff_id  INTEGER NOT NULL REFERENCES staff(id),
+  status                VARCHAR(10) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+  resolved_by_admin_id  INTEGER REFERENCES admins(id),
+  resolution_note       TEXT,
+  resolved_at           TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_room_issues_status ON room_issues (status, created_at);
+
+-- What guests ask about a room before booking. NULL = the manager has not
+-- said, and the guest site then says nothing (breakfast falls back to the
+-- amenities list).
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS breakfast_included     BOOLEAN;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS extra_bed_available    BOOLEAN;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS extra_bed_charge       NUMERIC(10,2) CHECK (extra_bed_charge >= 0); -- per night; NULL = no charge stated
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS smoking_allowed        BOOLEAN;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS wheelchair_accessible  BOOLEAN;
+
+-- ---------------------------------------------------------
+-- Added 2026-10: the restaurant's self-ordering kiosk. All additive.
+-- ---------------------------------------------------------
+
+-- The kiosk takes payment on its own screen before anything reaches the
+-- kitchen. A checkout is a priced basket waiting for that payment; when the
+-- payment arrives it becomes a food order that is already paid. (Room orders
+-- paid online use it too: see the columns added further down.)
+--   created    waiting for the payment
+--   paid       the order exists (food_order_id)
+--   abandoned  the customer backed out, or nobody paid in time
+--   refunded   a payment arrived after it was abandoned and was sent back
+CREATE TABLE IF NOT EXISTS kiosk_checkouts (
+  id                   SERIAL PRIMARY KEY,
+  token                VARCHAR(40) NOT NULL UNIQUE,
+  items                JSONB NOT NULL, -- priced lines, as they are copied to food_order_items
+  notes                TEXT,
+  total_amount         NUMERIC(10,2) NOT NULL CHECK (total_amount > 0),
+  status               VARCHAR(10) NOT NULL DEFAULT 'created'
+                       CHECK (status IN ('created', 'paid', 'abandoned', 'refunded')),
+  razorpay_order_id    VARCHAR(60) NOT NULL UNIQUE,
+  razorpay_payment_id  VARCHAR(60),
+  refund_reference     VARCHAR(60),
+  food_order_id        INTEGER REFERENCES food_orders(id),
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  paid_at              TIMESTAMPTZ,
+  checked_at           TIMESTAMPTZ -- when the clean-up job asked the gateway about it
+);
+CREATE INDEX IF NOT EXISTS idx_kiosk_checkouts_unchecked ON kiosk_checkouts (created_at)
+  WHERE checked_at IS NULL AND status IN ('created', 'abandoned');
+
+-- A food order paid through the payment gateway (the kiosk) has
+-- payment_method 'online' and the gateway's payment id. If it is cancelled
+-- later, the refund_* columns say how giving the money back stands.
+-- order_type is now one of: table | counter | kiosk.
+ALTER TABLE food_orders DROP CONSTRAINT IF EXISTS food_orders_payment_method_check;
+ALTER TABLE food_orders ADD CONSTRAINT food_orders_payment_method_check
+  CHECK (payment_method IN ('cash', 'upi', 'card', 'online'));
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS gateway_payment_id VARCHAR(60);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_food_orders_gateway_payment ON food_orders (gateway_payment_id)
+  WHERE gateway_payment_id IS NOT NULL;
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS refund_reference   VARCHAR(60);
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS refund_status      VARCHAR(10) CHECK (refund_status IN ('pending', 'processed', 'failed'));
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS refunded_at        TIMESTAMPTZ;
+
+-- ---------------------------------------------------------
+-- Added 2026-10: food ordered to a hotel room. All additive.
+-- ---------------------------------------------------------
+
+-- Each hotel room has a QR code; an order from it is brought to the room
+-- (order_type 'room', room_number = the unit's number). The guest pays online
+-- when ordering, or in cash at the door: delivering an unpaid room order
+-- records the cash (payment_reference 'Collected on delivery').
+-- order_type is now one of: table | counter | kiosk | room.
+ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS room_number VARCHAR(20);
+
+-- A room order paid online waits for its payment the same way a kiosk order
+-- does, so it uses the same checkouts. (The table keeps the name of its first use.)
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS order_type     VARCHAR(20) NOT NULL DEFAULT 'kiosk' CHECK (order_type IN ('kiosk', 'room'));
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS room_number    VARCHAR(20);
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS customer_name  VARCHAR(150);
+ALTER TABLE kiosk_checkouts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(20);
+
+-- ---------------------------------------------------------
+-- Added 2026-10: a manager or the front desk can decide an inspection when
+-- no inspector is on shift. All additive.
+-- ---------------------------------------------------------
+
+-- Who decided: inspector_id is the staff member (the inspector, or front desk
+-- staff standing in for one); admin_id is set instead when a manager did it.
+ALTER TABLE cleaning_inspections ALTER COLUMN inspector_id DROP NOT NULL;
+ALTER TABLE cleaning_inspections ADD COLUMN IF NOT EXISTS admin_id INTEGER REFERENCES admins(id);
+ALTER TABLE cleaning_inspections DROP CONSTRAINT IF EXISTS chk_inspection_decider;
+ALTER TABLE cleaning_inspections ADD CONSTRAINT chk_inspection_decider
+  CHECK (inspector_id IS NOT NULL OR admin_id IS NOT NULL);

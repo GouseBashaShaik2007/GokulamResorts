@@ -9,7 +9,7 @@ router.get('/categories', getCategories);
 
 router.get(
   '/items',
-  [query('category').optional().isInt({ min: 1 })],
+  [query('category').optional().isInt({ min: 1 }), query('all').optional().isIn(['1'])],
   validate,
   getMenuItems
 );

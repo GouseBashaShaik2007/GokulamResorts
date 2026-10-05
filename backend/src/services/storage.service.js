@@ -1,5 +1,6 @@
 /**
- * Private file storage for guest ID documents.
+ * Private file storage: guest ID documents, and photos of room problems
+ * reported by housekeeping.
  *
  * STORAGE_DRIVER=supabase: Supabase Storage, talked to over its REST API with
  *   the service_role key (server-only — bypasses RLS, never expose to the
@@ -58,6 +59,11 @@ const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'ap
 // Random, non-guessable key; no guest name or ID number in it.
 function newKey(bookingId, contentType) {
   return `guest-documents/${bookingId}/${crypto.randomUUID()}.${EXT[contentType] || 'bin'}`;
+}
+
+// Photos housekeeping attaches to a room problem (they may show a guest's belongings).
+function newIssueKey(roomUnitId, contentType) {
+  return `room-issues/${roomUnitId}/${crypto.randomUUID()}.${EXT[contentType] || 'bin'}`;
 }
 
 async function put(key, buffer, contentType) {
@@ -139,4 +145,4 @@ async function readLocal(token) {
   return { buffer: await fs.readFile(file), contentType: payload.contentType };
 }
 
-module.exports = { DRIVER, newKey, put, remove, viewUrl, readLocal, ALLOWED_TYPES: Object.keys(EXT) };
+module.exports = { DRIVER, newKey, newIssueKey, put, remove, viewUrl, readLocal, ALLOWED_TYPES: Object.keys(EXT) };

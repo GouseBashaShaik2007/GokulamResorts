@@ -40,7 +40,7 @@ Gokulum/
     │   ├── admin/                      # manager dashboard
     │   ├── frontdesk/                  # front desk console
     │   ├── staff/                      # housekeeping mobile screens
-    │   ├── kiosk/, order/, kitchen/    # food ordering
+    │   ├── order/, dine-in/, kitchen/  # food ordering: QR codes (tables, hotel rooms, counter), the restaurant kiosk, kitchen display
     │   └── contact/, page.js, layout.js
     ├── components/
     │   ├── bookings/                   # DeskBoard, BookingDetail, CounterBookingForm, RoomPicker
@@ -91,7 +91,7 @@ Log in at `http://localhost:3000/admin` with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, t
 
 | URL | Who | What |
 |-----|-----|------|
-| `/rooms`, `/booking/:typeId` | Guests | Pick dates → pick an actual room number → pay |
+| `/rooms`, `/rooms/:slug` | Guests | Pick dates → pick an actual room number → pay |
 | `/booking/status` | Guests | Look up a booking with booking ID + mobile number (no login) |
 | `/admin` | Manager | Bookings (approvals, discounts, cancellations, IDs, promotions), rooms, housekeeping, menu |
 | `/frontdesk` | Front desk staff | Arrivals / departures / in-house, walk-ins, payments, ID capture, check-in/out |
@@ -192,6 +192,9 @@ All routes are mounted under `/api`.
 | POST | `/desk/bookings/:id/check-in` · `extend` · `check-out` · `no-show` | Front desk or manager | Stay operations |
 | POST | `/desk/refunds/:id/complete` | Front desk or manager | Record a counter refund payout |
 | — | `/admin/rooms…`, `/admin/menu…`, `/admin/food-orders`, `/menu…`, `/food-orders…`, `/kitchen…` | | Rooms, menu and food ordering |
+| POST | `/checkouts` | Kiosk key, or a room's QR key | Price a basket and open a Razorpay order for it (nothing reaches the kitchen yet) |
+| POST | `/checkouts/:token/confirm` | Checkout token | **Verify Razorpay signature** → the food order is created, already paid |
+| GET · POST | `/checkouts/:token` · `…/abandon` | Checkout token | Where a checkout stands · the customer backed out |
 
 ## 4a. Housekeeping (room cleaning) module
 
@@ -207,6 +210,13 @@ three tasks — Bedding, Toiletry, Inspection — each assigned to one staff mem
 - Inspector **Approve** → `Ready`. **Reject** needs the failed task(s) + a reason: only those tasks reset
   to `Pending` (reason shown to the cleaner), completed ones stay done, the room returns to
   `Cleaning`, and the same inspector gets it back. Every decision is kept in `cleaning_inspections`.
+- **No inspector on shift:** a manager (cleaning board) or the front desk (Rooms tab) can approve a room
+  that has reached `Inspection`. A manager can also send it back, or mark a room `Ready` before cleaning
+  has finished (a room marked dirty by mistake); the front desk cannot.
+- **Assigning:** a manager from the cleaning board, or an inspector from `/staff` → *Assign rooms*, where
+  inspectors see every open room and choose who does each task.
+- **Guests:** for a stay starting today, the website only offers rooms that are `Ready`. Later arrivals
+  and front desk walk-ins are not restricted.
 - Every task list is sorted by priority (VIP > High > Normal), then oldest first.
 
 **Where jobs come from:**
@@ -231,10 +241,13 @@ refused while a room is not `Ready`.
 | GET/POST, PUT | `/admin/room-units`, `/admin/room-units/:id` | Manager | Physical rooms (number, floor, view) |
 | GET/POST | `/admin/cleaning/jobs` | Manager | Board / mark a room dirty |
 | PUT / PATCH | `/admin/cleaning/jobs/:id/assign` · `/priority` | Manager | Assign staff / change priority |
+| POST | `/admin/cleaning/jobs/:id/approve` · `reject` | Manager | Decide an inspection (`approve` with `force: true` marks a room ready early) |
 | POST | `/admin/cleaning/run-nightly` | Manager | Run the safety net now |
+| POST | `/desk/rooms/:id/approve-cleaning` | Front desk or manager | Approve a cleaned room (`:id` is the room) |
 | POST | `/staff/login` | Public | Staff login → JWT |
 | GET | `/staff/tasks` | Staff | My open tasks, priority-sorted |
 | POST | `/staff/tasks/:id/start` · `pause` · `complete` · `approve` · `reject` | Staff | Task actions |
+| GET / PUT | `/staff/jobs` · `/staff/jobs/:id/assign` | Inspector | Every open room and the team / assign staff |
 
 The housekeeping state machine lives in [`cleaning.service.js`](backend/src/services/cleaning.service.js).
 
@@ -253,6 +266,20 @@ The housekeeping state machine lives in [`cleaning.service.js`](backend/src/serv
    `refund.processed` / `refund.failed` track refunds (a failed refund puts the money back on the booking).
 6. Refunds (reject, cancel, auto-expiry, discounts, late payments) go through the Razorpay refunds API
    inside the same transaction as the booking change — if Razorpay refuses, nothing changes.
+
+**Restaurant kiosk.** The self-ordering tablet in the restaurant (`/dine-in`, set up once from Admin → QR
+Codes) takes payment on its own screen with the same Razorpay account. A basket is priced on the server
+and held as a *checkout*; only a verified payment turns it into a food order, so the kitchen never sees an
+unpaid kiosk order. The same webhook covers a kiosk whose own confirmation was lost, and a job closes
+checkouts nobody paid for every five minutes: a payment that arrives after the kiosk has moved on is
+refunded instead of becoming an order nobody is waiting for. Cancelling an order that was paid online
+(kitchen, manager, or the guest while it is still new) refunds it through Razorpay automatically.
+
+**Hotel rooms.** Each room has a QR code (`/order/room/<number>`, printed from Admin → QR Codes). The
+guest chooses how to pay: *pay now* uses the same checkouts as the kiosk on the guest's own phone; *cash*
+places the order at once and is paid at the room's door. Nobody at a desk records that cash: marking the
+order delivered on the kitchen screen does (and taking "delivered" back undoes it). Nothing is added to
+the room's bill.
 
 **Mock mode:** without real keys (or with `RAZORPAY_MODE=mock`) orders and refunds are simulated and the
 booking page shows a "Simulate Successful Payment" button. Mock mode refuses to start when

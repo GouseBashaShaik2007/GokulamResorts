@@ -1,14 +1,27 @@
 /**
- * Room pricing. Nightly rate comes from the room type; standing promotions
- * (rate_discounts) are applied per night — when several match a night, the
- * largest discount wins (no stacking). A manager's booking-level discount is
- * applied on top, to the amount after promotions.
+ * Room pricing.
+ *
+ *   per night:  rate (room type) − promotion (best rate_discount that night)
+ *   booking:    − manager discount (on the post-promotion subtotal)
+ *   tax:        GST per night on that night's value after all discounts:
+ *               ≤ ₹7,500/night → 5%, above → 18%
+ *   total:      taxable value + GST  (this is what the guest pays)
+ *
+ * Every booking stores its night-by-night breakdown (`nights_detail`) so
+ * discounts and extensions can recompute tax per night later.
  */
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
+// Hotel accommodation GST slabs (per night, on the value actually charged).
+const GST_THRESHOLD = 7500;
+const GST_RATE_LOW = 5;
+const GST_RATE_HIGH = 18;
+const gstRateFor = (nightValue) => (nightValue <= GST_THRESHOLD ? GST_RATE_LOW : GST_RATE_HIGH);
+
 /**
  * Quote nights [fromDate, toDate) for a room type.
- * Returns { nightlyRate, nights, base, promo, promoDetails }.
+ * Returns { nightlyRate, nights, base, promo, promoDetails, nightsDetail }.
+ * nightsDetail: [{ date, rate, promo }] — one entry per night.
  */
 async function quoteNights(client, roomTypeId, fromDate, toDate) {
   const { rows: typeRows } = await client.query(`SELECT price_per_night FROM rooms WHERE id = $1`, [roomTypeId]);
@@ -44,6 +57,7 @@ async function quoteNights(client, roomTypeId, fromDate, toDate) {
     base: round2(nightlyRate * rows.length),
     promo: round2(promoDetails.reduce((s, p) => s + p.amount, 0)),
     promoDetails,
+    nightsDetail: rows.map((r) => ({ date: r.date, rate: nightlyRate, promo: Number(r.amount) })),
   };
 }
 
@@ -54,11 +68,64 @@ function manualDiscountAmount(subtotal, type, value) {
   return round2(Math.min(subtotal, Math.max(0, amount)));
 }
 
-// Recomputes the money columns of a booking row from its parts.
-function totals({ base, promo, manualType, manualValue }) {
+/**
+ * Full price of a stay from its nights. The manager discount is spread across
+ * nights in proportion to each night's value, then GST is worked out per night.
+ * Returns { base, promo, subtotal, manual, taxable, tax, taxDetails, total }.
+ * taxDetails: [{ rate, nights, taxable, tax }] grouped by GST rate.
+ */
+function priceStay({ nights, manualType = null, manualValue = null }) {
+  const base = round2(nights.reduce((s, n) => s + Number(n.rate), 0));
+  const promo = round2(nights.reduce((s, n) => s + Number(n.promo || 0), 0));
   const subtotal = round2(base - promo);
   const manual = manualDiscountAmount(subtotal, manualType, manualValue);
-  return { subtotal, manual, total: round2(Math.max(0, subtotal - manual)) };
+  const taxable = round2(subtotal - manual);
+  const factor = subtotal > 0 ? taxable / subtotal : 0;
+
+  // Night values after all discounts; the last night absorbs rounding so the
+  // nights always add up to `taxable` exactly.
+  let allocated = 0;
+  const values = nights.map((n, i) => {
+    const value = i === nights.length - 1 ? round2(taxable - allocated) : round2((n.rate - (n.promo || 0)) * factor);
+    allocated = round2(allocated + value);
+    return value;
+  });
+
+  const byRate = new Map();
+  for (const value of values) {
+    const rate = gstRateFor(value);
+    const group = byRate.get(rate) || { rate, nights: 0, taxable: 0, tax: 0 };
+    group.nights += 1;
+    group.taxable = round2(group.taxable + value);
+    group.tax = round2(group.tax + (value * rate) / 100);
+    byRate.set(rate, group);
+  }
+  const taxDetails = [...byRate.values()].sort((a, b) => a.rate - b.rate);
+  const tax = round2(taxDetails.reduce((s, g) => s + g.tax, 0));
+
+  return { base, promo, subtotal, manual, taxable, tax, taxDetails, total: round2(taxable + tax) };
 }
 
-module.exports = { quoteNights, manualDiscountAmount, totals, round2 };
+/** A booking row's nights. Older rows without a stored breakdown are rebuilt from their dates. */
+function nightsOfBooking(b) {
+  if (Array.isArray(b.nights_detail) && b.nights_detail.length > 0) return b.nights_detail;
+  const promoByDate = Object.fromEntries((b.promo_details || []).map((p) => [p.date, Number(p.amount)]));
+  const nights = [];
+  for (let d = new Date(`${b.check_in}T00:00:00Z`); d < new Date(`${b.check_out}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    const date = d.toISOString().slice(0, 10);
+    nights.push({ date, rate: Number(b.nightly_rate), promo: promoByDate[date] || 0 });
+  }
+  return nights;
+}
+
+module.exports = {
+  GST_THRESHOLD,
+  GST_RATE_LOW,
+  GST_RATE_HIGH,
+  gstRateFor,
+  quoteNights,
+  manualDiscountAmount,
+  priceStay,
+  nightsOfBooking,
+  round2,
+};

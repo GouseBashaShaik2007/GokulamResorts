@@ -1,0 +1,12 @@
+{
+  "name": "Gokulam Restaurant — Order here",
+  "short_name": "Order here",
+  "description": "The self-ordering screen in the Gokulam restaurant.",
+  "start_url": "/dine-in",
+  "scope": "/dine-in",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0B1F26",
+  "theme_color": "#0B1F26",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

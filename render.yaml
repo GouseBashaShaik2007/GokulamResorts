@@ -1,5 +1,11 @@
-# Render Blueprint — deploys the Express/Socket.IO backend as an always-on
-# web service. In the Render dashboard: New + -> Blueprint -> select this repo.
+# Render Blueprint — deploys the Express/Socket.IO backend as a web service.
+# In the Render dashboard: New + -> Blueprint -> select this repo.
+#
+# NOTE: `plan: free` below is NOT always-on. A free service sleeps after about
+# 15 minutes without requests, and the background jobs sleep with it: unpaid
+# holds expire late, unapproved bookings are refunded late, and the nightly
+# jobs (11 PM cleaning check, 3:30 AM ID-document deletion) are usually missed.
+# Before taking real bookings, move to a paid plan (e.g. `starter`).
 # Vars marked `sync: false` are prompted for in the dashboard (kept out of
 # this file since it's committed to git).
 services:
@@ -17,6 +23,14 @@ services:
 
       # Set this to your deployed Vercel frontend URL (comma-separated if more than one).
       - key: FRONTEND_URL
+        sync: false
+
+      # Staff sign in with cookies, which the browser only sends when the site
+      # and this API share a domain: put the site on yourdomain.in and this API
+      # on api.yourdomain.in (custom domains on both Vercel and Render). On
+      # the default *.vercel.app and *.onrender.com addresses staff CANNOT
+      # sign in. Optional: the shared parent domain, e.g. .yourdomain.in
+      - key: COOKIE_DOMAIN
         sync: false
 
       # Supabase Postgres connection string (Project Settings -> Database -> Connection string -> URI).
@@ -47,9 +61,23 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
 
-      # Shared password for kitchen dashboard devices.
-      - key: KITCHEN_PASSWORD
-        sync: false
+      # Kitchen display: each cook signs in with their own PIN, set in
+      # Admin -> Settings. (There is no shared kitchen password any more.)
+      - key: KITCHEN_JWT_EXPIRES_IN
+        value: 12h
+
+      # Food ordering: every printed QR code carries a key made from this
+      # secret, and orders are refused without it. Kept separate from
+      # JWT_SECRET so that changing the login secret doesn't break the printed
+      # codes. Changing THIS one retires every printed code at once (reprint
+      # them from Admin -> QR Codes).
+      - key: ORDER_LINK_SECRET
+        generateValue: true
+
+      # Render puts one proxy in front of the service; trusting it lets rate
+      # limits count each visitor separately.
+      - key: TRUST_PROXY
+        value: "1"
 
       # Razorpay (leave blank to run in mock/no-payment mode).
       - key: RAZORPAY_KEY_ID

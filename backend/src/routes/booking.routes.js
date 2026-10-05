@@ -9,6 +9,26 @@ const router = Router();
 // Slows down guessing booking id + phone pairs on the public status page.
 const lookupLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 
+// Holding a room takes it off sale for the hold period, so one address can't
+// hold room after room and leave nothing for real guests.
+const holdLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many booking attempts. Please wait a few minutes, or contact the resort.' },
+});
+
+// Each check prices every free room. Generous for a person changing dates,
+// tight for a script.
+const availabilityLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many availability checks. Please wait a minute and try again.' },
+});
+
 const dateRange = [
   query('checkIn').isISO8601().withMessage('checkIn must be a date (YYYY-MM-DD)'),
   query('checkOut').isISO8601().withMessage('checkOut must be a date (YYYY-MM-DD)'),
@@ -16,6 +36,7 @@ const dateRange = [
 
 router.get(
   '/availability',
+  availabilityLimiter,
   [...dateRange, query('roomTypeId').optional().isInt({ min: 1 }), query('guests').optional().isInt({ min: 1, max: 20 })],
   validate,
   getAvailability
@@ -38,6 +59,7 @@ const guestFields = [
 
 router.post(
   '/book-room',
+  holdLimiter,
   [...guestFields, body('email').isEmail().withMessage('A valid email is required').normalizeEmail()],
   validate,
   createBooking
@@ -46,7 +68,10 @@ router.post(
 router.get(
   '/bookings/lookup',
   lookupLimiter,
-  [query('bookingId').isInt({ min: 1 }), query('phone').trim().notEmpty()],
+  [
+    query('reference').trim().matches(/^GKL-[A-Z0-9]{5}$/i).withMessage('A valid booking reference is required'),
+    query('phone').trim().notEmpty(),
+  ],
   validate,
   lookup
 );

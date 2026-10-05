@@ -12,10 +12,11 @@
  * commit. Razorpay refund calls happen inside the transaction on purpose: if
  * the gateway refuses, the whole change rolls back and nothing is half-done.
  */
+const crypto = require('crypto');
 const { query, withTransaction } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const { localToday, addDays } = require('../utils/dates');
-const { quoteNights, totals, round2 } = require('./pricing.service');
+const { quoteNights, priceStay, nightsOfBooking, round2 } = require('./pricing.service');
 const gateway = require('./gateway.service');
 const notify = require('./notify.service');
 const storage = require('./storage.service');
@@ -34,6 +35,15 @@ const cleaning = () => require('./cleaning.service');
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// Guest-facing booking code, e.g. "GKL-7F3K2" — never a guessable sequential
+// number. Alphabet excludes ambiguous characters (0/O, 1/I).
+const REFERENCE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function generateReference() {
+  let code = '';
+  for (let i = 0; i < 5; i += 1) code += REFERENCE_ALPHABET[crypto.randomInt(REFERENCE_ALPHABET.length)];
+  return `GKL-${code}`;
+}
 
 /** Transaction whose `after(fn)` callbacks run once it has committed. */
 async function tx(fn) {
@@ -142,8 +152,11 @@ async function releaseExpiredPaymentHolds(client, roomUnitId = null) {
 /**
  * Rooms free for [checkIn, checkOut), grouped by room type with a price quote.
  * roomTypeId narrows to one type; guests filters by capacity.
+ * liveOnly (the guest site): for a stay starting today, leaves out rooms
+ * housekeeping has not passed yet — nobody could be checked into them. Later
+ * arrivals are not affected: the room will have been cleaned by then.
  */
-async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, allowPast = false }) {
+async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, allowPast = false, liveOnly = false }) {
   const today = await localToday();
   if (!allowPast) validateDates(today, checkIn, checkOut);
   else if (checkOut <= checkIn) throw new ApiError(400, 'Check-out must be after check-in');
@@ -154,6 +167,7 @@ async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, 
      FROM room_units ru JOIN rooms r ON r.id = ru.room_type_id
      WHERE ru.is_active AND r.is_active AND r.capacity >= $3
        AND ($4::int IS NULL OR r.id = $4)
+       AND NOT ($6::boolean AND $1::date = $7::date AND ru.status <> 'Ready')
        AND NOT EXISTS (
          SELECT 1 FROM bookings b
          WHERE b.room_unit_id = ru.id AND b.status = ANY($5)
@@ -161,7 +175,7 @@ async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, 
            AND daterange(b.check_in, b.check_out) && daterange($1::date, $2::date)
        )
      ORDER BY r.price_per_night, ru.unit_number`,
-    [checkIn, checkOut, guests, roomTypeId, BLOCKING]
+    [checkIn, checkOut, guests, roomTypeId, BLOCKING, liveOnly, today]
   );
 
   const byType = new Map();
@@ -170,7 +184,8 @@ async function availability({ roomTypeId = null, checkIn, checkOut, guests = 1, 
       const quote = await quoteNights({ query }, u.room_type_id, checkIn, checkOut);
       byType.set(u.room_type_id, {
         roomType: { id: u.room_type_id, name: u.room_type, capacity: u.capacity, image: u.images?.[0] || null },
-        quote: { ...quote, total: round2(quote.base - quote.promo) },
+        // total includes GST — it is what the guest will pay.
+        quote: { ...quote, ...priceStay({ nights: quote.nightsDetail }) },
         units: [],
       });
     }
@@ -198,7 +213,7 @@ async function createBooking(input, { source, actor, payment = null }) {
 
   return tx(async (client, after) => {
     const { rows: units } = await client.query(
-      `SELECT ru.id, ru.unit_number, ru.is_active, ru.room_type_id, r.capacity, r.is_active AS type_active
+      `SELECT ru.id, ru.unit_number, ru.is_active, ru.status, ru.room_type_id, r.capacity, r.is_active AS type_active
        FROM room_units ru JOIN rooms r ON r.id = ru.room_type_id WHERE ru.id = $1 FOR UPDATE OF ru`,
       [roomUnitId]
     );
@@ -210,42 +225,63 @@ async function createBooking(input, { source, actor, payment = null }) {
 
     const today = await localToday(client);
     validateDates(today, checkIn, checkOut);
+    const online = source === 'online';
+    // Same rule as availability's liveOnly: a room housekeeping has not passed
+    // is not sold online for tonight. The front desk still can (a walk-in may wait).
+    if (online && String(checkIn).slice(0, 10) === today && unit.status !== 'Ready') {
+      throw new ApiError(409, `Room ${unit.unit_number} is still being prepared for today. Please choose another room.`);
+    }
     await releaseExpiredPaymentHolds(client, unit.id);
 
     const quote = await quoteNights(client, unit.room_type_id, checkIn, checkOut);
-    const { total } = totals({ base: quote.base, promo: quote.promo });
+    const price = priceStay({ nights: quote.nightsDetail });
+    const { total } = price;
     const creator = actorColumns(actor);
-    const online = source === 'online';
 
-    const { rows } = await guardOverlap(
-      client,
-      () =>
-        client.query(
-          `INSERT INTO bookings
-             (room_unit_id, room_type_id, source, guest_name, guest_phone, guest_email, adults, children,
-              check_in, check_out, original_check_out, special_requests, status,
-              nightly_rate, base_amount, promo_discount, promo_details, total_amount,
-              hold_expires_at, confirmed_at, created_by_staff_id, created_by_admin_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$12,$13,$14,$15,$16,$17,
-                   now() + make_interval(mins => $18::int),         -- NULL for counter bookings
-                   CASE WHEN $18::int IS NULL THEN now() END, $19, $20)
-           RETURNING id`,
-          [
-            unit.id, unit.room_type_id, source, name, phone, email || null, adults, children,
-            checkIn, checkOut, specialRequests || null, online ? 'pending_payment' : 'confirmed',
-            quote.nightlyRate, quote.base, quote.promo, JSON.stringify(quote.promoDetails), total,
-            online ? PAYMENT_WINDOW_MIN : null, creator.staff, creator.admin,
-          ]
-        ),
-      { roomUnitId: unit.id, checkIn, checkOut }
-    );
+    // Reference codes are random — collision odds are astronomically low
+    // (32^5 combinations), but retry a couple of times just in case.
+    let rows;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        ({ rows } = await guardOverlap(
+          client,
+          () =>
+            client.query(
+              `INSERT INTO bookings
+                 (reference, room_unit_id, room_type_id, source, guest_name, guest_phone, guest_email, adults, children,
+                  check_in, check_out, original_check_out, special_requests, status,
+                  nightly_rate, base_amount, promo_discount, promo_details, total_amount,
+                  hold_expires_at, confirmed_at, created_by_staff_id, created_by_admin_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12,$13,$14,$15,$16,$17,$18,
+                       now() + make_interval(mins => $19::int),         -- NULL for counter bookings
+                       CASE WHEN $19::int IS NULL THEN now() END, $20, $21)
+               RETURNING id`,
+              [
+                generateReference(), unit.id, unit.room_type_id, source, name, phone, email || null, adults, children,
+                checkIn, checkOut, specialRequests || null, online ? 'pending_payment' : 'confirmed',
+                quote.nightlyRate, quote.base, quote.promo, JSON.stringify(quote.promoDetails), total,
+                online ? PAYMENT_WINDOW_MIN : null, creator.staff, creator.admin,
+              ]
+            ),
+          { roomUnitId: unit.id, checkIn, checkOut }
+        ));
+        break;
+      } catch (err) {
+        if (err.code === '23505' && err.constraint === 'uq_bookings_reference' && attempt < 3) continue;
+        throw err;
+      }
+    }
     const booking = rows[0];
+    await client.query(
+      `UPDATE bookings SET nights_detail = $1, tax_amount = $2, tax_details = $3 WHERE id = $4`,
+      [JSON.stringify(quote.nightsDetail), price.tax, JSON.stringify(price.taxDetails), booking.id]
+    );
 
     await audit(client, {
       bookingId: booking.id,
       actor,
       action: 'booking_created',
-      details: { source, roomUnit: unit.unit_number, checkIn, checkOut, total, promo: quote.promo },
+      details: { source, roomUnit: unit.unit_number, checkIn, checkOut, total, promo: quote.promo, gst: price.tax },
     });
 
     if (!online) {
@@ -529,18 +565,16 @@ async function applyDiscount(bookingId, { type, value, reason }, actor) {
     const b = await lock(client, bookingId);
     requireStatus(b, ['paid', 'confirmed', 'checked_in'], 'discount');
     const clearing = !value;
-    const t = totals({
-      base: Number(b.base_amount),
-      promo: Number(b.promo_discount),
-      manualType: clearing ? null : type,
-      manualValue: clearing ? null : value,
-    });
+    const nights = nightsOfBooking(b);
+    const t = priceStay({ nights, manualType: clearing ? null : type, manualValue: clearing ? null : value });
 
     await client.query(
       `UPDATE bookings SET manual_discount_type = $1, manual_discount_value = $2, manual_discount_amount = $3,
-              manual_discount_reason = $4, manual_discount_by = $5, total_amount = $6, updated_at = now()
-       WHERE id = $7`,
-      [clearing ? null : type, clearing ? null : value, t.manual, reason, actor.id, t.total, b.id]
+              manual_discount_reason = $4, manual_discount_by = $5, total_amount = $6,
+              tax_amount = $7, tax_details = $8, nights_detail = $9, updated_at = now()
+       WHERE id = $10`,
+      [clearing ? null : type, clearing ? null : value, t.manual, reason, actor.id, t.total,
+       t.tax, JSON.stringify(t.taxDetails), JSON.stringify(nights), b.id]
     );
 
     const overpaid = round2(Number(b.amount_paid) - t.total);
@@ -574,16 +608,19 @@ async function extendStay(bookingId, newCheckOut, actor) {
     const extra = await quoteNights(client, b.room_type_id, b.check_out, newCheckOut);
     const base = round2(Number(b.base_amount) + extra.base);
     const promo = round2(Number(b.promo_discount) + extra.promo);
-    const t = totals({ base, promo, manualType: b.manual_discount_type, manualValue: b.manual_discount_value });
+    const nights = [...nightsOfBooking(b), ...extra.nightsDetail];
+    const t = priceStay({ nights, manualType: b.manual_discount_type, manualValue: b.manual_discount_value });
 
     await guardOverlap(
       client,
       () =>
         client.query(
           `UPDATE bookings SET check_out = $1, base_amount = $2, promo_discount = $3,
-                  promo_details = promo_details || $4::jsonb, manual_discount_amount = $5, total_amount = $6, updated_at = now()
-           WHERE id = $7`,
-          [newCheckOut, base, promo, JSON.stringify(extra.promoDetails), t.manual, t.total, b.id]
+                  promo_details = promo_details || $4::jsonb, manual_discount_amount = $5, total_amount = $6,
+                  tax_amount = $7, tax_details = $8, nights_detail = $9, updated_at = now()
+           WHERE id = $10`,
+          [newCheckOut, base, promo, JSON.stringify(extra.promoDetails), t.manual, t.total,
+           t.tax, JSON.stringify(t.taxDetails), JSON.stringify(nights), b.id]
         ),
       { roomUnitId: b.room_unit_id, checkIn: b.check_out, checkOut: newCheckOut, excludeId: b.id }
     );
@@ -805,25 +842,35 @@ async function expireHolds() {
 // Reads
 // ---------------------------------------------------------------------------
 
-/** Guest status page: booking id + phone. Only guest-safe fields. */
-async function lookupForGuest(bookingId, phone) {
-  const { rows } = await query(`${BOOKING_SELECT} WHERE b.id = $1`, [bookingId]);
+/** Guest status page: booking reference + phone. Only guest-safe fields. */
+async function lookupForGuest(reference, phone) {
+  const { rows } = await query(`${BOOKING_SELECT} WHERE b.reference = $1`, [reference]);
   const b = rows[0];
-  if (!b || phoneKey(b.guest_phone) !== phoneKey(phone)) throw new ApiError(404, 'No booking matches that ID and phone number');
+  if (!b || phoneKey(b.guest_phone) !== phoneKey(phone)) throw new ApiError(404, 'No booking matches that reference and phone number');
   const { rows: refunds } = await query(
     `SELECT amount, method, status, created_at FROM refunds WHERE booking_id = $1 ORDER BY id`,
     [b.id]
   );
+  const { rows: typeRows } = await query(`SELECT images FROM rooms WHERE id = $1`, [b.room_type_id]);
   return {
     id: b.id,
+    reference: b.reference,
     status: b.status,
     guestName: b.guest_name,
-    room: { unitNumber: b.unit_number, type: b.room_type, view: b.view_label, floor: b.floor },
+    room: {
+      unitNumber: b.unit_number,
+      type: b.room_type,
+      typeId: b.room_type_id,
+      view: b.view_label,
+      floor: b.floor,
+      images: typeRows[0]?.images || [], // the room type's photos, cover first
+    },
     checkIn: b.check_in,
     checkOut: b.check_out,
     adults: b.adults,
     children: b.children,
     total: Number(b.total_amount),
+    tax: Number(b.tax_amount),
     paid: Number(b.amount_paid),
     balanceDue: Number(b.balance_due),
     holdExpiresAt: b.hold_expires_at,
@@ -931,8 +978,25 @@ async function deskOverview() {
      JOIN bookings b ON b.id = r.booking_id JOIN room_units ru ON ru.id = b.room_unit_id
      WHERE r.status = 'pending' AND r.method <> 'razorpay' ORDER BY r.id`
   );
+  // Tomorrow's arrivals, so the desk can prepare the evening before.
+  const { rows: tomorrowRows } = await query(
+    `${BOOKING_SELECT}
+     WHERE b.status IN ('confirmed', 'paid') AND b.check_in = $1::date + 1
+     ORDER BY ru.unit_number`,
+    [today]
+  );
+
+  // Whether each booking already has its primary guest's ID on file (a check-in needs it).
+  const ids = [...rows, ...tomorrowRows].map((b) => b.id);
+  const { rows: withId } = ids.length
+    ? await query(`SELECT DISTINCT booking_id FROM guest_documents WHERE booking_id = ANY($1) AND is_primary AND purged_at IS NULL`, [ids])
+    : { rows: [] };
+  const hasId = new Set(withId.map((d) => d.booking_id));
+  for (const b of [...rows, ...tomorrowRows]) b.has_primary_id = hasId.has(b.id);
+
   return {
     today,
+    tomorrowArrivals: tomorrowRows,
     arrivals: rows.filter((b) => b.status === 'confirmed'),
     inHouse: rows.filter((b) => b.status === 'checked_in'),
     departures: rows.filter((b) => b.status === 'checked_in' && b.check_out <= today),

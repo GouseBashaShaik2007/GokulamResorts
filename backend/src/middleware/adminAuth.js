@@ -1,14 +1,13 @@
 const jwt = require('jsonwebtoken');
 const { ApiError } = require('./errorHandler');
+const { tokenFor } = require('../utils/session');
 
-// Protects /api/admin/* routes (except /admin/login).
-// Expects: Authorization: Bearer <jwt>
+// Protects /api/admin/* routes (except /admin/login and /admin/logout).
+// The sign-in travels in the gk_admin cookie (see utils/session.js).
 function adminAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const [scheme, token] = header.split(' ');
-
-  if (scheme !== 'Bearer' || !token) {
-    return next(new ApiError(401, 'Missing or malformed Authorization header'));
+  const token = tokenFor(req, 'admin');
+  if (!token) {
+    return next(new ApiError(401, 'Please sign in'));
   }
 
   try {

@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { query } = require('../db/pool');
 const { ApiError } = require('../middleware/errorHandler');
 const asyncHandler = require('../utils/asyncHandler');
@@ -11,20 +12,31 @@ const { runNightlyCleaning } = require('../jobs/nightlyCleaning');
 // GET /api/admin/staff
 const listStaff = asyncHandler(async (req, res) => {
   const { rows } = await query(
-    `SELECT id, name, phone, role, is_active, created_at FROM staff ORDER BY is_active DESC, role, name`
+    `SELECT id, name, phone, role, is_active, created_at, (pin_hash IS NOT NULL) AS has_pin
+     FROM staff ORDER BY is_active DESC, role, name`
   );
   res.json({ success: true, staff: rows });
 });
 
-// POST /api/admin/staff
+// The front desk handles bookings, payments and guest IDs, so it signs in
+// with a password. Housekeeping may use a PIN instead (name tile + PIN).
+const needsPassword = (role) => role === 'FrontDesk';
+
+// POST /api/admin/staff — { name, phone, role, password?, pin? }
 const addStaff = asyncHandler(async (req, res) => {
-  const { name, phone, role, password } = req.body;
-  const passwordHash = await bcrypt.hash(password, 10);
+  const { name, phone, role, password, pin } = req.body;
+  if (needsPassword(role) && !password) throw new ApiError(400, 'Front desk staff need a password');
+  if (needsPassword(role) && pin) throw new ApiError(400, 'Front desk staff sign in with a password, not a PIN');
+  if (!password && !pin) throw new ApiError(400, 'Set a PIN or a password');
+
+  // No password given: the column still holds a hash, of something nobody knows.
+  const passwordHash = await bcrypt.hash(password || crypto.randomBytes(24).toString('hex'), 10);
+  const pinHash = pin ? await bcrypt.hash(pin, 10) : null;
   try {
     const { rows } = await query(
-      `INSERT INTO staff (name, phone, role, password_hash) VALUES ($1, $2, $3, $4)
-       RETURNING id, name, phone, role, is_active, created_at`,
-      [name, phone, role, passwordHash]
+      `INSERT INTO staff (name, phone, role, password_hash, pin_hash) VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, phone, role, is_active, created_at, (pin_hash IS NOT NULL) AS has_pin`,
+      [name, phone, role, passwordHash, pinHash]
     );
     res.status(201).json({ success: true, staff: rows[0] });
   } catch (err) {
@@ -33,10 +45,15 @@ const addStaff = asyncHandler(async (req, res) => {
   }
 });
 
-// PUT /api/admin/staff/:id — name, active flag, password reset. Role is fixed
-// once created (existing task assignments depend on it).
+// PUT /api/admin/staff/:id — name, active flag, password reset, PIN (set, or
+// null to remove). Role is fixed once created (existing task assignments
+// depend on it).
 const updateStaff = asyncHandler(async (req, res) => {
-  const { name, isActive, password } = req.body;
+  const { name, isActive, password, pin } = req.body;
+  if (pin) {
+    const { rows: current } = await query(`SELECT role FROM staff WHERE id = $1`, [req.params.id]);
+    if (current[0] && needsPassword(current[0].role)) throw new ApiError(400, 'Front desk staff sign in with a password, not a PIN');
+  }
   const sets = [];
   const values = [];
   if (name !== undefined) {
@@ -51,12 +68,16 @@ const updateStaff = asyncHandler(async (req, res) => {
     values.push(await bcrypt.hash(password, 10));
     sets.push(`password_hash = $${values.length}`);
   }
+  if (pin !== undefined) {
+    values.push(pin ? await bcrypt.hash(pin, 10) : null);
+    sets.push(`pin_hash = $${values.length}`);
+  }
   if (sets.length === 0) throw new ApiError(400, 'No valid fields provided to update');
 
   values.push(req.params.id);
   const { rows } = await query(
     `UPDATE staff SET ${sets.join(', ')}, updated_at = now() WHERE id = $${values.length}
-     RETURNING id, name, phone, role, is_active, created_at`,
+     RETURNING id, name, phone, role, is_active, created_at, (pin_hash IS NOT NULL) AS has_pin`,
     values
   );
   if (rows.length === 0) throw new ApiError(404, 'Staff member not found');
@@ -135,6 +156,7 @@ const createJob = asyncHandler(async (req, res) => {
 });
 
 // PUT /api/admin/cleaning/jobs/:id/assign — { beddingStaffId, toiletryStaffId, inspectorId }
+// Also PUT /api/staff/jobs/:id/assign, for inspectors.
 const assignJob = asyncHandler(async (req, res) => {
   const jobId = Number(req.params.id);
   const { beddingStaffId, toiletryStaffId, inspectorId } = req.body;
@@ -155,6 +177,32 @@ const updateJobPriority = asyncHandler(async (req, res) => {
   res.json({ success: true, job });
 });
 
+// The manager deciding an inspection in the inspector's place.
+
+// POST /api/admin/cleaning/jobs/:id/approve — { force? }. `force` marks the
+// room Ready even though cleaning has not finished.
+const approveJob = asyncHandler(async (req, res) => {
+  const job = await cleaning.approveJob(
+    Number(req.params.id),
+    { type: 'admin', id: req.admin.sub },
+    { force: req.body.force === true }
+  );
+  await emitJobUpdate(job.id, 'inspection_approved');
+  res.json({ success: true });
+});
+
+// POST /api/admin/cleaning/jobs/:id/reject — { failedTasks, failureReason }
+const rejectJob = asyncHandler(async (req, res) => {
+  const job = await cleaning.rejectJob(
+    Number(req.params.id),
+    { type: 'admin', id: req.admin.sub },
+    req.body.failedTasks,
+    req.body.failureReason
+  );
+  await emitJobUpdate(job.id, 'inspection_rejected');
+  res.json({ success: true });
+});
+
 // POST /api/admin/cleaning/run-nightly — same as the 11 PM run; safe to repeat.
 const runNightly = asyncHandler(async (req, res) => {
   const { date, jobs } = await runNightlyCleaning();
@@ -172,5 +220,7 @@ module.exports = {
   createJob,
   assignJob,
   updateJobPriority,
+  approveJob,
+  rejectJob,
   runNightly,
 };

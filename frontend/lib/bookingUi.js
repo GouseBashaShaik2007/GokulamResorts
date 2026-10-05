@@ -14,14 +14,14 @@ export const STATUS_LABEL = {
 };
 
 export const STATUS_STYLE = {
-  pending_payment: 'bg-navy-700 text-navy-200',
-  paid: 'bg-gold-500/15 text-gold-400',
-  confirmed: 'bg-blue-400/10 text-blue-300',
-  checked_in: 'bg-green-500/15 text-green-300',
-  checked_out: 'bg-navy-700 text-navy-300',
-  cancelled: 'bg-red-500/10 text-red-300',
-  rejected: 'bg-red-500/10 text-red-300',
-  no_show: 'bg-orange-400/10 text-orange-300',
+  pending_payment: 'bg-sand-300 text-ink-700',
+  paid: 'bg-gold-500/15 text-gold-600',
+  confirmed: 'bg-blue-400/10 text-blue-700',
+  checked_in: 'bg-green-500/15 text-green-700',
+  checked_out: 'bg-sand-300 text-ink-500',
+  cancelled: 'bg-red-500/10 text-red-700',
+  rejected: 'bg-red-500/10 text-red-700',
+  no_show: 'bg-orange-400/10 text-orange-700',
 };
 
 export function StatusBadge({ status }) {

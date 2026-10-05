@@ -5,6 +5,8 @@
  * Job:   Dirty -> Cleaning -> Inspection -> Ready
  *                    ^            |
  *                    +-- reject --+
+ *        The inspector decides; a manager or the front desk can approve in
+ *        their place, and a manager can also reject or mark a room Ready early.
  * Task:  Pending -> InProgress <-> Paused -> Completed   (Bedding / Toiletry)
  *        Pending -> InProgress (room reached Inspection) -> Completed on approve
  *                                                       -> Pending on reject  (Inspection)
@@ -213,6 +215,8 @@ async function loadOwnTask(client, taskId, staffId) {
   const { rows: taskRows } = await client.query(`SELECT * FROM cleaning_tasks WHERE id = $1`, [taskId]);
   const task = taskRows[0];
   if (task.assigned_staff_id !== staffId) throw new ApiError(403, 'This task is not assigned to you');
+  // A manager can mark a room ready before its tasks are done; nothing more happens on it then.
+  if (job.status === 'Ready') throw new ApiError(409, 'This room is already marked ready');
   return { job, task };
 }
 
@@ -276,8 +280,62 @@ async function completeTask(taskId, staffId) {
 }
 
 // ---------------------------------------------------------------------------
-// Inspector actions
+// Inspection decisions
 // ---------------------------------------------------------------------------
+
+// Who decided an inspection, as the cleaning_inspections column that records
+// them: a staff member (the inspector, or front desk staff standing in for
+// one) or a manager.
+const byStaff = (id) => ({ column: 'inspector_id', id });
+const byAdmin = (id) => ({ column: 'admin_id', id });
+
+async function markApproved(client, job, by) {
+  // start_time is already set when the room reached Inspection; it is only
+  // missing when a manager marks the room ready before that.
+  await client.query(
+    `UPDATE cleaning_tasks
+     SET status = 'Completed', start_time = COALESCE(start_time, now()), end_time = now(), updated_at = now()
+     WHERE job_id = $1 AND type = 'Inspection'`,
+    [job.id]
+  );
+  await setJobStatus(client, job, 'Ready', ', ready_at = now()');
+  await client.query(
+    `INSERT INTO cleaning_inspections (job_id, ${by.column}, result) VALUES ($1, $2, 'approved')`,
+    [job.id, by.id]
+  );
+}
+
+// Only the failed tasks go back to Pending; the rest stay Completed.
+async function markRejected(client, job, by, failed, failureReason) {
+  await client.query(
+    `UPDATE cleaning_tasks
+     SET status = 'Pending', start_time = NULL, end_time = NULL, failure_reason = $1, updated_at = now()
+     WHERE job_id = $2 AND type = ANY($3)`,
+    [failureReason, job.id, failed]
+  );
+  // Same inspector stays assigned; their task waits for the redo.
+  await client.query(
+    `UPDATE cleaning_tasks SET status = 'Pending', start_time = NULL, end_time = NULL, updated_at = now()
+     WHERE job_id = $1 AND type = 'Inspection'`,
+    [job.id]
+  );
+  await setJobStatus(client, job, 'Cleaning');
+  await client.query(
+    `INSERT INTO cleaning_inspections (job_id, ${by.column}, result, failed_tasks, failure_reason)
+     VALUES ($1, $2, 'rejected', $3, $4)`,
+    [job.id, by.id, failed, failureReason]
+  );
+}
+
+function failedTaskList(failedTasks) {
+  const failed = [...new Set(failedTasks)];
+  if (failed.length === 0 || failed.some((t) => !CLEANING_TYPES.includes(t))) {
+    throw new ApiError(400, 'failedTasks must list Bedding and/or Toiletry');
+  }
+  return failed;
+}
+
+// ----- The inspector, on their own inspection task -----
 
 async function loadInspection(client, taskId, staffId) {
   const { job, task } = await loadOwnTask(client, taskId, staffId);
@@ -288,49 +346,50 @@ async function loadInspection(client, taskId, staffId) {
 
 async function approveInspection(taskId, staffId) {
   return withTransaction(async (client) => {
-    const { job, task } = await loadInspection(client, taskId, staffId);
-
-    await client.query(
-      `UPDATE cleaning_tasks SET status = 'Completed', end_time = now(), updated_at = now() WHERE id = $1`,
-      [task.id]
-    );
-    await setJobStatus(client, job, 'Ready', ', ready_at = now()');
-    await client.query(
-      `INSERT INTO cleaning_inspections (job_id, inspector_id, result) VALUES ($1, $2, 'approved')`,
-      [job.id, staffId]
-    );
+    const { job } = await loadInspection(client, taskId, staffId);
+    await markApproved(client, job, byStaff(staffId));
     return job;
   });
 }
 
-// Only the failed tasks go back to Pending; the rest stay Completed.
 async function rejectInspection(taskId, staffId, failedTasks, failureReason) {
-  const failed = [...new Set(failedTasks)];
-  if (failed.length === 0 || failed.some((t) => !CLEANING_TYPES.includes(t))) {
-    throw new ApiError(400, 'failedTasks must list Bedding and/or Toiletry');
-  }
-
+  const failed = failedTaskList(failedTasks);
   return withTransaction(async (client) => {
-    const { job, task } = await loadInspection(client, taskId, staffId);
+    const { job } = await loadInspection(client, taskId, staffId);
+    await markRejected(client, job, byStaff(staffId), failed, failureReason);
+    return job;
+  });
+}
 
-    await client.query(
-      `UPDATE cleaning_tasks
-       SET status = 'Pending', start_time = NULL, end_time = NULL, failure_reason = $1, updated_at = now()
-       WHERE job_id = $2 AND type = ANY($3)`,
-      [failureReason, job.id, failed]
-    );
-    // Same inspector stays assigned; their task waits for the redo.
-    await client.query(
-      `UPDATE cleaning_tasks SET status = 'Pending', start_time = NULL, end_time = NULL, updated_at = now()
-       WHERE id = $1`,
-      [task.id]
-    );
-    await setJobStatus(client, job, 'Cleaning');
-    await client.query(
-      `INSERT INTO cleaning_inspections (job_id, inspector_id, result, failed_tasks, failure_reason)
-       VALUES ($1, $2, 'rejected', $3, $4)`,
-      [job.id, staffId, failed, failureReason]
-    );
+// ----- A manager or the front desk, in the inspector's place -----
+
+// `actor`: { type: 'admin' | 'staff', id }, as deskAuth sets it.
+const decidedBy = (actor) => (actor.type === 'admin' ? byAdmin(actor.id) : byStaff(actor.id));
+
+/**
+ * Approve a cleaned room when no inspector is around to. Cleaning must have
+ * finished (the room is at Inspection) — unless `force`, which makes the room
+ * Ready from any state: for a room marked dirty by mistake, or cleaned without
+ * the app. Callers offer `force` to managers only.
+ */
+async function approveJob(jobId, actor, { force = false } = {}) {
+  return withTransaction(async (client) => {
+    const job = await lockJob(client, jobId);
+    if (job.status === 'Ready') throw new ApiError(409, 'This room is already marked ready');
+    if (job.status !== 'Inspection' && !force) {
+      throw new ApiError(409, 'Cleaning has not finished in this room yet, so it cannot be approved');
+    }
+    await markApproved(client, job, decidedBy(actor));
+    return job;
+  });
+}
+
+async function rejectJob(jobId, actor, failedTasks, failureReason) {
+  const failed = failedTaskList(failedTasks);
+  return withTransaction(async (client) => {
+    const job = await lockJob(client, jobId);
+    if (job.status !== 'Inspection') throw new ApiError(409, 'Room is not ready for inspection yet');
+    await markRejected(client, job, decidedBy(actor), failed, failureReason);
     return job;
   });
 }
@@ -432,6 +491,8 @@ module.exports = {
   completeTask,
   approveInspection,
   rejectInspection,
+  approveJob,
+  rejectJob,
   listTasksForStaff,
   listJobsForAdmin,
   staffIdsForJob,

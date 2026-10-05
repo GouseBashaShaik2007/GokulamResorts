@@ -2,42 +2,162 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
+/* Height of the sticky guest navbar. The hero slides under it and the sticky
+   filter / menu bars sit just below it. */
+:root {
+  --nav-h: 72px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
-  @apply bg-navy-950 text-navy-50;
+  @apply bg-sand-50 text-ink-900 font-sans antialiased;
 }
 
-.btn-gold {
-  @apply inline-flex items-center justify-center rounded-full bg-gold-500 px-6 py-3
-    font-semibold text-navy-950 transition-colors duration-200 hover:bg-gold-400
-    focus:outline-none focus:ring-2 focus:ring-gold-300 focus:ring-offset-2 focus:ring-offset-navy-950;
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-full bg-ocean-500 px-6 py-3
+    font-semibold tracking-wide text-white transition-all duration-300 ease-out-soft hover:bg-ocean-600
+    focus:outline-none focus:ring-2 focus:ring-ocean-300 focus:ring-offset-2 focus:ring-offset-sand-50
+    active:scale-[0.98];
 }
 
 .btn-outline {
-  @apply inline-flex items-center justify-center rounded-full border border-gold-500/60 px-6 py-3
-    font-semibold text-gold-400 transition-colors duration-200 hover:bg-gold-500/10;
+  @apply inline-flex items-center justify-center rounded-full border border-ocean-500/50 px-6 py-3
+    font-semibold tracking-wide text-ocean-600 transition-all duration-300 ease-out-soft hover:bg-ocean-50
+    active:scale-[0.98];
 }
 
 .section-heading {
-  @apply font-serif text-3xl font-bold text-navy-50 md:text-4xl;
+  @apply font-serif text-display-md font-semibold leading-tight tracking-tight text-ink-900;
+}
+
+/* Oversized editorial heading — marketing pages only, not dashboards. */
+.display-heading {
+  @apply font-serif text-display-lg font-medium tracking-tight text-ink-900;
 }
 
 .eyebrow {
-  @apply text-sm uppercase tracking-[0.2em] text-gold-400;
+  @apply font-sans text-[0.75rem] font-medium uppercase tracking-[0.28em] text-gold-600;
+}
+
+/* The serif's own figures are old-style: a "1" that reads as "I", a "0" as
+   "o" — room 101 came out as "IOI". Wherever the serif shows a number (a room,
+   a count, a date) it uses its lining figures instead. */
+.font-serif,
+.section-heading,
+.display-heading {
+  font-variant-numeric: lining-nums;
+}
+
+/* Price figures — Inter with tabular lining numerals, not the serif's
+   oldstyle numerals ("₹6,5oo"). Pair with a size utility at each usage. */
+.price {
+  @apply font-sans font-semibold text-gold-600 [font-variant-numeric:lining-nums_tabular-nums];
 }
 
 .card {
-  @apply rounded-2xl border border-navy-700/60 bg-navy-900 shadow-lg shadow-black/20;
+  @apply rounded-2xl border border-sand-300/60 bg-sand-100 shadow-lg shadow-black/20 transition-shadow duration-300;
+}
+
+/* Frosted panel — the floating booking bar, badges overlapping imagery, etc. */
+.glass {
+  @apply border border-sand-300 bg-sand-50/60 shadow-glass backdrop-blur-xl;
+}
+
+/* Hover-only image zoom. Gated to real pointer devices so it never fires on
+   touch/kiosk screens (no true hover there, and tap can "stick" the state). */
+.media-zoom img {
+  transition: transform 0.6s ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .media-zoom:hover img {
+    transform: scale(1.04);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-zoom img {
+    transition: none;
+    transform: none !important;
+  }
 }
 
 .input-field {
-  @apply w-full rounded-lg border border-navy-600 bg-navy-800 px-4 py-3 text-navy-50
-    placeholder:text-navy-300 focus:border-gold-400 focus:outline-none focus:ring-1 focus:ring-gold-400;
+  @apply w-full rounded-lg border border-sand-400 bg-sand-200 px-4 py-3 text-ink-900
+    placeholder:text-ink-400 focus:border-ocean-400 focus:outline-none focus:ring-1 focus:ring-ocean-400;
 }
 
 .label {
-  @apply mb-1 block text-sm font-medium text-navy-200;
+  @apply mb-1 block text-sm font-medium text-ink-500;
+}
+
+/* Page fade-in (see app/(site)/template.js). Starts nearly visible so the
+   first paint is never blank, even before JavaScript runs. */
+@keyframes page-in {
+  from { opacity: 0.4; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+/* fill-mode `backwards`, not `both`: a transform left on this wrapper after the
+   animation would make every position:fixed element inside a page (cart
+   panel, dialogs) scroll with the page instead of staying on screen. */
+.animate-page-in {
+  animation: page-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in { animation: none; }
+}
+
+/* Photo-overlay badge: dark scrim + white text, readable on any photo. */
+.photo-badge {
+  @apply rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white backdrop-blur-sm;
+}
+
+/* Stock photo stand-ins (data-placeholder="true") are replaced when the
+   resort's own photos arrive. Neutral frame for rooms without photos yet. */
+.photo-coming-soon {
+  @apply flex h-full w-full flex-col items-center justify-center gap-1 bg-sand-200 text-center text-ink-400;
+  background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(28, 42, 51, 0.04) 14px 15px);
+}
+
+/* The manager's screens. Inputs are plain white on the sand cards (the shared
+   .input-field is tuned for the guest site's cards), and the scrollbar keeps
+   its space so moving between sections never shifts the page sideways. */
+.admin-shell .input-field {
+  @apply border-sand-300 bg-white;
+}
+.admin-shell .input-field:focus {
+  @apply border-ocean-500 ring-1 ring-ocean-500;
+}
+html:has(.admin-shell) {
+  scrollbar-gutter: stable;
+}
+
+/* Printing (a booking summary, the table QR codes): the page itself, without
+   the site around it. Anything marked .no-print is left out. */
+@media print {
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .card {
+    box-shadow: none;
+  }
+  main {
+    padding-bottom: 0;
+  }
+}
+
+/* Reserved space so the floating booking bar never overlaps footer/page
+   content — set dynamically by FloatingBookingBar, 0 when it's hidden. */
+main {
+  padding-bottom: var(--booking-bar-space, 0px);
+  transition: padding-bottom 0.3s ease-out-soft;
 }

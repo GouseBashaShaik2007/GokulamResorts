@@ -7,6 +7,7 @@ const normalizePhone = (p) => String(p).trim().replace(/(?!^\+)[^\d]/g, '');
 
 // GET /api/availability?checkIn&checkOut&roomTypeId&guests
 // Real room numbers that are free for the dates, grouped by type, with prices.
+// For a stay starting today, only rooms housekeeping has passed.
 const getAvailability = asyncHandler(async (req, res) => {
   const { checkIn, checkOut, roomTypeId, guests } = req.query;
   const types = await bookings.availability({
@@ -14,6 +15,7 @@ const getAvailability = asyncHandler(async (req, res) => {
     checkOut,
     roomTypeId: roomTypeId ? Number(roomTypeId) : null,
     guests: guests ? Number(guests) : 1,
+    liveOnly: true,
   });
   res.json({ success: true, types });
 });
@@ -28,6 +30,7 @@ const createBooking = asyncHandler(async (req, res) => {
     success: true,
     message: 'Room held. Complete payment to send your booking for confirmation.',
     bookingId: b.id,
+    reference: b.reference,
     amount: Number(b.total_amount),
     currency: 'INR',
     holdExpiresAt: b.hold_expires_at,
@@ -35,9 +38,9 @@ const createBooking = asyncHandler(async (req, res) => {
   });
 });
 
-// GET /api/bookings/lookup?bookingId&phone — guest status page (no login).
+// GET /api/bookings/lookup?reference&phone — guest status page (no login).
 const lookup = asyncHandler(async (req, res) => {
-  const booking = await bookings.lookupForGuest(Number(req.query.bookingId), req.query.phone);
+  const booking = await bookings.lookupForGuest(req.query.reference, req.query.phone);
   res.json({ success: true, booking });
 });
 
